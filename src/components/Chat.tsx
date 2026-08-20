@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
+import { Send, MessageSquare } from 'lucide-react';
 
 export default function Chat({ gameId }: { gameId: string }) {
   const { user, spectatingGameId } = useGameStore();
@@ -16,26 +17,31 @@ export default function Chat({ gameId }: { gameId: string }) {
       orderBy('createdAt', 'asc'),
       limit(50)
     );
-    
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, `games/${gameId}/messages`));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, `games/${gameId}/messages`)
+    );
 
     return () => unsub();
   }, [gameId]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || !user) return;
-    
+    if (!text.trim() || !user || isSpectator) return;
+
     try {
       await addDoc(collection(db, `games/${gameId}/messages`), {
         senderId: user.id,
+        senderName: user.username,
         text: text.trim(),
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
       });
       setText('');
     } catch (err) {
@@ -44,51 +50,78 @@ export default function Chat({ gameId }: { gameId: string }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0D0D0D]">
-      <div className="p-6 flex-1 flex flex-col min-h-0">
-        <h2 className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 mb-6 shrink-0">Terminal Chat</h2>
-        
-        <div className="flex-1 space-y-4 overflow-y-auto mb-4 pr-2">
-          {messages.map(msg => {
+    <div className="flex flex-col h-full bg-surface-base">
+      {/* Header */}
+      <div className="p-4 border-b border-glass-border flex justify-between items-center bg-surface-elevated/40">
+        <div className="flex items-center gap-2">
+          <MessageSquare size={14} className="text-velocity-red" />
+          <h3 className="font-label-caps text-xs text-text-primary font-bold uppercase tracking-wider">
+            Terminal Uplink
+          </h3>
+        </div>
+        <span className="font-label-caps text-[10px] text-text-muted font-mono">
+          {messages.length} MSGS
+        </span>
+      </div>
+
+      {/* Message Stream */}
+      <div className="flex-1 p-4 space-y-2.5 overflow-y-auto min-h-0 divide-y divide-transparent">
+        {messages.length === 0 ? (
+          <div className="text-center text-text-muted font-label-caps text-[11px] py-8">
+            Encrypted Channel Established.
+          </div>
+        ) : (
+          messages.map((msg) => {
             const isMe = msg.senderId === user?.id;
-            const time = msg.createdAt ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...';
+            const time = msg.createdAt?.toDate
+              ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '...';
+            const name = isMe ? 'You' : msg.senderName || msg.senderId.substring(0, 6);
+
             return (
-              <div key={msg.id} className="flex flex-col gap-1">
-                <span className="text-[10px] text-neutral-600 font-mono">[{time}] {isMe ? 'You' : msg.senderId.substring(0,6)}:</span>
-                <p className="text-xs text-neutral-300 break-words">{msg.text}</p>
+              <div key={msg.id} className="flex flex-col gap-0.5 text-xs font-body-sm pt-1">
+                <div className="flex items-center gap-2">
+                  <span className={`font-label-caps text-[10px] font-bold ${isMe ? 'text-velocity-red' : 'text-text-primary'}`}>
+                    {name}
+                  </span>
+                  <span className="font-mono text-[9px] text-text-muted">
+                    {time}
+                  </span>
+                </div>
+                <p className="text-text-secondary text-xs break-words bg-surface-container/40 p-2 rounded border border-glass-border">
+                  {msg.text}
+                </p>
               </div>
             );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
-        
-        <div className="mt-auto pt-4 border-t border-neutral-800 shrink-0">
-          {isSpectator ? (
-             <div className="text-[10px] uppercase tracking-widest text-neutral-600 font-mono text-center">
-               Spectator Chat Disabled
-             </div>
-          ) : (
-            <form onSubmit={handleSend} className="w-full">
-              <input
-                type="text"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Type message..."
-                className="w-full bg-transparent border-none text-xs focus:ring-0 text-neutral-400 p-0 outline-none placeholder:text-neutral-700"
-              />
-            </form>
-          )}
-        </div>
+          })
+        )}
+        <div ref={messagesEndRef} />
       </div>
-      
-      <div className="p-6 bg-neutral-900/30 border-t border-neutral-800 shrink-0">
-        <h2 className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 mb-4">Wager Status</h2>
-        <div className="space-y-2">
-           <div className="flex justify-between text-[10px] font-mono">
-             <span className="text-neutral-500">STAKE</span>
-             <span className="text-[#14F195]">ACTIVE</span>
-           </div>
-        </div>
+
+      {/* Input */}
+      <div className="p-3 bg-surface-elevated border-t border-glass-border mt-auto">
+        {isSpectator ? (
+          <div className="font-label-caps text-[10px] uppercase tracking-wider text-text-muted text-center py-1">
+            Spectator Feed — Read Only
+          </div>
+        ) : (
+          <form onSubmit={handleSend} className="flex gap-2">
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Transmit message..."
+              className="flex-1 bg-surface-base border border-glass-border text-text-primary font-body-sm text-xs px-3 py-2 rounded focus:border-velocity-red outline-none placeholder:text-text-muted"
+            />
+            <button
+              type="submit"
+              disabled={!text.trim()}
+              className="bg-velocity-red text-text-primary px-3 py-2 rounded hover:bg-primary-container disabled:opacity-40 transition-colors"
+            >
+              <Send size={14} />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

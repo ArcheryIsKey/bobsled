@@ -1,0 +1,269 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>bobsled.gg - Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-base": "#121212",
+                    "velocity-red": "#ff4d4d",
+                    "text-muted": "#666666",
+                    "on-tertiary-fixed": "#1c1b1b",
+                    "surface-tint": "#ffb3ae",
+                    "on-secondary-container": "#b4b5b5",
+                    "outline": "#ab8986",
+                    "on-primary-fixed": "#410004",
+                    "on-secondary-fixed-variant": "#454747",
+                    "on-primary": "#68000b",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "inverse-primary": "#ba1724",
+                    "error": "#ffb4ab",
+                    "on-surface": "#e5e2e1",
+                    "background": "#131313",
+                    "glass-border": "rgba(255, 255, 255, 0.12)",
+                    "text-primary": "#ffffff",
+                    "error-container": "#93000a",
+                    "secondary-fixed-dim": "#c6c6c7",
+                    "on-surface-variant": "#e4beba",
+                    "surface-dim": "#131313",
+                    "text-secondary": "#a1a1a1",
+                    "on-secondary-fixed": "#1a1c1c",
+                    "surface-variant": "#353534",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "surface-elevated": "#1a1a1a",
+                    "inverse-on-surface": "#313030",
+                    "on-error": "#690005",
+                    "primary": "#ffb3ae",
+                    "surface": "#131313",
+                    "tertiary-fixed": "#e5e2e1",
+                    "on-primary-fixed-variant": "#930014",
+                    "outline-variant": "#5b403e",
+                    "secondary": "#c6c6c7",
+                    "surface-container-low": "#1c1b1b",
+                    "secondary-container": "#454747",
+                    "secondary-fixed": "#e2e2e2",
+                    "on-secondary": "#2f3131",
+                    "tertiary-container": "#929090",
+                    "primary-container": "#ff5352",
+                    "on-tertiary-container": "#2a2a2a",
+                    "surface-container-highest": "#353534",
+                    "primary-fixed": "#ffdad7",
+                    "surface-container-high": "#2a2a2a",
+                    "surface-container-lowest": "#0e0e0e",
+                    "surface-bright": "#3a3939",
+                    "on-primary-container": "#5c0008",
+                    "on-error-container": "#ffdad6",
+                    "tertiary": "#c8c6c5",
+                    "primary-fixed-dim": "#ffb3ae",
+                    "on-background": "#e5e2e1",
+                    "inverse-surface": "#e5e2e1",
+                    "on-tertiary": "#313030",
+                    "surface-container": "#201f1f"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "max-width": "1280px",
+                    "gutter": "24px",
+                    "base": "4px",
+                    "margin-desktop": "40px"
+            },
+            "fontFamily": {
+                    "body-md": [
+                            "Inter"
+                    ],
+                    "headline-lg": [
+                            "Hanken Grotesk"
+                    ],
+                    "headline-lg-mobile": [
+                            "Hanken Grotesk"
+                    ],
+                    "display-lg": [
+                            "Hanken Grotesk"
+                    ],
+                    "body-sm": [
+                            "Inter"
+                    ],
+                    "label-caps": [
+                            "JetBrains Mono"
+                    ]
+            },
+            "fontSize": {
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "56px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-sm": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "500"
+                            }
+                    ]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: theme('colors.background'); color: theme('colors.text-primary'); }
+        h1, h2, h3, h4, h5, h6, .font-display-lg, .font-headline-lg { font-family: 'Hanken Grotesk', sans-serif; }
+        .glass-panel {
+            background-color: theme('colors.surface-base');
+            border: 1px solid theme('colors.glass-border');
+            backdrop-filter: blur(16px);
+        }
+    </style>
+</head>
+<body class="bg-background text-text-primary antialiased min-h-screen flex flex-col font-body-md selection:bg-velocity-red selection:text-text-primary">
+<!-- TopNavBar Structure from bobsled.gg -->
+<header class="bg-surface-elevated/80 backdrop-blur-lg border-b border-glass-border sticky top-0 z-50">
+<div class="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
+<div class="font-headline-lg-mobile md:font-headline-lg text-2xl font-bold text-velocity-red tracking-tighter">
+                bobsled.gg
+            </div>
+<nav class="hidden md:flex items-center space-x-gutter">
+<a class="text-text-primary font-bold border-b-2 border-velocity-red pb-1 font-label-caps text-xs active:scale-95 transition-transform hover:bg-surface-variant/50 transition-all duration-200 px-2 py-1" href="#">Lobby</a>
+<a class="text-text-secondary font-medium hover:text-text-primary transition-colors font-label-caps text-xs active:scale-95 transition-transform hover:bg-surface-variant/50 transition-all duration-200 px-2 py-1" href="#">Leaderboard</a>
+<a class="text-text-secondary font-medium hover:text-text-primary transition-colors font-label-caps text-xs active:scale-95 transition-transform hover:bg-surface-variant/50 transition-all duration-200 px-2 py-1" href="#">History</a>
+</nav>
+<div class="flex items-center space-x-4">
+<button class="font-label-caps text-xs text-text-primary bg-surface-container border border-glass-border rounded px-4 py-2 hover:bg-surface-variant transition-colors flex items-center space-x-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="account_balance_wallet" data-weight="fill">account_balance_wallet</span>
+<span class="">Balance</span>
+</button>
+<button class="text-text-secondary hover:text-text-primary transition-colors p-2 rounded-full hover:bg-surface-variant">
+<span class="material-symbols-outlined" data-icon="notifications" data-weight="fill">notifications</span>
+</button>
+<img alt="User Avatar" class="w-8 h-8 rounded-full border border-glass-border object-cover" data-alt="A small, stylized avatar profile picture of a user in a futuristic, sleek dark mode gaming interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6Pzw-p5HMTTAU334aBl2Fmx0IF0TnQPeW7hvG_CDGG6JhrWM0xRWZkqIIKn8FqMoUv8MZvLMctDF8vBdLpWRqA2447_DMSdBDAz__pOBn6TiuD_OIF0nqU3FjyCzW_qchxRFIiMmuGJpD1JDZGZmHuVJ0Y2QQ-TbmCzWP_s2xydnd8CRyRyTUD_d4ghlWMePTkK-qC7zrbHiFXiHpfe4SFyPZMJrdAhMATegT4kR8kB-GIQhfcdUJ">
+</div>
+</div>
+</header>
+<main class="flex-grow w-full max-w-max-width mx-auto px-margin-mobile md:px-margin-desktop py-margin-desktop">
+<div class="max-w-3xl mx-auto space-y-gutter">
+<!-- Left Column -->
+<div class="space-y-gutter">
+<!-- Data Sync Section -->
+<!-- START GAME Card with Shader -->
+<div class="glass-panel rounded-lg flex flex-col h-full relative overflow-hidden group shadow-[0_0_20px_rgba(255,77,77,0.15)] border-velocity-red/30">
+<div class="relative z-10 flex flex-col items-center justify-center p-8 md:p-12 gap-8 w-full text-center">
+<div class="relative z-10 flex w-full flex-col items-center justify-center gap-6">
+<h2 class="text-text-primary font-headline-lg text-4xl md:text-5xl tracking-[-0.015em] mb-2 uppercase group-hover:text-velocity-red transition-colors duration-300">Start Game</h2>
+<div class="flex flex-col items-center gap-6 justify-center w-full">
+<div class="flex flex-col gap-2 items-center">
+<p class="text-text-primary font-body-md font-medium leading-relaxed bg-surface-container-high w-fit px-4 py-2 rounded-full border border-glass-border">Current Match: <span class="text-velocity-red font-bold">CyberG0d vs. PilotZero</span></p>
+</div>
+<button class="flex min-w-[200px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-14 px-10 bg-velocity-red hover:bg-primary-container transition-colors text-text-primary font-bold shadow-[0_0_15px_rgba(255,77,77,0.3)] hover:shadow-[0_0_20px_rgba(255,77,77,0.5)] uppercase tracking-wider text-lg">
+<span class="truncate">Enter Match</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- LIVE ARENA Section -->
+<div class="mt-12 flex flex-col gap-6 max-w-2xl mx-auto">
+<div class="flex items-center justify-center mb-4">
+<h3 class="font-headline-lg text-text-primary text-3xl uppercase tracking-wider flex items-center">Live Games <span class="ml-4 inline-flex h-3 w-3 rounded-full bg-velocity-red relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-velocity-red opacity-75"></span></span></h3>
+</div>
+<!-- Match 1 -->
+<!-- Match 2 -->
+<div class="glass-panel rounded-lg p-5 flex items-center justify-between hover:bg-surface-container-highest/30 transition-colors group cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.5)] border-glass-border">
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-4">
+<img alt="Player 1" class="w-12 h-12 rounded-full border border-glass-border object-cover opacity-80 group-hover:opacity-100 transition-opacity" data-alt="A stylized duel icon featuring crossed geometric swords." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMHmUOWUzl-lRdaamhWemjgZ9-pmnVDegNmvW6kPzAQeKjskD9elXMrJ0Ea9uucifODcvsdUqJVqHnlLf0lczs6zuaIZvY3DjU4G916HSL6tNTN5k4ecAGJ9ZgMQ7awrvx66dsVKy-8HRtkT56jfcTTb64PXVyfNUG-qbD7ekKRqpgrL65tCVAir-7Ntc0JE-iwe_yA5S_QNroTVUyTScNZg45mufyFqkz6HvDxkCr115O6B8msHIA">
+<span class="font-label-caps text-sm text-text-primary font-bold">CyberG0d</span>
+</div>
+<span class="text-text-muted font-body-sm text-base italic font-semibold text-velocity-red/70">VS</span>
+<div class="flex items-center space-x-4">
+<span class="font-label-caps text-sm text-text-primary font-bold">PilotZero</span>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<div class="text-right flex items-center gap-2">
+<span class="inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+<div class="font-label-caps text-xs text-text-secondary uppercase font-bold text-green-400">Live Now</div>
+</div>
+</div>
+</div>
+<!-- Match 3 -->
+<div class="glass-panel rounded-lg p-5 flex items-center justify-between hover:bg-surface-container-highest/30 transition-colors group cursor-pointer opacity-90 shadow-[0_0_15px_rgba(0,0,0,0.5)] border-glass-border">
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-4">
+<img alt="Player 1" class="w-12 h-12 rounded-full border border-glass-border object-cover grayscale opacity-70 group-hover:opacity-90 transition-opacity" data-alt="A brooding, abstract representation of a standby arena." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDYYAU_6UB870k3-OA136kG00RusY_h3xn5INj5jsn0MJinXZ8utwUFAvSR2KZFb1etTDkv9naKhJjX5sy5d7WqrS-mPSGVQEUPHNtb46o6_SOmCxYdHqH8p5eR-Gr1A_TQNeLpJFFf7_hOIbkylsmbtb1M0JtpqwjoK_fK9cIDMZeksiIYfqsQPfWozBic430XftfPcEdjzVOg4SLXgp76_V7EepIGe4BEZjlkrIPerI5GEd-xsMzY">
+<span class="font-label-caps text-sm text-text-primary font-bold">NeonNinja</span>
+</div>
+<span class="text-text-muted font-body-sm text-base italic font-semibold">VS</span>
+<div class="flex items-center space-x-4">
+<span class="font-label-caps text-sm text-text-primary font-bold">StarLord</span>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<div class="text-right flex items-center gap-2">
+<span class="inline-flex h-2 w-2 rounded-full bg-yellow-500"></span>
+<div class="font-label-caps text-xs text-text-secondary uppercase font-bold text-yellow-400">Waiting for Opponent</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest border-t border-glass-border mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center w-full py-8 px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto">
+<div class="font-label-caps text-xs text-text-muted mb-4 md:mb-0">© 2026 bobsled.gg. All rights reserved.</div>
+<div class="flex space-x-6">
+<a class="font-body-sm text-sm text-text-muted hover:text-velocity-red transition-colors opacity-80 hover:opacity-100 font-label-caps text-xs" href="#">Terms</a>
+<a class="font-body-sm text-sm text-text-muted hover:text-velocity-red transition-colors opacity-80 hover:opacity-100 font-label-caps text-xs" href="#">Privacy</a>
+<a class="font-body-sm text-sm text-text-muted hover:text-velocity-red transition-colors opacity-80 hover:opacity-100 font-label-caps text-xs" href="#">Support</a>
+</div>
+</div>
+</footer>
+
+
+</body></html>

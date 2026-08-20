@@ -1,0 +1,284 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Player Profile - bobsled.gg</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed-dim": "#c6c6c7",
+                        "on-surface-variant": "#e4beba",
+                        "on-primary-fixed": "#410004",
+                        "error-container": "#93000a",
+                        "tertiary-fixed": "#e5e2e1",
+                        "on-secondary-container": "#b4b5b5",
+                        "outline": "#ab8986",
+                        "surface-tint": "#ffb3ae",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "surface-variant": "#353534",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "velocity-red": "#ff4d4d",
+                        "primary-container": "#ff5352",
+                        "surface-base": "#121212",
+                        "surface-container-highest": "#353534",
+                        "on-tertiary-container": "#2a2a2a",
+                        "surface-bright": "#3a3939",
+                        "surface-elevated": "#1a1a1a",
+                        "surface-container-low": "#1c1b1b",
+                        "on-tertiary": "#313030",
+                        "inverse-primary": "#ba1724",
+                        "text-primary": "#ffffff",
+                        "primary-fixed-dim": "#ffb3ae",
+                        "surface-container": "#201f1f",
+                        "glass-border": "rgba(255, 255, 255, 0.12)",
+                        "on-primary-container": "#5c0008",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "on-secondary": "#2f3131",
+                        "tertiary": "#c8c6c5",
+                        "text-muted": "#666666",
+                        "on-primary-fixed-variant": "#930014",
+                        "primary": "#ffb3ae",
+                        "surface": "#131313",
+                        "inverse-surface": "#e5e2e1",
+                        "on-primary": "#68000b",
+                        "secondary": "#c6c6c7",
+                        "surface-container-high": "#2a2a2a",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#ffdad7",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "surface-container-lowest": "#0e0e0e",
+                        "surface-dim": "#131313",
+                        "outline-variant": "#5b403e",
+                        "on-secondary-fixed-variant": "#454747",
+                        "inverse-on-surface": "#313030",
+                        "on-surface": "#e5e2e1",
+                        "background": "#131313",
+                        "secondary-fixed": "#e2e2e2",
+                        "on-error": "#690005",
+                        "text-secondary": "#a1a1a1",
+                        "tertiary-container": "#929090",
+                        "on-background": "#e5e2e1",
+                        "secondary-container": "#454747",
+                        "error": "#ffb4ab"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "base": "4px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "max-width": "1280px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Hanken Grotesk"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Inter"],
+                        "label-caps": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-text-primary min-h-screen flex flex-col font-body-md antialiased selection:bg-velocity-red selection:text-text-primary">
+<!-- TopNavBar -->
+<header class="bg-surface-elevated/80 backdrop-blur-lg border-b border-glass-border docked full-width top-0 z-50 sticky">
+<div class="flex justify-between items-center w-full px-margin-desktop max-w-max-width mx-auto h-16">
+<div class="font-headline-lg text-headline-lg font-bold text-velocity-red tracking-tighter">
+                bobsled.gg
+            </div>
+<nav class="hidden md:flex gap-8">
+<a class="text-text-secondary font-medium hover:text-text-primary transition-colors hover:bg-surface-variant/50 transition-all duration-200 px-3 py-2 rounded-DEFAULT active:scale-95 transition-transform font-label-caps text-label-caps" href="#">Lobby</a>
+<a class="text-text-secondary font-medium hover:text-text-primary transition-colors hover:bg-surface-variant/50 transition-all duration-200 px-3 py-2 rounded-DEFAULT active:scale-95 transition-transform font-label-caps text-label-caps" href="#">Leaderboard</a>
+<a class="text-text-secondary font-medium hover:text-text-primary transition-colors hover:bg-surface-variant/50 transition-all duration-200 px-3 py-2 rounded-DEFAULT active:scale-95 transition-transform font-label-caps text-label-caps" href="#">History</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="text-text-secondary hover:text-text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 1;">notifications</span>
+</button>
+<button class="bg-surface-container border border-glass-border px-4 py-2 rounded-DEFAULT font-label-caps text-label-caps text-text-primary hover:border-velocity-red transition-colors flex items-center gap-2">
+                    Balance
+                    <span class="text-velocity-red font-bold">12,450 ⟠</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-glass-border cursor-pointer">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="A futuristic, high-contrast avatar image of a gamer character, rendered in sleek dark mode tones of charcoal and bright neon red highlights. The style is hyper-detailed, reminiscent of high-end cyberpunk game assets, set against a completely black background for stark contrast." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRm_bKXZgfy9pnCi-jIIv4kb6LuGsZxjGUo4RcvmDOaPiuKpZ5kTVmpNAfIVYccN2NELGj4x0RhIUGRD8GfVwFLpwXgHeig8YoWG9UgdDEIHgyF8bcl86N0Mtp-g4-tU5ZsO1BeUqM9Xw1sAxJx5bQ741wlezF9S-7hZAqzrS5II4PfpIn3laU5lFp0ey_VjamUK9UjKTPxs38fWWiONYLy7m6jJCCwDKRVKX4i-kfEVC6stoQfhBP">
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 w-full max-w-max-width mx-auto px-margin-mobile md:px-margin-desktop py-10 md:py-16">
+<!-- Profile Header Section -->
+<section class="mb-12 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+<div class="flex items-center gap-6">
+<div class="w-24 h-24 rounded-DEFAULT overflow-hidden border-2 border-glass-border relative group">
+<img alt="Player Profile Picture" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="A close-up, highly detailed portrait avatar of an elite e-sports player. The image is styled with a sleek stealth aesthetic, using deep charcoal blacks and sharp, high-contrast white lighting. Subtle velocity-red neon accents highlight the futuristic visor worn by the subject, giving a sense of high-velocity precision." src="https://lh3.googleusercontent.com/aida-public/AB6AXuACzeSopKOg7rPxqnOPU2TitX4yIb086F6IPwyv84Tin-QHaQySlIwmdrju-xGLde6yY_aWh2DZy3lXZlE-y-WQsEk2BYE7xoYQ8auHzEX3ZmpPNJhwX70F8veHaOzHB_YgMV1bAmcd7YSpljjmiyZGax06ktaVy9gN-WMcFJGI09qSIVqz0n33cTwc2alEr3KunKeEWpoTpK1zzoU18LClIbGs350oOPYX58eeVkzfXYrbfi6sMAeD">
+<div class="absolute inset-0 bg-surface-base/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm cursor-pointer">
+<span class="material-symbols-outlined text-text-primary">edit</span>
+</div>
+</div>
+<div>
+<h1 class="font-display-lg text-display-lg text-text-primary mb-1 tracking-tighter">CyberG0d</h1>
+<div class="flex items-center gap-3">
+
+
+</div>
+</div>
+</div>
+<div class="flex gap-4 w-full md:w-auto">
+<button class="flex-1 md:flex-none border border-glass-border bg-transparent text-text-primary hover:bg-surface-elevated px-6 py-3 rounded-DEFAULT font-label-caps text-label-caps transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+                    Edit Profile
+                </button>
+<button class="flex-1 md:flex-none bg-velocity-red text-text-primary hover:bg-primary-container px-6 py-3 rounded-DEFAULT font-label-caps text-label-caps transition-colors shadow-[0_0_15px_rgba(255,77,77,0.2)] flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                    Export Data
+                </button>
+</div>
+</section>
+<!-- Stats Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-12">
+<!-- Stat Card 1 -->
+<div class="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+<div class="absolute top-0 left-0 w-full h-1 bg-velocity-red opacity-50 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-text-secondary uppercase">Total Balance</span>
+<span class="material-symbols-outlined text-text-muted">account_balance_wallet</span>
+</div>
+<div class="font-headline-lg text-headline-lg text-text-primary mb-1">
+                    12,450 <span class="text-velocity-red text-[24px]">⟠</span>
+</div>
+<div class="font-body-sm text-body-sm text-velocity-red flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+                    +5.2% this week
+                </div>
+</div>
+<!-- Stat Card 2 -->
+<div class="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-text-secondary uppercase">Total Earnings</span>
+<span class="material-symbols-outlined text-text-muted">payments</span>
+</div>
+<div class="font-headline-lg text-headline-lg text-text-primary mb-1">
+                    $48,290
+                </div>
+<div class="font-body-sm text-body-sm text-text-muted">
+                    Lifetime
+                </div>
+</div>
+<!-- Stat Card 3 -->
+<div class="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-text-secondary uppercase">Total Wins</span>
+<span class="material-symbols-outlined text-text-muted">emoji_events</span>
+</div>
+<div class="font-headline-lg text-headline-lg text-text-primary mb-1">
+                    1,248
+                </div>
+<div class="font-body-sm text-body-sm text-text-muted">
+                    68% Win Rate
+                </div>
+</div>
+<!-- Stat Card 4 -->
+<div class="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label-caps text-label-caps text-text-secondary uppercase">Total Losses</span>
+<span class="material-symbols-outlined text-text-muted">close</span>
+</div>
+<div class="font-headline-lg text-headline-lg text-text-primary mb-1 text-text-muted">
+                    582
+                </div>
+<div class="font-body-sm text-body-sm text-text-muted">
+                    32% Loss Rate
+                </div>
+</div>
+</section>
+<!-- Recent Activity Section -->
+<section>
+<h2 class="font-headline-lg text-headline-lg text-text-primary mb-6 border-b border-glass-border pb-4">Recent Activity</h2>
+<div class="bg-surface-base border border-glass-border rounded-lg overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-elevated/50 border-b border-glass-border">
+<th class="py-4 px-6 font-label-caps text-label-caps text-text-secondary uppercase w-1/4">Match ID</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-text-secondary uppercase w-1/4">Date</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-text-secondary uppercase w-1/4">Result</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-text-secondary uppercase text-right w-1/4">Delta</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm">
+<tr class="border-b border-glass-border hover:bg-surface-elevated/30 transition-colors group">
+<td class="py-4 px-6 font-label-caps text-label-caps text-text-primary group-hover:text-velocity-red transition-colors cursor-pointer">#M-8492-X</td>
+<td class="py-4 px-6 text-text-muted">Oct 24, 2024 • 14:30</td>
+<td class="py-4 px-6">
+<span class="bg-velocity-red/10 text-velocity-red border border-velocity-red/20 px-2 py-1 rounded-DEFAULT font-label-caps text-[10px]">VICTORY</span>
+</td>
+<td class="py-4 px-6 text-right text-text-primary font-medium">+150 ⟠</td>
+</tr>
+<tr class="border-b border-glass-border hover:bg-surface-elevated/30 transition-colors group">
+<td class="py-4 px-6 font-label-caps text-label-caps text-text-primary group-hover:text-velocity-red transition-colors cursor-pointer">#M-8491-X</td>
+<td class="py-4 px-6 text-text-muted">Oct 23, 2024 • 21:15</td>
+<td class="py-4 px-6">
+<span class="bg-surface-container-highest text-text-secondary border border-glass-border px-2 py-1 rounded-DEFAULT font-label-caps text-[10px]">DEFEAT</span>
+</td>
+<td class="py-4 px-6 text-right text-text-muted font-medium">-50 ⟠</td>
+</tr>
+<tr class="hover:bg-surface-elevated/30 transition-colors group">
+<td class="py-4 px-6 font-label-caps text-label-caps text-text-primary group-hover:text-velocity-red transition-colors cursor-pointer">#M-8490-X</td>
+<td class="py-4 px-6 text-text-muted">Oct 22, 2024 • 18:45</td>
+<td class="py-4 px-6">
+<span class="bg-velocity-red/10 text-velocity-red border border-velocity-red/20 px-2 py-1 rounded-DEFAULT font-label-caps text-[10px]">VICTORY</span>
+</td>
+<td class="py-4 px-6 text-right text-text-primary font-medium">+200 ⟠</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="bg-surface-elevated/50 p-4 flex justify-center border-t border-glass-border">
+<button class="text-text-secondary hover:text-text-primary font-label-caps text-label-caps flex items-center gap-2 transition-colors">
+                        View Full History
+                        <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest border-t border-glass-border full-width bottom mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center w-full py-8 px-margin-desktop max-w-max-width mx-auto">
+<div class="font-label-caps text-label-caps text-text-muted mb-4 md:mb-0">
+                © 2026&nbsp;<span style="letter-spacing: 0.05em;" class="">bobsled.gg</span></div>
+<nav class="flex gap-6">
+<a class="font-label-caps text-label-caps text-text-muted hover:text-velocity-red transition-colors opacity-80 hover:opacity-100" href="#">Privacy</a>
+<a class="font-label-caps text-label-caps text-text-muted hover:text-velocity-red transition-colors opacity-80 hover:opacity-100" href="#">Terms</a>
+<a class="font-label-caps text-label-caps text-text-muted hover:text-velocity-red transition-colors opacity-80 hover:opacity-100" href="#">Support</a>
+</nav>
+</div>
+</footer>
+
+
+</body></html>

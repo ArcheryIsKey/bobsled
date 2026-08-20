@@ -6,7 +6,7 @@ import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
 import UserProfileModal from './UserProfileModal';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
@@ -122,7 +122,7 @@ export default function Game() {
     };
   }, [game, user]);
 
-  // Handle joining via one-time invite link
+  // Handle joining via one-time invite link with randomized Red vs White and Turn
   const handleJoinViaInvite = async () => {
     if (!user || !game || game.status !== 'waiting') return;
     if (user.id === game.player1) return;
@@ -134,14 +134,33 @@ export default function Game() {
 
     setIsJoiningInvite(true);
     try {
+      // Randomly assign who plays as Red (Player 1) vs White (Player 2)
+      const isHostRed = Math.random() > 0.5;
+      const assignedP1 = isHostRed ? game.player1 : user.id;
+      const assignedP1Name = isHostRed ? game.player1Name : user.username;
+      const assignedP1Avatar = isHostRed ? game.player1Avatar : (user.avatarUrl || null);
+      const assignedP1IsTest = isHostRed ? game.player1IsTest : !!user.isTestUser;
+
+      const assignedP2 = isHostRed ? user.id : game.player1;
+      const assignedP2Name = isHostRed ? user.username : game.player1Name;
+      const assignedP2Avatar = isHostRed ? (user.avatarUrl || null) : game.player1Avatar;
+      const assignedP2IsTest = isHostRed ? !!user.isTestUser : game.player1IsTest;
+
+      // Randomly assign who goes first
+      const firstTurn = Math.random() > 0.5 ? assignedP1 : assignedP2;
+
       const updates: any = {
-        player2: user.id,
-        player2Name: user.username,
-        player2Avatar: user.avatarUrl || null,
-        player2IsTest: !!user.isTestUser,
-        players: [game.player1, user.id],
+        player1: assignedP1,
+        player1Name: assignedP1Name,
+        player1Avatar: assignedP1Avatar,
+        player1IsTest: assignedP1IsTest,
+        player2: assignedP2,
+        player2Name: assignedP2Name,
+        player2Avatar: assignedP2Avatar,
+        player2IsTest: assignedP2IsTest,
+        players: [assignedP1, assignedP2],
         status: 'active',
-        turn: Math.random() > 0.5 ? game.player1 : user.id,
+        turn: firstTurn,
         updatedAt: serverTimestamp(),
       };
 
@@ -427,7 +446,7 @@ export default function Game() {
                       <span className="text-[11px] text-text-secondary font-semibold font-mono tracking-normal">(White)</span>
                     </p>
                     <p className="text-xs text-text-muted font-mono">
-                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for opponent'}
+                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : '...'}
                     </p>
                   </div>
                 </div>
@@ -527,24 +546,15 @@ export default function Game() {
         {/* Right Column: Game Board & Actions (2/3) */}
         <section className="flex-1 flex flex-col items-center justify-start gap-6 order-1 lg:order-2">
           
-          {/* Top Bar Actions */}
+          {/* Top Bar Actions with Enhanced 'Back to Lobby' Button */}
           <div className="w-full flex justify-between items-center">
             <button
               onClick={handleLeave}
-              className="flex items-center gap-2 text-xs text-text-secondary hover:text-white py-2 px-4 rounded-full bg-[#141414] hover:bg-[#1e1e1e] border border-white/10 hover:border-velocity-red transition-all font-medium cursor-pointer"
+              className="flex items-center gap-2.5 text-xs sm:text-sm text-white font-bold py-2.5 px-5 rounded-full bg-[#1c1c1c] hover:bg-[#262626] border border-white/20 hover:border-velocity-red transition-all shadow-[0_4px_16px_rgba(0,0,0,0.5)] font-mono cursor-pointer group"
             >
-              <ArrowLeft size={14} />
+              <ArrowLeft size={16} className="text-velocity-red group-hover:-translate-x-1 transition-transform" />
               <span>Back to Lobby</span>
             </button>
-
-            {game.status === 'waiting' && game.player1 === user?.id && (
-              <button
-                onClick={handleCancelMatch}
-                className="text-xs text-red-400 hover:text-white py-2 px-4 rounded-full bg-red-950/30 border border-red-900/50 hover:bg-red-900/60 transition-all font-medium flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Cancel Game</span>
-              </button>
-            )}
           </div>
 
           {/* Connect 4 Board Component */}
@@ -552,6 +562,18 @@ export default function Game() {
 
           {/* Action Bar Beneath Board */}
           <div className="flex flex-wrap items-center justify-center gap-4 mt-2 w-full max-w-2xl">
+            
+            {/* Prominent Cancel Game Button Beneath Board when waiting */}
+            {game.status === 'waiting' && game.player1 === user?.id && (
+              <button
+                onClick={handleCancelMatch}
+                className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/70 hover:border-red-500 text-red-400 hover:text-white px-8 py-3 rounded-full text-xs sm:text-sm uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,0,0,0.25)] flex items-center gap-2 font-bold font-mono cursor-pointer active:scale-[0.99]"
+              >
+                <X size={16} />
+                <span>Cancel Game</span>
+              </button>
+            )}
+
             {/* Resign Button */}
             {game.status === 'active' && isParticipant && (
               <button

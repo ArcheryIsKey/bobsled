@@ -1,48 +1,273 @@
 import { useEffect, useState, useRef } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { signInAnonymously, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, setDoc, writeBatch, serverTimestamp, deleteField, updateDoc } from 'firebase/firestore';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot, getDoc, setDoc, writeBatch, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { useGameStore } from './store';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import bs58 from 'bs58';
 import Dashboard from './components/Dashboard';
 import Game from './components/Game';
 import Profile from './components/Profile';
 import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
-import { Shield, User, Wallet } from 'lucide-react';
+import { Shield, User } from 'lucide-react';
+
+function AppHeader() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { publicKey, disconnect } = useWallet();
+  const { setVisible } = useWalletModal();
+  const { user, solBalance } = useGameStore();
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    disconnect();
+    navigate('/');
+  };
+
+  const handleClearDatabase = async () => {
+    if (!user || user.walletAddress !== '11111111111111111111111111111111') return;
+    if (!confirm('Are you sure you want to clear all data? This cannot be undone.')) return;
+    try {
+      const { collection, getDocs, deleteDoc } = await import('firebase/firestore');
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const gamesSnap = await getDocs(collection(db, 'games'));
+      const usernamesSnap = await getDocs(collection(db, 'usernames'));
+
+      const promises: any[] = [];
+      usersSnap.forEach((d) => promises.push(deleteDoc(d.ref)));
+      gamesSnap.forEach((d) => promises.push(deleteDoc(d.ref)));
+      usernamesSnap.forEach((d) => promises.push(deleteDoc(d.ref)));
+
+      await Promise.all(promises);
+      alert('Database cleared.');
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to clear database.');
+    }
+  };
+
+  const isLobby = location.pathname === '/';
+  const isProfile = location.pathname.startsWith('/profile');
+
+  return (
+    <header className="bg-surface-elevated/80 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50">
+      <div className="flex justify-between items-center w-full px-4 md:px-8 max-w-6xl mx-auto h-16">
+        
+        {/* Left: Logo & Navigation */}
+        <div className="flex items-center gap-8">
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 font-headline-lg text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity"
+          >
+            <img src="/logo.jpg" alt="bobsled.gg logo" className="w-8 h-8 mix-blend-screen" />
+            <span>bobsled.gg</span>
+          </Link>
+
+          {user && (
+            <nav className="hidden md:flex items-center space-x-2">
+              <Link
+                to="/"
+                className={`text-xs px-3 py-1.5 rounded-md font-semibold tracking-wide transition-all ${
+                  isLobby
+                    ? 'text-white bg-white/10'
+                    : 'text-text-secondary hover:text-white hover:bg-white/5'
+                }`}
+              >
+                Lobby
+              </Link>
+              <Link
+                to="/profile"
+                className={`text-xs px-3 py-1.5 rounded-md font-semibold tracking-wide transition-all ${
+                  isProfile
+                    ? 'text-white bg-white/10'
+                    : 'text-text-secondary hover:text-white hover:bg-white/5'
+                }`}
+              >
+                Profile
+              </Link>
+            </nav>
+          )}
+        </div>
+
+        {/* Right: Balance & User Actions */}
+        <div className="flex items-center space-x-3 sm:space-x-4">
+          {/* Admin Tools */}
+          {user?.walletAddress === '11111111111111111111111111111111' && (
+            <button
+              onClick={handleClearDatabase}
+              className="hidden sm:flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-red-900/20 border border-red-900/50 text-red-400 hover:bg-red-900/40 transition-colors rounded-md"
+            >
+              <Shield size={12} /> Admin
+            </button>
+          )}
+
+          {!publicKey ? (
+            <button
+              onClick={() => setVisible(true)}
+              className="text-xs text-white bg-velocity-red rounded-md px-4 py-2 hover:bg-red-600 transition-colors font-semibold shadow-[0_0_15px_rgba(255,77,77,0.3)] tracking-wide"
+            >
+              Connect Wallet
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              {/* SOL Balance (No 'Balance' word) */}
+              {user && (
+                <div className="text-xs font-mono font-bold text-text-primary px-3 py-1.5 rounded-md bg-surface-container border border-white/10 flex items-center gap-1.5 shadow-inner">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-velocity-red">
+                    {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : '...'}
+                  </span>
+                </div>
+              )}
+
+              {/* Profile Link Pill */}
+              <Link
+                to="/profile"
+                className="flex items-center gap-2 p-1 sm:pr-3 rounded-full sm:rounded-lg bg-surface-base hover:bg-surface-elevated border border-white/10 hover:border-velocity-red transition-all group"
+                title="View Profile"
+              >
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 group-hover:border-velocity-red bg-surface-container flex items-center justify-center font-bold text-xs text-velocity-red transition-colors shrink-0">
+                  {user?.avatarUrl ? (
+                    <img src={user.avatarUrl} alt={user.username} className="w-full h-full object-cover" />
+                  ) : (
+                    user?.username ? user.username.substring(0, 2).toUpperCase() : <User size={13} />
+                  )}
+                </div>
+                <span className="hidden sm:block text-xs font-semibold text-text-primary group-hover:text-velocity-red transition-colors">
+                  {user?.username || 'Connecting...'}
+                </span>
+              </Link>
+
+              {/* Exit Button */}
+              <button
+                onClick={handleLogout}
+                className="text-xs px-2.5 py-1.5 border border-white/10 hover:bg-surface-variant text-text-secondary hover:text-white transition-colors rounded-md font-medium"
+              >
+                Exit
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function MainContent({
+  isAuthenticating,
+  needsUsername,
+  usernameError,
+  authError,
+  handleSetUsername,
+  disconnect,
+}: any) {
+  const { publicKey } = useWallet();
+  const { user } = useGameStore();
+
+  if (!publicKey) {
+    return <WelcomeScreen />;
+  }
+
+  if (isAuthenticating) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh]">
+        <div className="w-8 h-8 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
+        <p className="text-xs uppercase tracking-wider text-text-muted">Authenticating Signature...</p>
+      </div>
+    );
+  }
+
+  if (needsUsername) {
+    return (
+      <SetUsernameScreen
+        onSubmit={handleSetUsername}
+        isSubmitting={isAuthenticating}
+        error={usernameError}
+      />
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] px-4">
+        <div className="border border-red-900/50 bg-red-900/10 text-red-400 p-8 max-w-md text-center rounded-xl shadow-2xl space-y-4">
+          <p className="text-sm font-bold uppercase tracking-wider">Authentication Error</p>
+          <p className="text-xs text-text-secondary font-mono">{authError}</p>
+          <button
+            onClick={() => disconnect()}
+            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-md text-white"
+          >
+            Disconnect &amp; Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh]">
+        <div className="w-8 h-8 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
+        <p className="text-xs uppercase tracking-wider text-text-muted">Loading Account...</p>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/profile/:userId" element={<Profile />} />
+      <Route path="/game/:gameId" element={<Game />} />
+      <Route path="/watch/:gameId" element={<Game />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
 
 export default function App() {
   const { publicKey, signMessage, disconnect } = useWallet();
-  const { setVisible } = useWalletModal();
-  const {
-    user,
-    setUser,
-    currentGameId,
-    spectatingGameId,
-    setCurrentGameId,
-    setSpectatingGameId,
-    currentView,
-    setCurrentView,
-  } = useGameStore();
+  const { connection } = useConnection();
+  const { user, setUser, setSolBalance } = useGameStore();
 
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInitialized, setAuthInitialized] = useState(false);
-  const [isTestUser, setIsTestUser] = useState(false);
-
   const [needsUsername, setNeedsUsername] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
 
-  // Check for URL query params like ?watch=GAME_ID
+  // Fetch live SOL balance from Solana connection RPC
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const watchId = params.get('watch');
-    if (watchId) {
-      setSpectatingGameId(watchId);
+    if (!publicKey || !connection) {
+      setSolBalance(null);
+      return;
     }
-  }, [setSpectatingGameId]);
+
+    let active = true;
+    const fetchBalance = async () => {
+      try {
+        const lamports = await connection.getBalance(publicKey);
+        if (active) {
+          setSolBalance(lamports / LAMPORTS_PER_SOL);
+        }
+      } catch (err) {
+        console.error('Error fetching SOL balance:', err);
+      }
+    };
+
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 10000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [publicKey, connection, setSolBalance]);
 
   // Firebase Auth state listener
   useEffect(() => {
@@ -58,7 +283,6 @@ export default function App() {
 
       if (!firebaseUser) {
         setUser(null);
-        setIsTestUser(false);
         return;
       }
 
@@ -69,7 +293,6 @@ export default function App() {
           if (snapshot.exists()) {
             const userData = snapshot.data() as any;
             setUser({ id: snapshot.id, ...userData });
-            if (userData.isTestUser) setIsTestUser(true);
           }
         },
         (error) => {
@@ -120,7 +343,7 @@ export default function App() {
         try {
           signatureBytes = await signMessage(message);
         } catch (e) {
-          throw new Error('User rejected the signature request.');
+          throw new Error('Signature request cancelled.');
         }
 
         const encodeFn = (bs58 as any).encode || (bs58 as any).default?.encode;
@@ -161,10 +384,7 @@ export default function App() {
         } else {
           await updateDoc(userDocRef, {
             walletAddress: publicKey.toBase58(),
-            isTestUser: false,
-            testSolBalance: deleteField(),
           });
-          setIsTestUser(false);
           setNeedsUsername(false);
         }
       } catch (err: any) {
@@ -184,45 +404,6 @@ export default function App() {
     }
   }, [publicKey, signMessage, disconnect, user?.walletAddress, authInitialized]);
 
-  const handleLogout = async () => {
-    if (user?.isTestUser && auth.currentUser) {
-      const { deleteDoc } = await import('firebase/firestore');
-      try {
-        await deleteDoc(doc(db, 'users', auth.currentUser.uid));
-      } catch (e) {}
-    }
-    await signOut(auth);
-    disconnect();
-    setIsTestUser(false);
-    setNeedsUsername(false);
-    setCurrentView('lobby');
-  };
-
-  const handleTestLogin = async (username: string) => {
-    setIsAuthenticating(true);
-    setAuthError(null);
-    try {
-      await signOut(auth);
-      const userCredential = await signInAnonymously(auth);
-
-      setUser({
-        id: userCredential.user.uid,
-        walletAddress: null,
-        username: username,
-        elo: 1000,
-        freeTokens: 10,
-        testSolBalance: 1,
-        isTestUser: true,
-      });
-      setIsTestUser(true);
-    } catch (e: any) {
-      console.error(e);
-      setAuthError(e.message || 'Failed to login as test user');
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-
   const handleSetUsername = async (username: string, avatarUrl?: string) => {
     setIsAuthenticating(true);
     setUsernameError(null);
@@ -230,7 +411,7 @@ export default function App() {
       const usernameRef = doc(db, 'usernames', username.toLowerCase());
       const usernameSnap = await getDoc(usernameRef);
       if (usernameSnap.exists()) {
-        throw new Error('Callsign is already taken. Please choose another.');
+        throw new Error('This username is already taken. Please choose another.');
       }
 
       const currentUser = auth.currentUser;
@@ -243,8 +424,6 @@ export default function App() {
       const userData: any = {
         walletAddress: publicKey.toBase58(),
         username: username,
-        elo: 1000,
-        freeTokens: 10,
         createdAt: serverTimestamp(),
       };
 
@@ -262,205 +441,21 @@ export default function App() {
     }
   };
 
-  const handleClearDatabase = async () => {
-    if (!user || user.walletAddress !== '11111111111111111111111111111111') return;
-    if (!confirm('Are you sure you want to clear all data? This cannot be undone.')) return;
-    try {
-      const { collection, getDocs, deleteDoc } = await import('firebase/firestore');
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const gamesSnap = await getDocs(collection(db, 'games'));
-      const usernamesSnap = await getDocs(collection(db, 'usernames'));
-
-      const promises: any[] = [];
-      usersSnap.forEach((d) => promises.push(deleteDoc(d.ref)));
-      gamesSnap.forEach((d) => promises.push(deleteDoc(d.ref)));
-      usernamesSnap.forEach((d) => promises.push(deleteDoc(d.ref)));
-
-      await Promise.all(promises);
-      alert('Database cleared.');
-      window.location.reload();
-    } catch (e) {
-      console.error(e);
-      alert('Failed to clear database.');
-    }
-  };
-
-  const displayBalance = user
-    ? user.isTestUser
-      ? `${user.testSolBalance ?? 1} SOL`
-      : user.testSolBalance !== undefined
-      ? `${user.testSolBalance} SOL`
-      : `${user.freeTokens ?? 10} FREE`
-    : '0';
-
   return (
-    <div className="flex flex-col min-h-screen bg-background text-text-primary font-sans selection:bg-velocity-red selection:text-text-primary antialiased">
-      
-      {/* Top Navigation Header (Matching Stitch Design) */}
-      <header className="bg-surface-elevated/80 backdrop-blur-lg border-b border-glass-border sticky top-0 z-50">
-        <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
-          
-          {/* Logo */}
-          <div className="flex items-center gap-8">
-            <button
-              onClick={() => {
-                setCurrentGameId(null);
-                setSpectatingGameId(null);
-                setCurrentView('lobby');
-              }}
-              className="flex items-center gap-2.5 font-headline-lg-mobile md:font-headline-lg text-2xl font-bold text-velocity-red tracking-tighter hover:opacity-90 transition-opacity"
-            >
-              <img src="/logo.jpg" alt="bobsled.gg logo" className="w-8 h-8 mix-blend-screen" />
-              <span>bobsled.gg</span>
-            </button>
-
-            {/* Navigation Tabs when logged in */}
-            {user && (
-              <nav className="hidden md:flex items-center space-x-6">
-                <button
-                  onClick={() => {
-                    setCurrentGameId(null);
-                    setSpectatingGameId(null);
-                    setCurrentView('lobby');
-                  }}
-                  className={`font-label-caps text-xs px-2.5 py-1 rounded transition-colors ${
-                    currentView === 'lobby' && !currentGameId && !spectatingGameId
-                      ? 'text-text-primary font-bold border-b-2 border-velocity-red pb-1'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  Lobby
-                </button>
-                <button
-                  onClick={() => {
-                    setCurrentGameId(null);
-                    setSpectatingGameId(null);
-                    setCurrentView('profile');
-                  }}
-                  className={`font-label-caps text-xs px-2.5 py-1 rounded transition-colors ${
-                    currentView === 'profile'
-                      ? 'text-text-primary font-bold border-b-2 border-velocity-red pb-1'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  Profile
-                </button>
-              </nav>
-            )}
-          </div>
-
-          {/* Right Header Actions */}
-          <div className="flex items-center space-x-4">
-            {/* Admin Clear Button */}
-            {user?.walletAddress === '11111111111111111111111111111111' && (
-              <button
-                onClick={handleClearDatabase}
-                className="hidden sm:flex items-center gap-1 font-label-caps text-[10px] uppercase tracking-widest px-3 py-1.5 bg-red-900/20 border border-red-900 text-red-500 hover:bg-red-900/40 transition-colors rounded"
-              >
-                <Shield size={12} /> Admin
-              </button>
-            )}
-
-            {!publicKey && !isTestUser ? (
-              <button
-                onClick={() => setVisible(true)}
-                className="font-label-caps text-xs text-text-primary bg-velocity-red rounded px-4 py-2 hover:bg-primary-container transition-colors uppercase font-bold shadow-[0_0_15px_rgba(255,77,77,0.3)]"
-              >
-                Connect Wallet
-              </button>
-            ) : (
-              <div className="flex items-center gap-3 sm:gap-4">
-                {/* Balance Pill */}
-                {user && (
-                  <div className="font-label-caps text-xs text-text-primary px-3 py-1.5 rounded bg-surface-container border border-glass-border flex items-center gap-1.5">
-                    <span className="text-text-muted hidden sm:inline">Balance:</span>
-                    <span className="text-velocity-red font-bold">{displayBalance}</span>
-                  </div>
-                )}
-
-                {/* Profile Pill / Button (Clicking navigates to Profile page) */}
-                <button
-                  onClick={() => {
-                    setCurrentGameId(null);
-                    setSpectatingGameId(null);
-                    setCurrentView('profile');
-                  }}
-                  className="flex items-center gap-2.5 p-1 sm:pr-3 rounded-full sm:rounded-lg bg-surface-base hover:bg-surface-elevated border border-glass-border hover:border-velocity-red transition-all group cursor-pointer"
-                  title="View My Profile"
-                >
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-glass-border group-hover:border-velocity-red bg-surface-container flex items-center justify-center font-bold text-xs text-velocity-red transition-colors shrink-0">
-                    {user?.avatarUrl ? (
-                      <img src={user.avatarUrl} alt={user.username} className="w-full h-full object-cover" />
-                    ) : (
-                      user?.username ? user.username.substring(0, 2).toUpperCase() : <User size={14} />
-                    )}
-                  </div>
-                  <span className="hidden sm:block font-label-caps text-xs font-bold text-text-primary group-hover:text-velocity-red transition-colors">
-                    {user?.username || 'Connecting...'}
-                  </span>
-                </button>
-
-                {/* Exit Button */}
-                <button
-                  onClick={handleLogout}
-                  className="font-label-caps text-[10px] uppercase tracking-widest px-3 py-1.5 border border-glass-border hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors rounded"
-                >
-                  Exit
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="flex flex-1 w-full relative z-10">
-        {!publicKey && !isTestUser ? (
-          <WelcomeScreen onTestLogin={handleTestLogin} />
-        ) : isAuthenticating ? (
-          <div className="flex-1 flex flex-col items-center justify-center bg-background w-full min-h-[70vh]">
-            <div className="w-8 h-8 border border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
-            <p className="text-xs uppercase tracking-widest text-text-muted font-label-caps">
-              Authenticating Signature...
-            </p>
-          </div>
-        ) : needsUsername ? (
-          <SetUsernameScreen
-            onSubmit={handleSetUsername}
-            isSubmitting={isAuthenticating}
-            error={usernameError}
+    <BrowserRouter>
+      <div className="flex flex-col min-h-screen bg-background text-text-primary font-sans selection:bg-velocity-red selection:text-text-primary antialiased">
+        <AppHeader />
+        <main className="flex flex-1 w-full relative z-10">
+          <MainContent
+            isAuthenticating={isAuthenticating}
+            needsUsername={needsUsername}
+            usernameError={usernameError}
+            authError={authError}
+            handleSetUsername={handleSetUsername}
+            disconnect={disconnect}
           />
-        ) : authError ? (
-          <div className="flex-1 flex flex-col items-center justify-center bg-background w-full min-h-[70vh] px-4">
-            <div className="border border-red-900/50 bg-red-900/10 text-red-500 p-8 max-w-md text-center rounded-xl shadow-2xl">
-              <p className="text-xs uppercase tracking-widest font-bold mb-2 font-label-caps">Auth Failed</p>
-              <p className="text-xs font-mono text-text-muted mb-6">{authError}</p>
-              <button
-                onClick={() => {
-                  setAuthError(null);
-                  disconnect();
-                }}
-                className="px-6 py-2 border border-red-900 text-xs font-label-caps uppercase tracking-widest hover:bg-red-900/20 transition-colors rounded"
-              >
-                Disconnect &amp; Retry
-              </button>
-            </div>
-          </div>
-        ) : user ? (
-          currentGameId || spectatingGameId ? (
-            <Game />
-          ) : currentView === 'profile' ? (
-            <Profile />
-          ) : (
-            <Dashboard />
-          )
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center bg-background w-full min-h-[70vh]">
-            <div className="w-8 h-8 border border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
-            <p className="text-xs uppercase tracking-widest text-text-muted font-label-caps">Loading Dossier...</p>
-          </div>
-        )}
-      </main>
-    </div>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }

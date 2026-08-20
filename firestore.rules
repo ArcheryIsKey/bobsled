@@ -22,28 +22,22 @@ service cloud.firestore {
     }
     
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128;
     }
     
     function isValidUser(data) {
-      return data.keys().hasAll(['walletAddress', 'username', 'elo', 'freeTokens', 'createdAt'])
+      return data.keys().hasAll(['walletAddress', 'username', 'createdAt'])
         && (data.walletAddress == null || (data.walletAddress is string && data.walletAddress.size() <= 100))
         && data.username is string && data.username.size() <= 50
-        && (!("avatarUrl" in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 300000))
-        && (!("testSolBalance" in data) || data.testSolBalance is number)
-        && (!("isTestUser" in data) || data.isTestUser is bool)
-        && data.elo is number
-        && data.freeTokens is number;
+        && (!("avatarUrl" in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 1000000))
+        && (!("bannerUrl" in data) || data.bannerUrl == null || (data.bannerUrl is string && data.bannerUrl.size() <= 1000000));
     }
     
     function isValidUserUpdate(data) {
       return (data.walletAddress == null || (data.walletAddress is string && data.walletAddress.size() <= 100))
         && data.username is string && data.username.size() <= 50
-        && (!("avatarUrl" in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 300000))
-        && (!("testSolBalance" in data) || data.testSolBalance is number)
-        && (!("isTestUser" in data) || data.isTestUser is bool)
-        && data.elo is number
-        && data.freeTokens is number;
+        && (!("avatarUrl" in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 1000000))
+        && (!("bannerUrl" in data) || data.bannerUrl == null || (data.bannerUrl is string && data.bannerUrl.size() <= 1000000));
     }
 
     function isValidGame(data) {
@@ -51,14 +45,13 @@ service cloud.firestore {
         && data.player1 is string && data.player1.size() <= 100
         && data.player1Name is string && data.player1Name.size() <= 50
         && data.status in ['waiting', 'active', 'finished']
-        && data.board is list && data.board.size() == 42 && data.board[0] is number
+        && data.board is list && data.board.size() == 42
         && data.wager is number
         && data.wagerCurrency in ['SOL', 'FREE']
-        && (!("isTestGame" in data) || data.isTestGame is bool)
-        && (!("player1IsTest" in data) || data.player1IsTest is bool)
+        && (!("player1Avatar" in data) || data.player1Avatar == null || data.player1Avatar is string)
+        && (!("player2Avatar" in data) || data.player2Avatar == null || data.player2Avatar is string)
         && (!("player2Name" in data) || (data.player2Name == null || (data.player2Name is string && data.player2Name.size() <= 50)))
         && (!("player2" in data) || (data.player2 == null || (data.player2 is string && data.player2.size() <= 100)))
-        && (!("player2IsTest" in data) || (data.player2IsTest == null || data.player2IsTest is bool))
         && (!("players" in data) || data.players is list)
         && data.createdAt == request.time
         && data.updatedAt == request.time;
@@ -67,15 +60,14 @@ service cloud.firestore {
     function isValidGameUpdate(data) {
       return data.player1 is string && data.player1.size() <= 100
         && data.status in ['waiting', 'active', 'finished']
-        && data.board is list && data.board.size() == 42 && data.board[0] is number
+        && data.board is list && data.board.size() == 42
         && data.wager is number
         && data.wagerCurrency in ['SOL', 'FREE']
-        && (!("isTestGame" in data) || data.isTestGame is bool)
         && data.updatedAt == request.time;
     }
 
     function isValidMessage(data) {
-      return data.keys().hasAll(['senderId', 'text', 'createdAt']) && data.keys().size() == 3
+      return data.keys().hasAll(['senderId', 'text', 'createdAt'])
         && data.senderId is string && data.senderId.size() <= 100
         && data.text is string && data.text.size() <= 500
         && data.createdAt == request.time;
@@ -94,7 +86,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && request.auth.uid == userId 
         && isValidId(userId)
         && isValidUserUpdate(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['avatarUrl', 'walletAddress', 'isTestUser', 'testSolBalance']);
+        && incoming().diff(existing()).affectedKeys().hasOnly(['avatarUrl', 'bannerUrl', 'walletAddress', 'username']);
     }
 
     match /usernames/{username} {
@@ -107,7 +99,7 @@ service cloud.firestore {
     match /games/{gameId} {
       allow read: if isSignedIn();
       allow list: if isSignedIn();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (isSignedIn() && existing().player1 == request.auth.uid && existing().status == 'waiting');
       
       allow create: if ownsWallet(incoming().player1)
         && isValidId(gameId)
@@ -124,18 +116,17 @@ service cloud.firestore {
             existing().status == 'waiting'
             && incoming().status == 'active'
             && ownsWallet(incoming().player2)
-            && incoming().turn in [existing().player1, incoming().player2] // Random turn assigned
-            && incoming().diff(existing()).affectedKeys().hasAny(['player2', 'player2Name', 'player2IsTest', 'status', 'turn', 'updatedAt', 'players'])
-            && incoming().diff(existing()).affectedKeys().hasOnly(['player2', 'player2Name', 'player2IsTest', 'status', 'turn', 'updatedAt', 'players', 'wager', 'wagerCurrency', 'isTestGame'])
+            && incoming().turn in [existing().player1, incoming().player2]
+            && incoming().diff(existing()).affectedKeys().hasAny(['player2', 'player2Name', 'player2Avatar', 'status', 'turn', 'updatedAt', 'players'])
           ) ||
-          // Action: Make move
+          // Action: Make move or finish
           (
             existing().status == 'active'
             && incoming().status in ['active', 'finished']
             && (ownsWallet(existing().player1) || ownsWallet(existing().player2))
-            && ownsWallet(existing().turn) // It must be their turn
             && (incoming().diff(existing()).affectedKeys().hasOnly(['board', 'turn', 'updatedAt']) ||
-                incoming().diff(existing()).affectedKeys().hasOnly(['board', 'turn', 'updatedAt', 'status', 'winner']))
+                incoming().diff(existing()).affectedKeys().hasOnly(['board', 'turn', 'updatedAt', 'status', 'winner']) ||
+                incoming().diff(existing()).affectedKeys().hasOnly(['status', 'winner', 'updatedAt']))
           )
         );
     }
@@ -147,13 +138,8 @@ service cloud.firestore {
       allow create: if ownsWallet(incoming().senderId)
         && isValidId(gameId)
         && isValidId(messageId)
-        // Ensure the sender is a player in the game
-        && exists(/databases/$(database)/documents/games/$(gameId))
-        && (
-          get(/databases/$(database)/documents/games/$(gameId)).data.player1 == incoming().senderId ||
-          get(/databases/$(database)/documents/games/$(gameId)).data.player2 == incoming().senderId
-        );
-      allow update: if false; // Messages are immutable
+        && exists(/databases/$(database)/documents/games/$(gameId));
+      allow update: if false;
     }
   }
 }

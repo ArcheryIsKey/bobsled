@@ -68,36 +68,36 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
   return (
     <div className="w-full flex flex-col items-center">
       {/* Board Container */}
-      <div className="glass-panel rounded-xl p-3 sm:p-6 md:p-8 w-full max-w-2xl border border-glass-border shadow-2xl relative bg-surface-base/90">
+      <div className="rounded-xl p-3 sm:p-6 md:p-8 w-full max-w-2xl border border-white/10 shadow-2xl relative bg-[#151515]">
         
         {/* Floating Turn Indicator Pill */}
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
           {game.status === 'active' ? (
             isMyTurn ? (
-              <div className="bg-velocity-red text-text-primary px-5 py-1.5 rounded-full font-label-caps text-xs tracking-widest shadow-[0_0_15px_rgba(255,77,77,0.6)] flex items-center gap-2 font-bold uppercase">
+              <div className="bg-velocity-red text-white px-5 py-1.5 rounded-full text-xs tracking-wider shadow-[0_0_15px_rgba(255,77,77,0.6)] flex items-center gap-2 font-bold uppercase">
                 <span className="w-2 h-2 bg-white rounded-full animate-ping" />
-                YOUR TURN
+                Your Turn
               </div>
             ) : (
-              <div className="bg-surface-elevated text-text-secondary border border-glass-border px-5 py-1.5 rounded-full font-label-caps text-xs tracking-widest flex items-center gap-2 font-bold uppercase">
+              <div className="bg-surface-elevated text-text-secondary border border-white/10 px-5 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-semibold uppercase">
                 <span className="w-2 h-2 bg-text-muted rounded-full animate-pulse" />
-                OPPONENT'S TURN
+                Opponent's Turn
               </div>
             )
           ) : game.status === 'waiting' ? (
-            <div className="bg-surface-container border border-velocity-red/40 text-velocity-red px-5 py-1.5 rounded-full font-label-caps text-xs tracking-widest flex items-center gap-2 font-bold uppercase">
+            <div className="bg-surface-container border border-velocity-red/40 text-velocity-red px-5 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-semibold uppercase">
               <span className="w-2 h-2 bg-velocity-red rounded-full animate-ping" />
-              WAITING FOR OPPONENT
+              Waiting for Opponent
             </div>
           ) : (
-            <div className="bg-surface-elevated border border-velocity-red text-velocity-red px-5 py-1.5 rounded-full font-label-caps text-xs tracking-widest flex items-center gap-2 font-bold uppercase shadow-[0_0_15px_rgba(255,77,77,0.3)]">
-              MATCH CONCLUDED
+            <div className="bg-surface-elevated border border-velocity-red/50 text-velocity-red px-5 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-bold uppercase shadow-[0_0_15px_rgba(255,77,77,0.25)]">
+              Game Finished
             </div>
           )}
         </div>
 
         {/* 7 Columns x 6 Rows Board */}
-        <div className="bg-surface-elevated rounded-lg p-2 sm:p-4 border border-surface-bright grid grid-cols-7 gap-1.5 sm:gap-3 md:gap-4 mx-auto w-fit relative z-10">
+        <div className="bg-[#1c1c1c] rounded-lg p-2 sm:p-4 border border-white/10 grid grid-cols-7 gap-1.5 sm:gap-3 md:gap-4 mx-auto w-fit relative z-10">
           {Array.from({ length: COLS }).map((_, colIndex) => (
             <div
               key={`col-${colIndex}`}
@@ -122,7 +122,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               {Array.from({ length: ROWS }).map((_, rowIndex) => {
                 const cellValue = game.board[rowIndex * COLS + colIndex];
                 let slotStyles =
-                  'w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full transition-all duration-300 flex items-center justify-center ';
+                  'w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full transition-all duration-200 flex items-center justify-center ';
 
                 if (cellValue === 1) {
                   slotStyles +=
@@ -132,8 +132,8 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                     'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5),inset_0_-4px_6px_rgba(0,0,0,0.4)] border border-white/60';
                 } else {
                   slotStyles +=
-                    'bg-surface-base shadow-[inset_0_4px_8px_rgba(0,0,0,0.8)] border border-glass-border ' +
-                    (isMyTurn ? 'group-hover:bg-surface-container-high/40' : '');
+                    'bg-[#0d0d0d] shadow-[inset_0_3px_6px_rgba(0,0,0,0.8)] border border-white/5 ' +
+                    (isMyTurn ? 'group-hover:bg-white/5' : '');
                 }
 
                 return (
@@ -154,7 +154,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
         </div>
 
         {/* Board Stand / Base */}
-        <div className="w-[90%] mx-auto h-3 sm:h-4 bg-surface-container-high rounded-b-xl mt-1 border-b border-l border-r border-glass-border relative z-10 shadow-lg" />
+        <div className="w-[92%] mx-auto h-3 sm:h-4 bg-[#222222] rounded-b-xl mt-1 border-b border-l border-r border-white/10 relative z-10 shadow-lg" />
       </div>
     </div>
   );

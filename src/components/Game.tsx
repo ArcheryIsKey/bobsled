@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
-  const { user, currentGameId, spectatingGameId, setCurrentGameId, setSpectatingGameId, setCurrentView } = useGameStore();
+  const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
+  const { user } = useGameStore();
+
   const [game, setGame] = useState<any>(null);
   const [now, setNow] = useState(Date.now());
   const [copiedLink, setCopiedLink] = useState(false);
   const [showWinModal, setShowWinModal] = useState(true);
-
-  const gameId = currentGameId || spectatingGameId;
-  const isSpectator = !!spectatingGameId;
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -23,7 +24,11 @@ export default function Game() {
   }, []);
 
   useEffect(() => {
-    if (!gameId) return;
+    if (!gameId) {
+      navigate('/');
+      return;
+    }
+
     const unsub = onSnapshot(doc(db, 'games', gameId), (docSnap) => {
       if (docSnap.exists()) {
         const data = { id: docSnap.id, ...docSnap.data() } as any;
@@ -32,16 +37,15 @@ export default function Game() {
           setShowWinModal(true);
         }
       } else {
-        handleLeave();
+        navigate('/');
       }
     });
+
     return () => unsub();
-  }, [gameId]);
+  }, [gameId, navigate]);
 
   const handleLeave = () => {
-    setSpectatingGameId(null);
-    setCurrentGameId(null);
-    setCurrentView('lobby');
+    navigate('/');
   };
 
   const handleCancelMatch = async () => {
@@ -49,10 +53,10 @@ export default function Game() {
     if (game.player1 !== user.id) return;
     try {
       await deleteDoc(doc(db, 'games', game.id));
-      handleLeave();
+      navigate('/');
     } catch (e) {
       console.error('Failed to cancel match:', e);
-      handleLeave();
+      navigate('/');
     }
   };
 
@@ -106,7 +110,7 @@ export default function Game() {
   };
 
   const handleCopyLink = () => {
-    const url = `${window.location.origin}/?watch=${game?.id}`;
+    const url = window.location.href;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
@@ -114,192 +118,204 @@ export default function Game() {
 
   if (!game) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-background">
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] bg-background">
         <div className="w-8 h-8 border border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
-        <p className="text-xs uppercase tracking-widest text-text-muted font-label-caps">Connecting to Arena Signal...</p>
+        <p className="text-xs uppercase tracking-wider text-text-muted">Loading Game...</p>
       </div>
     );
   }
 
   const isPlayer1 = user?.id === game.player1;
-  const isMyTurn = !isSpectator && game.turn === user?.id && game.status === 'active';
+  const isPlayer2 = user?.id === game.player2;
+  const isParticipant = isPlayer1 || isPlayer2;
+  const isSpectator = !isParticipant;
+
+  const isMyTurn = isParticipant && game.turn === user?.id && game.status === 'active';
   const opponentId = isPlayer1 ? game.player2 : game.player1;
   const opponentName = isPlayer1 ? game.player2Name : game.player1Name;
+  const opponentAvatar = isPlayer1 ? game.player2Avatar : game.player1Avatar;
+
   const timeSinceLastMove = game.updatedAt?.toMillis ? now - game.updatedAt.toMillis() : 0;
   const afkSecondsLeft = Math.max(0, Math.ceil((60000 - timeSinceLastMove) / 1000));
-  const canClaimAfk = !isSpectator && !isMyTurn && game.status === 'active' && timeSinceLastMove > 60000;
+  const canClaimAfk = isParticipant && !isMyTurn && game.status === 'active' && timeSinceLastMove > 60000;
 
-  const isWinner = game.winner === user?.id;
+  const isWinner = isParticipant && game.winner === user?.id;
   const isDraw = game.winner === 'draw';
   const isFinished = game.status === 'finished';
 
-  const stakesDisplay = game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'FREE';
+  const stakesDisplay = game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'Free';
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-text-primary antialiased selection:bg-velocity-red selection:text-text-primary w-full overflow-y-auto">
+    <div className="min-h-[calc(100vh-64px)] flex flex-col bg-background text-text-primary antialiased w-full overflow-y-auto">
       {/* Spectator Mode Banner */}
       {isSpectator && (
-        <div className="w-full bg-surface-elevated border-b border-glass-border py-2 text-center text-text-secondary font-label-caps text-xs tracking-widest z-50 flex items-center justify-center gap-2">
+        <div className="w-full bg-surface-elevated border-b border-white/10 py-2 text-center text-text-secondary text-xs tracking-wider z-50 flex items-center justify-center gap-2">
           <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
-          SPECTATOR SURVEILLANCE FEED — MATCH #{game.id.substring(0, 8).toUpperCase()}
+          Watching Match #{game.id.substring(0, 8).toUpperCase()} as Spectator
         </div>
       )}
 
       {/* Arena Main Container */}
-      <main className="flex-grow w-full max-w-max-width mx-auto px-margin-mobile md:px-margin-desktop py-6 md:py-10 flex flex-col lg:flex-row gap-gutter">
+      <main className="flex-grow w-full max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8 flex flex-col lg:flex-row gap-6">
         
-        {/* Left Column: Match Details & Terminal Chat (1/3) */}
-        <aside className="w-full lg:w-1/3 flex flex-col gap-6 order-2 lg:order-1">
+        {/* Left Column: Match Details & Chat (1/3) */}
+        <aside className="w-full lg:w-80 flex flex-col gap-5 order-2 lg:order-1 shrink-0">
+          
           {/* Match Info Panel */}
-          <div className="glass-panel rounded-xl p-6 border border-glass-border shadow-xl relative overflow-hidden bg-surface-base">
-            <div className="flex justify-between items-center border-b border-glass-border pb-4 mb-4">
+          <div className="rounded-xl p-5 border border-white/10 shadow-xl bg-surface-base space-y-4">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <div>
-                <span className="font-label-caps text-[10px] text-text-muted uppercase tracking-wider block">Arena Match</span>
-                <h2 className="font-headline-lg text-lg md:text-xl text-text-primary font-bold">
+                <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold">Match</span>
+                <h2 className="font-headline-lg text-lg text-text-primary font-bold">
                   #{game.id.substring(0, 8).toUpperCase()}
                 </h2>
               </div>
               <span
-                className={`font-label-caps text-xs px-2.5 py-1 rounded font-bold uppercase ${
+                className={`text-xs px-2.5 py-1 rounded font-semibold uppercase tracking-wider ${
                   game.status === 'active'
                     ? 'bg-velocity-red/20 text-velocity-red border border-velocity-red/30'
                     : game.status === 'waiting'
-                    ? 'bg-surface-variant text-text-muted border border-glass-border'
-                    : 'bg-surface-container text-text-secondary border border-glass-border'
+                    ? 'bg-surface-variant text-yellow-400 border border-white/10'
+                    : 'bg-surface-container text-text-secondary border border-white/10'
                 }`}
               >
-                {game.status === 'active' ? 'LIVE NOW' : game.status === 'waiting' ? 'WAITING' : 'COMPLETED'}
+                {game.status === 'active' ? 'Live' : game.status === 'waiting' ? 'Waiting' : 'Finished'}
               </span>
             </div>
 
-            <div className="space-y-4">
-              {/* Stakes readout */}
-              <div className="flex justify-between items-end bg-surface-container/60 p-4 rounded border border-glass-border">
-                <div>
-                  <p className="font-label-caps text-[10px] text-text-muted uppercase tracking-wider mb-1">
-                    {isFinished ? 'Total Stakes Settled' : 'Current Match Stakes'}
-                  </p>
-                  <p className="font-display-lg text-2xl md:text-3xl text-velocity-red font-bold">
-                    {stakesDisplay}
-                  </p>
+            {/* Stakes */}
+            <div className="flex justify-between items-center bg-surface-container p-3.5 rounded-lg border border-white/5">
+              <div>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5">Stakes</p>
+                <p className="font-headline-lg text-xl text-velocity-red font-bold font-mono">
+                  {stakesDisplay}
+                </p>
+              </div>
+              <span className="text-xs text-text-secondary bg-surface-base px-2 py-1 rounded border border-white/10 font-mono">
+                {game.wagerCurrency || 'SOL'}
+              </span>
+            </div>
+
+            {/* Player VS Player */}
+            <div className="bg-surface-container rounded-lg p-3.5 border border-white/5 space-y-3">
+              {/* Player 1 (Red) */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-surface-base border-2 border-velocity-red flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_8px_rgba(255,77,77,0.4)]">
+                    {game.player1Avatar ? (
+                      <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="w-4 h-4 rounded-full bg-velocity-red" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                      {game.player1 === user?.id ? 'You' : game.player1Name || 'Player 1'}
+                      <span className="text-[10px] text-velocity-red font-semibold">(Red)</span>
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
+                    </p>
+                  </div>
                 </div>
-                <span className="font-label-caps text-xs text-text-secondary bg-surface-base px-2 py-1 rounded border border-glass-border">
-                  {game.wagerCurrency || 'FREE'}
+                {game.status === 'active' && game.turn === game.player1 && (
+                  <span className="w-2 h-2 rounded-full bg-velocity-red animate-ping" />
+                )}
+              </div>
+
+              <div className="flex items-center justify-center my-0.5">
+                <span className="text-[10px] text-text-muted uppercase tracking-widest font-semibold">VS</span>
+              </div>
+
+              {/* Player 2 (White) */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-surface-base border-2 border-white flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+                    {opponentAvatar && game.player2 ? (
+                      <img src={opponentAvatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="w-4 h-4 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                      {game.player2 ? (game.player2 === user?.id ? 'You' : game.player2Name || 'Player 2') : 'Waiting...'}
+                      <span className="text-[10px] text-white font-semibold">(White)</span>
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for player'}
+                    </p>
+                  </div>
+                </div>
+                {game.status === 'active' && game.turn === game.player2 && (
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                )}
+              </div>
+            </div>
+
+            {/* Inactivity warning */}
+            {game.status === 'active' && !isMyTurn && isParticipant && (
+              <div className="p-2.5 rounded-md bg-surface-elevated border border-white/5 flex items-center justify-between text-xs">
+                <span className="text-text-muted flex items-center gap-1.5">
+                  <AlertTriangle size={13} className="text-yellow-500" />
+                  Opponent Timer:
+                </span>
+                <span className={`font-mono font-bold ${afkSecondsLeft < 15 ? 'text-velocity-red animate-pulse' : 'text-text-secondary'}`}>
+                  {afkSecondsLeft}s
                 </span>
               </div>
-
-              {/* Player VS Player Card */}
-              <div className="bg-surface-container rounded p-4 border border-glass-border space-y-3">
-                {/* Player 1 (Red) */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-surface-base border-2 border-velocity-red flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(255,77,77,0.4)]">
-                      <span className="w-5 h-5 rounded-full bg-velocity-red" />
-                    </div>
-                    <div>
-                      <p className="font-body-md text-xs font-bold text-text-primary flex items-center gap-1.5">
-                        {game.player1 === user?.id ? 'You' : game.player1Name || 'Player 1'}
-                        <span className="text-[10px] text-velocity-red font-label-caps">(Red)</span>
-                      </p>
-                      <p className="font-label-caps text-[10px] text-text-muted">
-                        {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
-                      </p>
-                    </div>
-                  </div>
-                  {game.status === 'active' && game.turn === game.player1 && (
-                    <span className="w-2 h-2 rounded-full bg-velocity-red animate-ping" />
-                  )}
-                </div>
-
-                <div className="flex items-center justify-center my-1">
-                  <span className="font-label-caps text-[10px] text-text-muted uppercase tracking-widest">VS</span>
-                </div>
-
-                {/* Player 2 (White) */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-surface-base border-2 border-white flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                      <span className="w-5 h-5 rounded-full bg-white" />
-                    </div>
-                    <div>
-                      <p className="font-body-md text-xs font-bold text-text-primary flex items-center gap-1.5">
-                        {game.player2 ? (game.player2 === user?.id ? 'You' : game.player2Name || 'Player 2') : 'Searching...'}
-                        <span className="text-[10px] text-white font-label-caps">(White)</span>
-                      </p>
-                      <p className="font-label-caps text-[10px] text-text-muted">
-                        {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for challenger'}
-                      </p>
-                    </div>
-                  </div>
-                  {game.status === 'active' && game.turn === game.player2 && (
-                    <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                  )}
-                </div>
-              </div>
-
-              {/* AFK Timer Alert if opponent is stalling */}
-              {game.status === 'active' && !isMyTurn && !isSpectator && (
-                <div className="p-3 rounded bg-surface-elevated border border-glass-border flex items-center justify-between">
-                  <span className="font-label-caps text-[11px] text-text-muted flex items-center gap-1.5">
-                    <AlertTriangle size={14} className="text-yellow-500" />
-                    Opponent Turn Timer:
-                  </span>
-                  <span className={`font-mono text-xs font-bold ${afkSecondsLeft < 15 ? 'text-velocity-red animate-pulse' : 'text-text-secondary'}`}>
-                    {afkSecondsLeft}s
-                  </span>
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Spectator Share Box */}
-          <div className="glass-panel rounded-xl p-5 border border-glass-border bg-surface-base">
-            <h3 className="font-label-caps text-xs text-text-primary font-bold uppercase tracking-wider mb-1">
-              Spectator Uplink
+          {/* Share Game Link Box */}
+          <div className="rounded-xl p-4 border border-white/10 bg-surface-base">
+            <h3 className="text-xs text-text-primary font-bold uppercase tracking-wider mb-1">
+              Share Game Link
             </h3>
-            <p className="font-body-sm text-xs text-text-muted mb-3">
-              Share this link to broadcast your match live to spectators.
+            <p className="text-xs text-text-muted mb-2.5">
+              Anyone with this link can watch or join this game.
             </p>
             <div className="flex gap-2">
               <input
-                className="flex-grow bg-surface-container border border-glass-border text-text-primary font-label-caps text-xs px-3 py-2 rounded focus:border-velocity-red outline-none select-all"
+                className="flex-grow bg-surface-container border border-white/10 text-text-primary text-xs px-3 py-1.5 rounded-md focus:border-velocity-red outline-none select-all font-mono"
                 readOnly
                 type="text"
-                value={`${window.location.origin}/?watch=${game.id}`}
+                value={window.location.href}
               />
               <button
                 onClick={handleCopyLink}
-                className="bg-surface-elevated border border-glass-border hover:border-velocity-red text-text-primary px-3 py-2 rounded font-label-caps text-xs flex items-center gap-1.5 transition-colors"
+                className="bg-surface-elevated border border-white/10 hover:border-velocity-red text-text-primary px-3 py-1.5 rounded-md text-xs flex items-center gap-1 transition-colors"
               >
-                {copiedLink ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                {copiedLink ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
                 <span>{copiedLink ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
           </div>
 
-          {/* Terminal Chat & Move Feed */}
-          <div className="glass-panel rounded-xl border border-glass-border overflow-hidden flex flex-col h-72 bg-surface-base shadow-xl">
+          {/* Chat Panel */}
+          <div className="rounded-xl border border-white/10 overflow-hidden flex flex-col h-64 bg-surface-base shadow-xl">
             <Chat gameId={game.id} />
           </div>
         </aside>
 
-        {/* Right Column: Game Board & Action Controls (2/3) */}
-        <section className="w-full lg:w-2/3 flex flex-col items-center justify-start gap-6 order-1 lg:order-2">
-          {/* Top Return Button */}
+        {/* Right Column: Game Board & Actions (2/3) */}
+        <section className="flex-1 flex flex-col items-center justify-start gap-6 order-1 lg:order-2">
+          
+          {/* Top Bar Actions */}
           <div className="w-full flex justify-between items-center">
             <button
               onClick={handleLeave}
-              className="flex items-center gap-2 font-label-caps text-xs text-text-secondary hover:text-text-primary py-2 px-3.5 rounded bg-surface-base border border-glass-border hover:border-velocity-red transition-colors"
+              className="flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary py-2 px-3 rounded-md bg-surface-base border border-white/10 hover:border-velocity-red transition-colors"
             >
-              <ArrowLeft size={14} /> Exit to Lobby
+              <ArrowLeft size={14} /> Back to Lobby
             </button>
 
             {game.status === 'waiting' && game.player1 === user?.id && (
               <button
                 onClick={handleCancelMatch}
-                className="font-label-caps text-xs text-red-400 hover:text-red-300 py-2 px-3 rounded bg-red-900/20 border border-red-900/40 hover:bg-red-900/40 transition-colors"
+                className="text-xs text-red-400 hover:text-red-300 py-2 px-3 rounded-md bg-red-900/20 border border-red-900/40 hover:bg-red-900/40 transition-colors"
               >
-                Cancel &amp; Discard Match
+                Cancel Game
               </button>
             )}
           </div>
@@ -310,12 +326,12 @@ export default function Game() {
           {/* Action Bar Beneath Board */}
           <div className="flex flex-wrap items-center justify-center gap-4 mt-2 w-full max-w-2xl">
             {/* Resign Button */}
-            {game.status === 'active' && !isSpectator && (
+            {game.status === 'active' && isParticipant && (
               <button
                 onClick={handleResign}
-                className="bg-surface-container border border-glass-border hover:border-red-900 text-text-secondary hover:text-red-400 px-6 py-2.5 rounded font-label-caps text-xs uppercase tracking-wider transition-colors flex items-center gap-2"
+                className="bg-surface-container border border-white/10 hover:border-red-900 text-text-secondary hover:text-red-400 px-6 py-2 rounded-md text-xs uppercase tracking-wider transition-colors flex items-center gap-2 font-medium"
               >
-                <Flag size={14} /> Resign Match
+                <Flag size={14} /> Resign
               </button>
             )}
 
@@ -323,27 +339,27 @@ export default function Game() {
             {canClaimAfk && (
               <button
                 onClick={handleClaimAfk}
-                className="bg-velocity-red text-text-primary font-label-caps text-xs uppercase tracking-wider px-6 py-2.5 rounded hover:bg-primary-container transition-all shadow-[0_0_15px_rgba(255,77,77,0.5)] animate-bounce flex items-center gap-2 font-bold"
+                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-md hover:bg-red-600 transition-all shadow-[0_0_15px_rgba(255,77,77,0.5)] animate-bounce flex items-center gap-2 font-bold"
               >
-                <Trophy size={14} /> Claim Victory (Opponent AFK)
+                <Trophy size={14} /> Claim Win (Opponent Inactive)
               </button>
             )}
 
-            {/* Finished Actions */}
+            {/* Finished Action */}
             {isFinished && (
               <button
                 onClick={handleLeave}
-                className="bg-velocity-red text-text-primary font-label-caps text-xs uppercase tracking-wider px-8 py-3 rounded hover:bg-primary-container transition-all shadow-[0_0_15px_rgba(255,77,77,0.4)] font-bold flex items-center gap-2"
+                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-md hover:bg-red-600 transition-all shadow-[0_0_15px_rgba(255,77,77,0.4)] font-bold flex items-center gap-2"
               >
                 <span>Return to Lobby</span>
-                <ArrowRight size={16} />
+                <ArrowRight size={15} />
               </button>
             )}
           </div>
         </section>
       </main>
 
-      {/* Victory / Defeat Modal Overlay (Stitch Screen d30c585692fd47c690109958a4cea8a0) */}
+      {/* End Game Modal */}
       <AnimatePresence>
         {isFinished && showWinModal && (
           <motion.div
@@ -353,39 +369,39 @@ export default function Game() {
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
+              initial={{ scale: 0.9, y: 15 }}
               animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="glass-panel rounded-2xl p-8 sm:p-12 max-w-md w-full flex flex-col items-center text-center gap-6 border-2 border-velocity-red shadow-[0_0_50px_rgba(255,77,77,0.3)] bg-surface-elevated relative overflow-hidden"
+              exit={{ scale: 0.9, y: 15 }}
+              className="rounded-2xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#161616] relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
 
               {/* Icon */}
               <div
-                className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl ${
+                className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl ${
                   isWinner
-                    ? 'bg-velocity-red text-white shadow-[0_0_30px_rgba(255,77,77,0.8)]'
+                    ? 'bg-velocity-red text-white shadow-[0_0_25px_rgba(255,77,77,0.7)]'
                     : isDraw
                     ? 'bg-surface-variant text-text-muted'
-                    : 'bg-surface-container text-text-secondary border border-glass-border'
+                    : 'bg-surface-container text-text-secondary border border-white/10'
                 }`}
               >
-                {isWinner ? <Trophy size={40} /> : isDraw ? <ShieldAlert size={40} /> : <XCircle size={40} />}
+                {isWinner ? <Trophy size={32} /> : isDraw ? <User size={32} /> : <XCircle size={32} />}
               </div>
 
               {/* Title */}
               <div className="space-y-1">
-                <h2 className="font-display-lg text-3xl sm:text-4xl font-bold text-white tracking-tight">
-                  {isWinner ? 'VICTORY ACHIEVED!' : isDraw ? 'MATCH DRAW' : isSpectator ? 'MATCH CONCLUDED' : 'DEFEAT'}
+                <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                  {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
                 </h2>
-                <p className="font-body-md text-sm text-text-secondary">
+                <p className="text-sm text-text-secondary">
                   {isWinner
-                    ? `You won the match! Stakes of ${stakesDisplay} secured.`
+                    ? `Stakes of ${stakesDisplay} secured.`
                     : isDraw
-                    ? 'Stalemate reached. Stakes refunded.'
+                    ? 'Match ended in a tie. Stakes returned.'
                     : isSpectator
                     ? `Player ${game.winner === game.player1 ? '1 (Red)' : '2 (White)'} won the match.`
-                    : 'Signal severed. Better luck next deployment.'}
+                    : 'Better luck in the next game.'}
                 </p>
               </div>
 
@@ -395,9 +411,9 @@ export default function Game() {
                   setShowWinModal(false);
                   handleLeave();
                 }}
-                className="mt-2 w-full bg-velocity-red text-text-primary py-3.5 rounded font-label-caps text-xs uppercase tracking-widest font-bold hover:bg-primary-container transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)]"
+                className="w-full bg-velocity-red text-white py-3 rounded-md text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)]"
               >
-                Return to Lobby
+                Back to Lobby
               </button>
             </motion.div>
           </motion.div>

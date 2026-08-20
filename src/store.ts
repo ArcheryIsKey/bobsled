@@ -4,33 +4,21 @@ export interface User {
   id?: string;
   walletAddress: string | null;
   username: string;
-  elo: number;
-  freeTokens: number;
   avatarUrl?: string;
-  isTestUser?: boolean;
-  testSolBalance?: number;
+  bannerUrl?: string;
+  createdAt?: any;
 }
-
-export type AppView = 'lobby' | 'profile';
 
 interface GameState {
   user: User | null;
-  currentGameId: string | null;
-  spectatingGameId: string | null;
-  currentView: AppView;
+  solBalance: number | null;
   setUser: (user: User | null) => void;
-  setCurrentGameId: (id: string | null) => void;
-  setSpectatingGameId: (id: string | null) => void;
-  setCurrentView: (view: AppView) => void;
+  setSolBalance: (balance: number | null) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
   user: null,
-  currentGameId: null,
-  spectatingGameId: null,
-  currentView: 'lobby',
+  solBalance: null,
   setUser: (user) => set({ user }),
-  setCurrentGameId: (id) => set({ currentGameId: id, spectatingGameId: null }),
-  setSpectatingGameId: (id) => set({ spectatingGameId: id, currentGameId: null }),
-  setCurrentView: (view) => set({ currentView: view }),
+  setSolBalance: (solBalance) => set({ solBalance }),
 }));

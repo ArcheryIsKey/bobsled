@@ -1,23 +1,73 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
-import { processImageFile } from '../utils/image';
-import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, DollarSign, Swords, XCircle, ArrowUpRight } from 'lucide-react';
+import { processImageFile, processBannerFile } from '../utils/image';
+import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, ArrowUpRight, Image as ImageIcon } from 'lucide-react';
 
 export default function Profile() {
-  const { user, setCurrentView, setCurrentGameId, setSpectatingGameId } = useGameStore();
+  const { userId: paramUserId } = useParams<{ userId?: string }>();
+  const navigate = useNavigate();
+  const { user: currentUser, solBalance } = useGameStore();
+
+  const isOwnProfile = !paramUserId || paramUserId === currentUser?.id;
+  const targetUserId = paramUserId || currentUser?.id;
+
+  const [profileData, setProfileData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [copied, setCopied] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch profile user document
   useEffect(() => {
-    if (!user?.id) return;
+    if (!targetUserId) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (isOwnProfile && currentUser) {
+      setProfileData(currentUser);
+      setIsLoading(false);
+    } else {
+      const fetchTargetProfile = async () => {
+        setIsLoading(true);
+        try {
+          const docSnap = await getDoc(doc(db, 'users', targetUserId));
+          if (docSnap.exists()) {
+            setProfileData({ id: docSnap.id, ...docSnap.data() });
+          } else {
+            setProfileData(null);
+          }
+        } catch (e) {
+          console.error('Error fetching profile:', e);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchTargetProfile();
+    }
+  }, [targetUserId, isOwnProfile, currentUser]);
+
+  // Keep own profile updated when currentUser store updates
+  useEffect(() => {
+    if (isOwnProfile && currentUser) {
+      setProfileData(currentUser);
+    }
+  }, [currentUser, isOwnProfile]);
+
+  // Fetch match history for this user
+  useEffect(() => {
+    if (!targetUserId) return;
 
     const q = query(
       collection(db, 'games'),
-      where('players', 'array-contains', user.id),
+      where('players', 'array-contains', targetUserId),
       where('status', '==', 'finished')
     );
 
@@ -28,35 +78,55 @@ export default function Profile() {
     });
 
     return () => unsub();
-  }, [user?.id]);
+  }, [targetUserId]);
 
   const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user?.id) return;
+    if (!file || !currentUser?.id || !isOwnProfile) return;
 
     setIsUploadingAvatar(true);
     try {
-      const dataUrl = await processImageFile(file, 256, 0.85);
-      await updateDoc(doc(db, 'users', user.id), {
+      const dataUrl = await processImageFile(file, 256, 0.8);
+      await updateDoc(doc(db, 'users', currentUser.id), {
         avatarUrl: dataUrl,
       });
     } catch (err) {
       console.error('Failed to upload avatar:', err);
-      alert('Failed to process image. Please try a smaller file.');
+      alert('Failed to process image. Please try a standard image file.');
     } finally {
       setIsUploadingAvatar(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  const handleBannerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser?.id || !isOwnProfile) return;
+
+    setIsUploadingBanner(true);
+    try {
+      const dataUrl = await processBannerFile(file, 1000, 300, 0.8);
+      await updateDoc(doc(db, 'users', currentUser.id), {
+        bannerUrl: dataUrl,
+      });
+    } catch (err) {
+      console.error('Failed to upload banner:', err);
+      alert('Failed to process banner image. Please try a standard image file.');
+    } finally {
+      setIsUploadingBanner(false);
+      if (bannerInputRef.current) bannerInputRef.current.value = '';
     }
   };
 
   const handleCopyWallet = () => {
-    if (!user?.walletAddress) return;
-    navigator.clipboard.writeText(user.walletAddress);
+    const wallet = profileData?.walletAddress;
+    if (!wallet) return;
+    navigator.clipboard.writeText(wallet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (!user) {
+  if (isLoading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="animate-spin text-velocity-red" size={32} />
@@ -64,269 +134,321 @@ export default function Profile() {
     );
   }
 
+  if (!profileData) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <h2 className="text-xl font-bold text-white">User not found</h2>
+        <button
+          onClick={() => navigate('/')}
+          className="px-4 py-2 bg-surface-container border border-white/10 rounded-md text-sm hover:border-velocity-red transition-colors"
+        >
+          Back to Lobby
+        </button>
+      </div>
+    );
+  }
+
   const totalGames = history.length;
-  const wins = history.filter((g) => g.winner === user.id).length;
-  const losses = history.filter((g) => g.winner && g.winner !== user.id && g.winner !== 'draw').length;
+  const wins = history.filter((g) => g.winner === targetUserId).length;
+  const losses = history.filter((g) => g.winner && g.winner !== targetUserId && g.winner !== 'draw').length;
   const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
   const lossRate = totalGames > 0 ? Math.round((losses / totalGames) * 100) : 0;
 
-  const displayBalance = user.isTestUser
-    ? `${user.testSolBalance ?? 1} SOL (Test)`
-    : user.testSolBalance !== undefined
-    ? `${user.testSolBalance} SOL`
-    : `${user.freeTokens ?? 10} FREE`;
-
-  const walletDisplay = user.walletAddress
-    ? `${user.walletAddress.substring(0, 6)}...${user.walletAddress.substring(user.walletAddress.length - 6)}`
-    : 'Anonymous Pilot';
+  const walletDisplay = profileData.walletAddress
+    ? `${profileData.walletAddress.substring(0, 6)}...${profileData.walletAddress.substring(profileData.walletAddress.length - 6)}`
+    : 'No Wallet Connected';
 
   return (
-    <div className="bg-background text-text-primary min-h-screen flex flex-col font-body-md antialiased selection:bg-velocity-red selection:text-text-primary w-full overflow-y-auto">
-      {/* Hidden File Input for Avatar */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleAvatarSelect}
-        accept="image/*"
-        className="hidden"
-      />
+    <div className="bg-background text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
+      {/* Hidden File Inputs */}
+      {isOwnProfile && (
+        <>
+          <input
+            type="file"
+            ref={avatarInputRef}
+            onChange={handleAvatarSelect}
+            accept="image/*"
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={bannerInputRef}
+            onChange={handleBannerSelect}
+            accept="image/*"
+            className="hidden"
+          />
+        </>
+      )}
 
-      <main className="flex-1 w-full max-w-max-width mx-auto px-margin-mobile md:px-margin-desktop py-8 md:py-12">
-        {/* Navigation Breadcrumb */}
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-8 md:py-10">
+        
+        {/* Top Back Link */}
         <div className="mb-6 flex items-center justify-between">
           <button
-            onClick={() => setCurrentView('lobby')}
-            className="flex items-center gap-2 font-label-caps text-xs text-text-secondary hover:text-text-primary transition-colors py-2 px-3 rounded bg-surface-base border border-glass-border hover:border-velocity-red"
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary transition-colors py-2 px-3 rounded-md bg-surface-base border border-white/10 hover:border-velocity-red"
           >
             <ArrowLeft size={14} /> Back to Lobby
           </button>
-
-          <span className="font-label-caps text-xs text-text-muted uppercase tracking-widest">
-            Pilot Dossier
-          </span>
         </div>
 
-        {/* Profile Header Section */}
-        <section className="mb-10 p-6 md:p-8 rounded-xl bg-surface-base border border-glass-border flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-velocity-red/5 rounded-full blur-3xl pointer-events-none" />
+        {/* Profile Card with Banner */}
+        <section className="mb-10 rounded-xl bg-surface-base border border-white/10 overflow-hidden shadow-2xl relative">
+          
+          {/* Banner Container */}
+          <div className="relative w-full h-36 sm:h-48 md:h-56 bg-gradient-to-r from-surface-elevated via-surface-container to-surface-base border-b border-white/10 overflow-hidden group">
+            {profileData.bannerUrl ? (
+              <img src={profileData.bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#121212_100%)]">
+                <div className="w-96 h-96 bg-velocity-red/5 rounded-full blur-3xl pointer-events-none" />
+              </div>
+            )}
 
-          <div className="flex flex-col sm:flex-row items-center sm:items-center gap-6 z-10 w-full sm:w-auto text-center sm:text-left">
-            {/* Avatar with click to edit */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg overflow-hidden border-2 border-glass-border hover:border-velocity-red relative group cursor-pointer shrink-0 transition-all duration-300 shadow-xl bg-surface-elevated"
-              title="Click to change profile picture"
-            >
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt={user.username}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-              ) : (
-                <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                  <span className="text-3xl sm:text-4xl font-display-lg font-bold text-text-primary">
-                    {user.username ? user.username.substring(0, 2).toUpperCase() : 'P1'}
-                  </span>
-                </div>
-              )}
-
-              {/* Hover overlay with Camera/Edit icon */}
-              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
-                {isUploadingAvatar ? (
-                  <Loader2 size={24} className="animate-spin text-velocity-red" />
+            {/* Banner edit button for own profile */}
+            {isOwnProfile && (
+              <button
+                onClick={() => bannerInputRef.current?.click()}
+                disabled={isUploadingBanner}
+                className="absolute top-3 right-3 bg-black/70 hover:bg-black/90 border border-white/15 text-white text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all opacity-80 group-hover:opacity-100 backdrop-blur-sm"
+              >
+                {isUploadingBanner ? (
+                  <Loader2 size={13} className="animate-spin text-velocity-red" />
                 ) : (
-                  <>
-                    <Camera size={22} className="text-white mb-1" />
-                    <span className="font-label-caps text-[9px] uppercase tracking-wider text-white">Change</span>
-                  </>
+                  <ImageIcon size={13} />
                 )}
-              </div>
-            </div>
-
-            {/* Profile Info */}
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                <h1 className="font-display-lg text-3xl sm:text-4xl md:text-5xl text-text-primary font-bold tracking-tight">
-                  {user.username}
-                </h1>
-                <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-3 py-1 rounded font-label-caps text-xs font-bold">
-                  ELO {user.elo ?? 1000}
-                </span>
-                {user.isTestUser && (
-                  <span className="bg-surface-variant text-text-muted border border-glass-border px-2 py-0.5 rounded font-label-caps text-[10px]">
-                    TEST PILOT
-                  </span>
-                )}
-              </div>
-
-              {/* Wallet Pill */}
-              {user.walletAddress && (
-                <div className="flex items-center justify-center sm:justify-start gap-2">
-                  <button
-                    onClick={handleCopyWallet}
-                    className="flex items-center gap-2 px-3 py-1 rounded bg-surface-container border border-glass-border hover:border-velocity-red font-label-caps text-xs text-text-secondary hover:text-text-primary transition-colors"
-                  >
-                    <span>{walletDisplay}</span>
-                    {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
-                  </button>
-                  {copied && (
-                    <span className="text-xs text-green-400 font-label-caps animate-fade-in">Copied!</span>
-                  )}
-                </div>
-              )}
-            </div>
+                <span>Change Banner</span>
+              </button>
+            )}
           </div>
 
-          {/* Header Action Buttons */}
-          <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full md:w-auto z-10">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingAvatar}
-              className="flex-1 md:flex-none border border-glass-border bg-surface-container hover:bg-surface-elevated text-text-primary hover:border-velocity-red px-5 py-2.5 rounded font-label-caps text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
-            >
-              <Camera size={14} />
-              {isUploadingAvatar ? 'Updating...' : 'Change Picture'}
-            </button>
+          {/* Profile Header Content */}
+          <div className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-end justify-between gap-6 -mt-16 sm:-mt-20 relative z-10">
+            
+            {/* Avatar & User Details */}
+            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left w-full sm:w-auto">
+              
+              {/* Avatar */}
+              <div
+                onClick={() => isOwnProfile && avatarInputRef.current?.click()}
+                className={`w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border-4 border-[#121212] bg-surface-elevated relative group shrink-0 shadow-2xl ${
+                  isOwnProfile ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
+                }`}
+                title={isOwnProfile ? 'Click to change profile picture' : ''}
+              >
+                {profileData.avatarUrl ? (
+                  <img
+                    src={profileData.avatarUrl}
+                    alt={profileData.username}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
+                    <span className="text-3xl sm:text-4xl font-headline-lg font-bold text-text-primary">
+                      {profileData.username ? profileData.username.substring(0, 2).toUpperCase() : 'U'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Avatar hover camera overlay (own profile only) */}
+                {isOwnProfile && (
+                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                    {isUploadingAvatar ? (
+                      <Loader2 size={20} className="animate-spin text-velocity-red" />
+                    ) : (
+                      <>
+                        <Camera size={18} className="text-white mb-0.5" />
+                        <span className="text-[10px] text-white font-medium">Edit</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Names & Wallet */}
+              <div className="space-y-1.5 pb-1">
+                <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-text-primary font-bold tracking-tight">
+                  {profileData.username}
+                </h1>
+
+                {profileData.walletAddress && (
+                  <div className="flex items-center justify-center sm:justify-start gap-2">
+                    <button
+                      onClick={handleCopyWallet}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container/80 border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-text-primary font-mono transition-colors"
+                      title="Copy wallet address"
+                    >
+                      <span>{walletDisplay}</span>
+                      {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                    </button>
+                    {copied && (
+                      <span className="text-xs text-green-400 font-mono">Copied!</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Profile Action Buttons */}
+            {isOwnProfile && (
+              <div className="flex gap-3 w-full sm:w-auto">
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  className="flex-1 sm:flex-none border border-white/10 bg-surface-container hover:bg-surface-elevated text-text-primary hover:border-velocity-red px-4 py-2 rounded-md text-xs font-semibold tracking-wide transition-colors flex items-center justify-center gap-2"
+                >
+                  <Camera size={14} />
+                  {isUploadingAvatar ? 'Updating...' : 'Change Picture'}
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* Stats Bento Grid (4 Cards) */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter mb-12">
-          {/* Card 1: Balance */}
-          <div className="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
-            <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red opacity-50 group-hover:opacity-100 transition-opacity" />
-            <div className="flex justify-between items-start mb-4">
-              <span className="font-label-caps text-xs text-text-secondary uppercase tracking-wider">Account Balance</span>
-              <DollarSign size={18} className="text-text-muted group-hover:text-velocity-red transition-colors" />
+        {/* Stats Grid (4 Cards) */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+          
+          {/* Card 1: Matches */}
+          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Matches</span>
+              <Swords size={16} className="text-text-muted group-hover:text-velocity-red transition-colors" />
             </div>
-            <div className="font-headline-lg text-2xl sm:text-3xl text-text-primary font-bold mb-1">
-              {displayBalance}
-            </div>
-            <div className="font-body-sm text-xs text-text-muted">
-              Live Arena Funds
-            </div>
-          </div>
-
-          {/* Card 2: Total Matches */}
-          <div className="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
-            <div className="flex justify-between items-start mb-4">
-              <span className="font-label-caps text-xs text-text-secondary uppercase tracking-wider">Total Matches</span>
-              <Swords size={18} className="text-text-muted group-hover:text-velocity-red transition-colors" />
-            </div>
-            <div className="font-headline-lg text-2xl sm:text-3xl text-text-primary font-bold mb-1">
+            <div className="font-headline-lg text-2xl md:text-3xl text-text-primary font-bold mb-0.5">
               {totalGames}
             </div>
-            <div className="font-body-sm text-xs text-text-muted">
-              Lifetime Engagements
+            <div className="text-xs text-text-muted">
+              Total games played
             </div>
           </div>
 
-          {/* Card 3: Wins & Win Rate */}
-          <div className="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
-            <div className="flex justify-between items-start mb-4">
-              <span className="font-label-caps text-xs text-text-secondary uppercase tracking-wider">Victories</span>
-              <Trophy size={18} className="text-text-muted group-hover:text-velocity-red transition-colors" />
+          {/* Card 2: Wins */}
+          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Wins</span>
+              <Trophy size={16} className="text-velocity-red transition-colors" />
             </div>
-            <div className="font-headline-lg text-2xl sm:text-3xl text-velocity-red font-bold mb-1">
+            <div className="font-headline-lg text-2xl md:text-3xl text-velocity-red font-bold mb-0.5">
               {wins}
             </div>
-            <div className="font-body-sm text-xs text-velocity-red font-medium">
-              {winRate}% Win Rate
+            <div className="text-xs text-velocity-red font-medium">
+              {winRate}% win rate
             </div>
           </div>
 
-          {/* Card 4: Losses & Loss Rate */}
-          <div className="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
-            <div className="flex justify-between items-start mb-4">
-              <span className="font-label-caps text-xs text-text-secondary uppercase tracking-wider">Defeats</span>
-              <XCircle size={18} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+          {/* Card 3: Losses */}
+          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Losses</span>
+              <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
             </div>
-            <div className="font-headline-lg text-2xl sm:text-3xl text-text-primary font-bold mb-1 text-text-muted">
+            <div className="font-headline-lg text-2xl md:text-3xl text-text-primary font-bold mb-0.5 text-text-secondary">
               {losses}
             </div>
-            <div className="font-body-sm text-xs text-text-muted">
-              {lossRate}% Loss Rate
+            <div className="text-xs text-text-muted">
+              {lossRate}% loss rate
+            </div>
+          </div>
+
+          {/* Card 4: SOL Holdings / Stakes */}
+          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">SOL Balance</span>
+              <span className="text-xs font-mono font-bold text-velocity-red">SOL</span>
+            </div>
+            <div className="font-headline-lg text-2xl md:text-3xl text-text-primary font-bold mb-0.5 font-mono">
+              {isOwnProfile && solBalance !== null ? `${solBalance.toFixed(3)}` : '—'}
+            </div>
+            <div className="text-xs text-text-muted">
+              {isOwnProfile ? 'In connected wallet' : 'Solana network'}
             </div>
           </div>
         </section>
 
-        {/* Recent Activity Section */}
+        {/* Match History Table */}
         <section>
-          <div className="flex justify-between items-center mb-6 border-b border-glass-border pb-4">
-            <h2 className="font-headline-lg text-xl sm:text-2xl text-text-primary font-bold">
-              Combat Record
+          <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+            <h2 className="font-headline-lg text-xl text-text-primary font-bold">
+              Match History
             </h2>
-            <span className="font-label-caps text-xs text-text-muted">
-              {history.length} Matches Recorded
+            <span className="text-xs text-text-muted">
+              {history.length} Matches
             </span>
           </div>
 
-          <div className="bg-surface-base border border-glass-border rounded-lg overflow-hidden shadow-xl">
+          <div className="bg-surface-base border border-white/10 rounded-lg overflow-hidden shadow-xl">
             {history.length === 0 ? (
-              <div className="p-12 text-center text-text-muted font-body-sm">
-                No past matches found. Jump into the arena to record your first game!
+              <div className="p-10 text-center text-text-muted text-sm">
+                No match history recorded yet.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-surface-elevated/80 border-b border-glass-border">
-                      <th className="py-4 px-6 font-label-caps text-xs text-text-secondary uppercase tracking-wider">Match ID</th>
-                      <th className="py-4 px-6 font-label-caps text-xs text-text-secondary uppercase tracking-wider">Opponent</th>
-                      <th className="py-4 px-6 font-label-caps text-xs text-text-secondary uppercase tracking-wider">Date</th>
-                      <th className="py-4 px-6 font-label-caps text-xs text-text-secondary uppercase tracking-wider">Result</th>
-                      <th className="py-4 px-6 font-label-caps text-xs text-text-secondary uppercase tracking-wider text-right">Stakes</th>
-                      <th className="py-4 px-6 font-label-caps text-xs text-text-secondary uppercase tracking-wider text-right">Action</th>
+                    <tr className="bg-surface-elevated/80 border-b border-white/10">
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Match</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Opponent</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Date</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Result</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right">Stakes</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right">View</th>
                     </tr>
                   </thead>
-                  <tbody className="font-body-sm text-sm divide-y divide-glass-border">
+                  <tbody className="text-sm divide-y divide-white/5 font-body-sm">
                     {history.map((game) => {
-                      const isWin = game.winner === user.id;
+                      const isWin = game.winner === targetUserId;
                       const isDraw = game.winner === 'draw';
-                      const opponentName = game.player1 === user.id ? game.player2Name : game.player1Name;
+                      const opponentId = game.player1 === targetUserId ? game.player2 : game.player1;
+                      const opponentName = game.player1 === targetUserId ? game.player2Name : game.player1Name;
                       const opponentDisplay = opponentName || 'Opponent';
                       const matchDate = game.createdAt?.toDate
-                        ? game.createdAt.toDate().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+                        ? game.createdAt.toDate().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
                         : 'Recent';
 
                       return (
-                        <tr key={game.id} className="hover:bg-surface-elevated/40 transition-colors group">
-                          <td className="py-4 px-6 font-label-caps text-xs text-text-primary font-mono group-hover:text-velocity-red transition-colors">
+                        <tr key={game.id} className="hover:bg-surface-elevated/40 transition-colors">
+                          <td className="py-3.5 px-5 text-xs text-text-secondary font-mono">
                             #{game.id.substring(0, 8).toUpperCase()}
                           </td>
-                          <td className="py-4 px-6 font-body-md text-text-primary font-medium">
-                            vs {opponentDisplay}
+                          <td className="py-3.5 px-5">
+                            {opponentId ? (
+                              <Link
+                                to={`/profile/${opponentId}`}
+                                className="text-text-primary hover:text-velocity-red font-medium transition-colors"
+                              >
+                                {opponentDisplay}
+                              </Link>
+                            ) : (
+                              <span className="text-text-muted">{opponentDisplay}</span>
+                            )}
                           </td>
-                          <td className="py-4 px-6 text-text-muted text-xs font-mono">
+                          <td className="py-3.5 px-5 text-text-muted text-xs font-mono">
                             {matchDate}
                           </td>
-                          <td className="py-4 px-6">
+                          <td className="py-3.5 px-5">
                             {isWin ? (
-                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2.5 py-1 rounded font-label-caps text-[10px] font-bold">
-                                VICTORY
+                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2 py-0.5 rounded text-[11px] font-semibold uppercase">
+                                Win
                               </span>
                             ) : isDraw ? (
-                              <span className="bg-surface-variant text-text-secondary border border-glass-border px-2.5 py-1 rounded font-label-caps text-[10px] font-bold">
-                                DRAW
+                              <span className="bg-surface-variant text-text-secondary border border-white/10 px-2 py-0.5 rounded text-[11px] font-semibold uppercase">
+                                Draw
                               </span>
                             ) : (
-                              <span className="bg-surface-container-highest text-text-muted border border-glass-border px-2.5 py-1 rounded font-label-caps text-[10px] font-bold">
-                                DEFEAT
+                              <span className="bg-surface-container-highest text-text-muted border border-white/10 px-2 py-0.5 rounded text-[11px] font-semibold uppercase">
+                                Loss
                               </span>
                             )}
                           </td>
-                          <td className={`py-4 px-6 text-right font-label-caps font-bold text-xs ${isWin ? 'text-velocity-red' : 'text-text-muted'}`}>
+                          <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}`}>
                             {game.wager > 0 ? `${isWin ? '+' : '-'}${game.wager} ${game.wagerCurrency}` : 'FREE'}
                           </td>
-                          <td className="py-4 px-6 text-right">
+                          <td className="py-3.5 px-5 text-right">
                             <button
-                              onClick={() => {
-                                setSpectatingGameId(game.id);
-                              }}
-                              className="inline-flex items-center gap-1 font-label-caps text-[11px] text-text-secondary hover:text-velocity-red transition-colors uppercase px-2.5 py-1 rounded bg-surface-container hover:bg-surface-elevated border border-glass-border"
+                              onClick={() => navigate(`/game/${game.id}`)}
+                              className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-velocity-red transition-colors px-2.5 py-1 rounded bg-surface-container hover:bg-surface-elevated border border-white/10"
                             >
-                              Inspect <ArrowUpRight size={12} />
+                              Watch <ArrowUpRight size={12} />
                             </button>
                           </td>
                         </tr>

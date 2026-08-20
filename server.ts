@@ -67,7 +67,7 @@ app.post('/api/auth/verify', async (req, res) => {
   }
 
   try {
-    const message = new TextEncoder().encode(`Sign this message to log in to bobsled.gg. Nonce: ${nonce}`);
+    const message = new TextEncoder().encode(`Sign in to Bobsled.gg with nonce: ${nonce}`);
     const decodeFn = (bs58 as any).decode || (bs58 as any).default?.decode;
     const signatureUint8 = decodeFn(signature);
     const pubKeyUint8 = new PublicKey(publicKey).toBytes();

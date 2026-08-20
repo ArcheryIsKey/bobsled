@@ -96,7 +96,7 @@ export default function Dashboard() {
     if (!user) return;
     
     if (user.isTestUser && game.wager > 0) {
-      alert('Test users can only join Free games. Connect a wallet to play with SOL stakes.');
+      alert('Guest users can only join Free games. Connect a wallet to play with SOL stakes.');
       return;
     }
 
@@ -164,7 +164,7 @@ export default function Dashboard() {
                     : myWaitingGame
                     ? 'Your game is open for another player to join.'
                     : user?.isTestUser
-                    ? 'Test user mode: Free play matches only.'
+                    ? 'Guest mode: Free play matches only.'
                     : 'Choose your stakes and enter a game.'}
                 </p>
               </div>
@@ -177,7 +177,7 @@ export default function Dashboard() {
                     {user?.isTestUser ? (
                       <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-velocity-red/10 border border-velocity-red/30 text-velocity-red font-mono text-xs font-bold">
                         <FlaskConical size={14} />
-                        <span>Free Play Only (Test Mode)</span>
+                        <span>Free Play Only (Guest Mode)</span>
                       </div>
                     ) : (
                       <div className="flex gap-1.5 p-1 rounded-full bg-[#0e0e0e] border border-white/10 w-full max-w-xs">

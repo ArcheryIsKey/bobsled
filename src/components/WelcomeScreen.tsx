@@ -1,114 +1,124 @@
 import React, { useState } from 'react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { Play, FlaskConical, Gamepad2 } from 'lucide-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { Swords, User, FlaskConical } from 'lucide-react';
 
 interface WelcomeScreenProps {
   onTestLogin?: (username: string) => void;
-  pendingGame?: {
-    id: string;
-    player1Name?: string;
-    wager?: number;
-    wagerCurrency?: string;
-  } | null;
+  pendingGame?: any;
 }
 
 export default function WelcomeScreen({ onTestLogin, pendingGame }: WelcomeScreenProps) {
-  const [testUsername, setTestUsername] = useState('');
+  const { setVisible } = useWalletModal();
+  const [guestUsername, setGuestUsername] = useState('');
 
-  const handleTestSubmit = (e: React.FormEvent) => {
+  const handleGuestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (testUsername.trim() && onTestLogin) {
-      onTestLogin(testUsername.trim());
+    if (guestUsername.trim() && onTestLogin) {
+      onTestLogin(guestUsername.trim());
     }
   };
 
   return (
-    <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md relative overflow-hidden w-full">
-      {/* Atmospheric Glow */}
-      <div className="absolute inset-0 pointer-events-none z-0">
-        <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-velocity-red/5 rounded-full blur-[140px]" />
-        <div className="absolute bottom-1/3 right-1/4 w-[600px] h-[600px] bg-[#1a1a1a]/40 rounded-full blur-[120px]" />
-      </div>
-
-      <main className="flex-grow flex flex-col items-center justify-center p-4 md:p-8 relative z-10 w-full max-w-md mx-auto py-12">
+    <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 min-h-[calc(100vh-80px)] w-full">
+      <div className="w-full max-w-md space-y-6">
         
-        {/* Game Invitation Floating Banner */}
+        {/* Match Invitation Card (if entering via direct match link) */}
         {pendingGame && (
-          <div className="w-full mb-5 p-4 rounded-2xl bg-velocity-red/10 border border-velocity-red/40 flex items-center gap-3.5 text-left shadow-[0_0_30px_rgba(255,77,77,0.2)] animate-pulse">
+          <div className="p-4 rounded-2xl bg-velocity-red/15 border border-velocity-red/40 shadow-[0_0_30px_rgba(255,77,77,0.25)] flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-full bg-velocity-red flex items-center justify-center text-white shrink-0 shadow-md">
-              <Gamepad2 size={20} />
+              <Swords size={20} />
             </div>
-            <div className="space-y-0.5">
-              <span className="text-[10px] uppercase tracking-wider text-velocity-red font-mono font-bold block">
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase font-mono font-bold text-velocity-red tracking-wider block">
                 Match Invitation
               </span>
-              <p className="text-xs text-white font-semibold">
-                You're joining Match <strong className="font-mono text-velocity-red">#{pendingGame.id.substring(0, 6).toUpperCase()}</strong> ({pendingGame.wager ? `${pendingGame.wager} SOL` : 'Free'})
+              <p className="text-xs text-white font-bold truncate">
+                Match #{pendingGame.id.substring(0, 6).toUpperCase()} vs @{pendingGame.player1Name || 'Host'}
               </p>
-              <p className="text-[11px] text-text-muted">
-                Connect your wallet or test mode to start playing right away.
+              <p className="text-[11px] text-text-secondary font-mono">
+                Stakes: {pendingGame.wager > 0 ? `${pendingGame.wager} SOL` : 'Free Play'}
               </p>
             </div>
           </div>
         )}
 
-        <div className="bg-[#141414] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-2xl w-full overflow-hidden transition-all duration-300">
-          
-          <div className="w-full bg-surface-container-highest h-1">
-            <div className="bg-velocity-red h-full w-full opacity-80" />
+        {/* Main Welcome Container */}
+        <div className="bg-[#141414] border border-white/10 p-8 sm:p-10 rounded-3xl shadow-2xl flex flex-col items-center text-center gap-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-velocity-red/5 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Logo & Headline */}
+          <div className="space-y-2 relative z-10">
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#1e1e1e] border border-white/10 flex items-center justify-center shadow-xl mb-3 overflow-hidden">
+              <img src="/logo.jpg" alt="bobsled.gg" className="w-full h-full object-cover mix-blend-screen" />
+            </div>
+            <h1 className="font-headline-lg text-3xl sm:text-4xl text-white font-bold tracking-tight">
+              bobsled<span className="text-velocity-red">.</span>gg
+            </h1>
+            <p className="text-xs text-text-secondary max-w-[280px] mx-auto">
+              High-performance on-chain Connect 4. Connect your wallet or guest mode to start playing right away.
+            </p>
           </div>
 
-          <div className="p-8 md:p-10 flex flex-col gap-7 items-center text-center">
-            {/* Logo & Headline */}
-            <div className="space-y-2 flex flex-col items-center">
-              <img src="/logo.jpg" alt="bobsled.gg logo" className="w-16 h-16 mix-blend-screen mb-1" />
-              <h1 className="font-headline-lg text-3xl md:text-4xl text-white font-bold tracking-tight">
-                bobsled<span className="text-velocity-red">.</span>gg
-              </h1>
-              <p className="font-body-sm text-text-secondary text-xs sm:text-sm max-w-xs leading-relaxed">
-                Real-time Connect 4 on Solana. Connect wallet to start playing.
+          {/* Primary Action: Connect Wallet */}
+          <div className="w-full space-y-3 relative z-10">
+            <button
+              onClick={() => setVisible(true)}
+              className="w-full h-12 bg-velocity-red hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
+            >
+              <User size={16} />
+              <span>Connect Wallet to Play</span>
+            </button>
+
+            {pendingGame && (
+              <p className="text-[11px] text-text-muted font-mono">
+                Connect your wallet to join Match #{pendingGame.id.substring(0, 6).toUpperCase()}
               </p>
-            </div>
-
-            {/* Wallet Connect Primary Action */}
-            <div className="w-full flex justify-center">
-              <WalletMultiButton className="!w-full !justify-center !bg-velocity-red hover:!bg-red-600 !text-white !font-semibold !text-xs !py-3.5 !px-6 !transition-all !rounded-full !shadow-[0_0_20px_rgba(255,77,77,0.35)] !tracking-wide uppercase cursor-pointer" />
-            </div>
-
-            {/* Test User Mode */}
-            {onTestLogin && (
-              <div className="w-full pt-6 border-t border-white/10 flex flex-col gap-3">
-                <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono text-text-muted uppercase tracking-wider">
-                  <FlaskConical size={13} className="text-velocity-red" />
-                  <span>Test User Mode</span>
-                </div>
-
-                <form onSubmit={handleTestSubmit} className="flex flex-col gap-2.5 w-full">
-                  <div className="relative flex items-center bg-[#0e0e0e] rounded-full border border-white/10 focus-within:border-velocity-red">
-                    <span className="pl-3.5 text-text-muted text-xs font-mono">@</span>
-                    <input
-                      type="text"
-                      placeholder="Enter test username..."
-                      value={testUsername}
-                      onChange={(e) => setTestUsername(e.target.value)}
-                      maxLength={15}
-                      className="w-full bg-transparent border-none text-white text-xs py-2.5 px-2 focus:ring-0 outline-none placeholder:text-text-muted font-mono"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!testUsername.trim()}
-                    className="w-full bg-surface-container hover:bg-surface-elevated text-text-secondary hover:text-white border border-white/10 hover:border-velocity-red text-xs py-2.5 rounded-full font-semibold transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 cursor-pointer font-mono"
-                  >
-                    <Play size={12} />
-                    <span>Enter Test Mode</span>
-                  </button>
-                </form>
-              </div>
             )}
           </div>
+
+          {/* Divider */}
+          <div className="relative flex items-center justify-center w-full my-1">
+            <div className="w-full border-t border-white/10" />
+            <span className="absolute bg-[#141414] px-3 text-[11px] text-text-muted font-mono uppercase">OR</span>
+          </div>
+
+          {/* Guest Mode */}
+          {onTestLogin && (
+            <div className="w-full space-y-3 relative z-10">
+              <div className="flex items-center justify-center gap-1.5 text-xs text-text-secondary font-semibold font-mono">
+                <FlaskConical size={14} className="text-velocity-red" />
+                <span>Guest Mode</span>
+              </div>
+
+              <form onSubmit={handleGuestSubmit} className="flex flex-col gap-2.5 w-full">
+                <div className="relative">
+                  <input
+                    type="text"
+                    maxLength={20}
+                    placeholder="Enter guest username..."
+                    value={guestUsername}
+                    onChange={(e) => setGuestUsername(e.target.value)}
+                    className="w-full h-11 bg-[#0e0e0e] border border-white/10 focus:border-velocity-red rounded-full px-4 text-xs text-white text-center font-mono outline-none transition-colors placeholder:text-text-muted"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!guestUsername.trim()}
+                  className="w-full h-10 bg-[#202020] hover:bg-[#282828] disabled:opacity-40 text-white font-semibold text-xs uppercase tracking-wider rounded-full transition-all border border-white/10 font-mono flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <FlaskConical size={13} className="text-velocity-red" />
+                  <span>Play as Guest</span>
+                </button>
+              </form>
+              <p className="text-[10px] text-text-muted">
+                Guest sessions are free-play only and do not require a crypto wallet.
+              </p>
+            </div>
+          )}
+
         </div>
-      </main>
+      </div>
     </div>
   );
 }

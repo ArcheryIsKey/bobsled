@@ -19,17 +19,17 @@ import { Shield, User, FlaskConical } from 'lucide-react';
 
 const OWNER_WALLET = '11111111111111111111111111111111';
 
-async function cleanupTestUserGames(testUserId: string) {
+async function cleanupGuestUserGames(guestUserId: string) {
   try {
     const waitingSnap = await getDocs(
-      query(collection(db, 'games'), where('player1', '==', testUserId), where('status', '==', 'waiting'))
+      query(collection(db, 'games'), where('player1', '==', guestUserId), where('status', '==', 'waiting'))
     );
     for (const gDoc of waitingSnap.docs) {
       await deleteDoc(gDoc.ref);
     }
 
     const activeSnap1 = await getDocs(
-      query(collection(db, 'games'), where('player1', '==', testUserId), where('status', '==', 'active'))
+      query(collection(db, 'games'), where('player1', '==', guestUserId), where('status', '==', 'active'))
     );
     for (const gDoc of activeSnap1.docs) {
       const g = gDoc.data();
@@ -41,7 +41,7 @@ async function cleanupTestUserGames(testUserId: string) {
     }
 
     const activeSnap2 = await getDocs(
-      query(collection(db, 'games'), where('player2', '==', testUserId), where('status', '==', 'active'))
+      query(collection(db, 'games'), where('player2', '==', guestUserId), where('status', '==', 'active'))
     );
     for (const gDoc of activeSnap2.docs) {
       const g = gDoc.data();
@@ -52,7 +52,7 @@ async function cleanupTestUserGames(testUserId: string) {
       });
     }
   } catch (err) {
-    console.warn('Test cleanup notice:', err);
+    console.warn('Guest cleanup notice:', err);
   }
 }
 
@@ -66,7 +66,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
   const handleLogout = async () => {
     localStorage.removeItem('bobsled_auth_wallet');
     if (user?.isTestUser && user.id) {
-      await cleanupTestUserGames(user.id);
+      await cleanupGuestUserGames(user.id);
     }
     try {
       await signOut(auth);
@@ -86,7 +86,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
   const isAdminRoute = location.pathname === '/admin';
 
   const userDisplayName = user?.isTestUser
-    ? (user?.username || 'Player')
+    ? (user?.username || 'Guest')
     : `@${user?.username || 'Player'}`;
 
   return (
@@ -165,11 +165,11 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
           ) : (
             <div className="flex items-center gap-2 sm:gap-3">
               
-              {/* Test User Badge */}
+              {/* Guest User Badge */}
               {user?.isTestUser && (
                 <div className="text-[11px] font-mono text-velocity-red px-3 py-1 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
                   <FlaskConical size={12} />
-                  <span>TEST</span>
+                  <span>GUEST</span>
                 </div>
               )}
 
@@ -183,7 +183,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
                 </div>
               )}
 
-              {/* Profile Link Pill - Opens modal on click */}
+              {/* Profile Link Pill */}
               <button
                 onClick={onOpenProfileModal}
                 className="flex items-center gap-2 py-1 px-1.5 sm:pr-3.5 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group cursor-pointer h-8.5"
@@ -222,7 +222,7 @@ function MainContent({
   usernameError,
   authError,
   handleSetUsername,
-  handleTestLogin,
+  handleGuestLogin,
   disconnect,
   pendingGame,
 }: any) {
@@ -230,7 +230,7 @@ function MainContent({
   const { user } = useGameStore();
 
   if (!user && !publicKey) {
-    return <WelcomeScreen onTestLogin={handleTestLogin} pendingGame={pendingGame} />;
+    return <WelcomeScreen onTestLogin={handleGuestLogin} pendingGame={pendingGame} />;
   }
 
   if (isAuthenticating) {
@@ -319,11 +319,11 @@ export default function App() {
     }
   }, []);
 
-  // Cleanup test user games on window unload
+  // Cleanup guest user games on window unload
   useEffect(() => {
     const handleUnload = () => {
       if (user?.isTestUser && user.id) {
-        cleanupTestUserGames(user.id);
+        cleanupGuestUserGames(user.id);
       }
     };
     window.addEventListener('beforeunload', handleUnload);
@@ -389,7 +389,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [publicKey, user?.isTestUser, fetchWalletBalance]);
 
-  const handleTestLogin = async (testUsername: string) => {
+  const handleGuestLogin = async (guestUsername: string) => {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
@@ -397,14 +397,14 @@ export default function App() {
       const uid = userCredential.user.uid;
       setUser({
         id: uid,
-        username: testUsername,
+        username: guestUsername,
         walletAddress: null,
         isTestUser: true,
         createdAt: new Date(),
       });
     } catch (err: any) {
-      console.error('Test user login failed:', err);
-      setAuthError('Could not initialize test session.');
+      console.error('Guest login failed:', err);
+      setAuthError('Could not initialize guest session.');
     } finally {
       setIsAuthenticating(false);
     }
@@ -612,7 +612,7 @@ export default function App() {
             usernameError={usernameError}
             authError={authError}
             handleSetUsername={handleSetUsername}
-            handleTestLogin={handleTestLogin}
+            handleGuestLogin={handleGuestLogin}
             disconnect={disconnect}
             pendingGame={pendingGame}
           />

@@ -57,11 +57,11 @@ export default function Game() {
     return () => unsub();
   }, [gameId, navigate]);
 
-  // Test User Auto-Forfeit on Disconnect / Tab Close
+  // Guest User Auto-Forfeit on Disconnect / Tab Close
   useEffect(() => {
     if (!game || game.status !== 'active' || !user?.id) return;
 
-    const isTestUser = user.isTestUser || user.id.startsWith('test_');
+    const isGuestUser = user.isTestUser || user.id.startsWith('test_');
     const isP1 = game.player1 === user.id;
     const isP2 = game.player2 === user.id;
     if (!isP1 && !isP2) return;
@@ -70,7 +70,7 @@ export default function Game() {
 
     // 1. Unload & Pagehide listener
     const handleForfeitOnDisconnect = () => {
-      if (isTestUser && game.status === 'active' && opponentId) {
+      if (isGuestUser && game.status === 'active' && opponentId) {
         updateDoc(doc(db, 'games', game.id), {
           status: 'finished',
           winner: opponentId,
@@ -82,8 +82,8 @@ export default function Game() {
     window.addEventListener('beforeunload', handleForfeitOnDisconnect);
     window.addEventListener('pagehide', handleForfeitOnDisconnect);
 
-    // 2. Periodic Heartbeat for test users
-    if (isTestUser) {
+    // 2. Periodic Heartbeat for guest users
+    if (isGuestUser) {
       const field = isP1 ? 'player1Heartbeat' : 'player2Heartbeat';
       heartbeatIntervalRef.current = setInterval(() => {
         updateDoc(doc(db, 'games', game.id), {
@@ -93,11 +93,14 @@ export default function Game() {
       }, 3000);
     }
 
-    // 3. Opponent checks if the test user has disconnected (no heartbeat for > 8s)
-    const opponentIsTest = isP1 ? game.player2?.startsWith('test_') : game.player1?.startsWith('test_');
+    // 3. Opponent checks if the guest user has disconnected (no heartbeat for > 8s)
+    const opponentIsGuest = isP1
+      ? (game.player2IsTest || game.player2?.startsWith('test_'))
+      : (game.player1IsTest || game.player1?.startsWith('test_'));
+
     let disconnectCheckInterval: any = null;
 
-    if (opponentIsTest) {
+    if (opponentIsGuest) {
       const oppHeartbeatField = isP1 ? 'player2Heartbeat' : 'player1Heartbeat';
       disconnectCheckInterval = setInterval(() => {
         const lastHb = game[oppHeartbeatField] || game.updatedAt?.toMillis?.() || 0;
@@ -125,7 +128,7 @@ export default function Game() {
     if (user.id === game.player1) return;
 
     if (user.isTestUser && game.wager > 0) {
-      alert('Test users can only join Free games. Connect a wallet to play with SOL stakes.');
+      alert('Guest users can only join Free games. Connect a wallet to play with SOL stakes.');
       return;
     }
 
@@ -135,6 +138,7 @@ export default function Game() {
         player2: user.id,
         player2Name: user.username,
         player2Avatar: user.avatarUrl || null,
+        player2IsTest: !!user.isTestUser,
         players: [game.player1, user.id],
         status: 'active',
         turn: Math.random() > 0.5 ? game.player1 : user.id,
@@ -257,14 +261,14 @@ export default function Game() {
   const isMyTurn = isParticipant && game.turn === user?.id && game.status === 'active';
   const opponentAvatar = isPlayer1 ? game.player2Avatar : game.player1Avatar;
 
-  const isP1Test = game.player1?.startsWith?.('test_');
-  const isP2Test = game.player2?.startsWith?.('test_');
+  const isP1Guest = game.player1IsTest || game.player1?.startsWith?.('test_');
+  const isP2Guest = game.player2IsTest || game.player2?.startsWith?.('test_');
 
-  const p1DisplayName = isP1Test
+  const p1DisplayName = isP1Guest
     ? (game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1')
     : `@${game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1'}`;
 
-  const p2DisplayName = isP2Test
+  const p2DisplayName = isP2Guest
     ? (game.player2 === user?.id ? (user?.username || 'You') : game.player2Name || 'Player 2')
     : `@${game.player2 === user?.id ? (user?.username || 'You') : game.player2Name || 'Player 2'}`;
 
@@ -370,9 +374,9 @@ export default function Game() {
               
               {/* Player 1 (Red) */}
               <div
-                onClick={() => game.player1 && setSelectedProfileId(game.player1)}
-                className="flex items-center justify-between group cursor-pointer hover:bg-white/5 p-1.5 -m-1.5 rounded-xl transition-colors"
-                title="View Profile"
+                onClick={() => !isP1Guest && game.player1 && setSelectedProfileId(game.player1)}
+                className={`flex items-center justify-between p-1.5 -m-1.5 rounded-xl transition-colors ${!isP1Guest ? 'group cursor-pointer hover:bg-white/5' : ''}`}
+                title={!isP1Guest ? 'View Profile' : 'Guest Player'}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-velocity-red flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,77,77,0.35)]">
@@ -405,9 +409,9 @@ export default function Game() {
 
               {/* Player 2 (White) */}
               <div
-                onClick={() => game.player2 && setSelectedProfileId(game.player2)}
-                className={`flex items-center justify-between ${game.player2 ? 'group cursor-pointer hover:bg-white/5' : ''} p-1.5 -m-1.5 rounded-xl transition-colors`}
-                title={game.player2 ? 'View Profile' : ''}
+                onClick={() => !isP2Guest && game.player2 && setSelectedProfileId(game.player2)}
+                className={`flex items-center justify-between ${!isP2Guest && game.player2 ? 'group cursor-pointer hover:bg-white/5' : ''} p-1.5 -m-1.5 rounded-xl transition-colors`}
+                title={!isP2Guest && game.player2 ? 'View Profile' : ''}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-white flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,255,255,0.25)]">
@@ -622,7 +626,7 @@ export default function Game() {
         )}
       </AnimatePresence>
 
-      {/* End Game Modal: Clean non-quirky standard text */}
+      {/* End Game Modal */}
       <AnimatePresence>
         {isFinished && showWinModal && (
           <motion.div

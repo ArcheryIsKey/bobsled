@@ -104,8 +104,6 @@ body { font-family: 'Inter', sans-serif; background-color: theme('colors.backgro
             backdrop-filter: blur(16px);
         }
 
-a, button, [role=\
-button\] {
-    cursor: pointer;
+button, a, [role="button"], input[type="submit"], input[type="button"], input[type="checkbox"], input[type="radio"], select, summary, label, .clickable { 
+  cursor: pointer; 
 }
-button, a, [role="button"] { cursor: pointer; }

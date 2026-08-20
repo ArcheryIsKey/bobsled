@@ -245,8 +245,9 @@ export default function App() {
         <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
           <button 
             onClick={() => { setCurrentGameId(null); setSpectatingGameId(null); }}
-            className="font-headline-lg-mobile md:font-headline-lg text-2xl font-bold text-velocity-red tracking-tighter hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 font-headline-lg-mobile md:font-headline-lg text-2xl font-bold text-velocity-red tracking-tighter hover:opacity-80 transition-opacity"
           >
+            <img src="/logo.jpg" alt="bobsled.gg logo" className="w-8 h-8 mix-blend-screen" />
             bobsled.gg
           </button>
           

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connect-4</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <meta name="description" content="Connect 4" />
+  </head>
+  <body>
+    <script>
+      // Fix for "Cannot set property fetch of #<Window> which has only a getter"
+      // Some web3 libraries try to polyfill fetch by assignment.
+      if (typeof window !== 'undefined' && window.fetch) {
+        try {
+          Object.defineProperty(window, 'fetch', {
+            value: window.fetch,
+            writable: true,
+            configurable: true
+          });
+        } catch (e) {
+          console.warn('Could not redefine window.fetch', e);
+        }
+      }
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

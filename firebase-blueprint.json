@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A player profile in the system.",
+      "type": "object",
+      "properties": {
+        "walletAddress": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Solana wallet address, used as document ID."
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Unique username."
+        },
+        "elo": {
+          "type": "number",
+          "description": "Player's matchmaking ranking."
+        },
+        "freeTokens": {
+          "type": "number",
+          "description": "Tokens for practice matches."
+        },
+        "createdAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["walletAddress", "username", "elo", "freeTokens", "createdAt"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "A Connect-4 match.",
+      "type": "object",
+      "properties": {
+        "player1": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "player2": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "enum": ["waiting", "active", "finished"],
+          "maxLength": 20
+        },
+        "turn": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "board": {
+          "type": "array",
+          "items": { "type": "number" },
+          "maxLength": 42
+        },
+        "wager": {
+          "type": "number"
+        },
+        "wagerCurrency": {
+          "type": "string",
+          "enum": ["SOL", "FREE"],
+          "maxLength": 10
+        },
+        "winner": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "timestamp"
+        },
+        "updatedAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["player1", "status", "board", "wager", "wagerCurrency", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message within a game.",
+      "type": "object",
+      "properties": {
+        "senderId": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores player profiles."
+    },
+    "games/{gameId}": {
+      "schema": { "$ref": "#/entities/Game" },
+      "description": "Stores match data."
+    },
+    "games/{gameId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Stores chat messages for a specific game."
+    }
+  }
+}

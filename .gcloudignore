@@ -1,0 +1,29 @@
+# Exclude build artifacts
+dist/
+build/
+.next/
+
+# Exclude Git files
+.git/
+.gitignore
+
+# Exclude heavy dependency folders (Cloud Run will install these on the server)
+node_modules/
+.npm/
+.venv/
+venv/
+env/
+
+# Exclude local IDE settings
+.vscode/
+.idea/
+
+# Exclude antigravity agents
+.agents/
+.antigravity/
+
+# Exclude local database/log files
+*.db
+*.sqlite
+*.log
+

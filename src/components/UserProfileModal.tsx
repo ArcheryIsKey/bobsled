@@ -84,22 +84,39 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
   const handleOpenFullProfile = () => {
     if (isTestUser) {
-      alert('Guest / Test user accounts are temporary and do not have a persistent profile page.');
+      alert('Guest accounts are temporary and do not have a persistent profile page.');
       return;
     }
     onClose();
     navigate(`/profile/${userId}`);
   };
 
-  const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, matchId: string) => {
+  const handleOpponentClick = async (e: React.MouseEvent, oppId: string | null, matchId: string, game: any) => {
     e.stopPropagation();
-    if (!oppId || oppId.startsWith('test_')) {
-      setTestUserToast({ matchId, message: 'Test User — No permanent profile' });
+    const isOppP1 = game.player1 !== userId;
+    const isOppTest = isOppP1 ? game.player1IsTest : game.player2IsTest;
+
+    if (isOppTest || !oppId || oppId.startsWith('test_')) {
+      setTestUserToast({ matchId, message: 'Guest User (Temporary Account)' });
       setTimeout(() => {
         setTestUserToast((prev) => (prev?.matchId === matchId ? null : prev));
       }, 2500);
       return;
     }
+
+    try {
+      const oppDoc = await getDoc(doc(db, 'users', oppId));
+      if (!oppDoc.exists() || oppDoc.data()?.isTestUser || !oppDoc.data()?.walletAddress) {
+        setTestUserToast({ matchId, message: 'Guest User (Temporary Account)' });
+        setTimeout(() => {
+          setTestUserToast((prev) => (prev?.matchId === matchId ? null : prev));
+        }, 2500);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     onClose();
     navigate(`/profile/${oppId}`);
   };
@@ -133,7 +150,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             <X size={15} />
           </button>
 
-          {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
+          {/* Banner Container */}
           <div className="relative w-full h-32 sm:h-36 bg-black border-b border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
             {profileData?.bannerUrl ? (
               <img src={profileData.bannerUrl} alt="Banner" className="w-full h-full object-contain" />
@@ -144,59 +161,58 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             )}
           </div>
 
-          {/* Profile Header Content */}
+          {/* Profile Header Content - Clean Separation without text overlapping banner */}
           <div className="px-6 pb-4 pt-0 border-b border-white/10 relative">
-            <div className="flex items-end justify-between gap-3 -mt-10 mb-2">
-              
-              {/* Avatar & User Names */}
-              <div className="flex items-end gap-3.5 min-w-0">
-                <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
-                  {profileData?.avatarUrl ? (
-                    <img src={profileData.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
-                      {profileData?.username ? profileData.username.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-0.5 pb-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={handleOpenFullProfile}
-                      className="text-xl font-bold text-white font-headline-lg hover:text-velocity-red transition-colors text-left cursor-pointer flex items-center gap-1.5 truncate"
-                    >
-                      <span className="truncate">{displayName}</span>
-                      {!isTestUser && <ExternalLink size={14} className="text-text-muted hover:text-velocity-red shrink-0" />}
-                    </button>
-                    {isTestUser && (
-                      <span className="text-[10px] font-mono text-velocity-red px-2 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold shrink-0">
-                        <FlaskConical size={10} />
-                        <span>Guest</span>
-                      </span>
-                    )}
+            
+            {/* Top row: Avatar & Full Profile action */}
+            <div className="flex items-end justify-between gap-3 mb-2.5">
+              <div className="-mt-12 w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
+                {profileData?.avatarUrl ? (
+                  <img src={profileData.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
+                    {profileData?.username ? profileData.username.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
                   </div>
-                  <p className="text-[11px] text-text-muted font-mono truncate">
-                    User ID: {userId.substring(0, 12)}...
-                  </p>
-                </div>
+                )}
               </div>
 
-              {/* View Full Profile Top Button (Non-wrapping) */}
+              {/* Top Full Profile Button */}
               {!isTestUser && (
                 <button
                   onClick={handleOpenFullProfile}
-                  className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-surface-container hover:bg-surface-elevated border border-white/10 hover:border-velocity-red text-xs font-semibold text-white transition-all cursor-pointer font-mono shrink-0 whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 hover:border-velocity-red text-xs font-semibold text-white transition-all cursor-pointer font-mono shrink-0 whitespace-nowrap"
+                  title="View Full Profile Page"
                 >
                   <span className="whitespace-nowrap">Full Profile</span>
-                  <ExternalLink size={12} className="shrink-0" />
+                  <ExternalLink size={12} className="shrink-0 text-text-muted" />
                 </button>
               )}
             </div>
 
+            {/* Bottom row: Username and Metadata (sitting comfortably below avatar) */}
+            <div className="space-y-0.5 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={handleOpenFullProfile}
+                  className="text-xl font-bold text-white font-headline-lg hover:text-velocity-red transition-colors text-left cursor-pointer flex items-center gap-1.5 truncate"
+                >
+                  <span className="truncate">{displayName}</span>
+                </button>
+                {isTestUser && (
+                  <span className="text-[10px] font-mono text-velocity-red px-2 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold shrink-0">
+                    <FlaskConical size={10} />
+                    <span>Guest</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-text-muted font-mono truncate">
+                User ID: {userId.substring(0, 14)}...
+              </p>
+            </div>
+
             {/* Wallet Address Pill */}
             {profileData?.walletAddress && (
-              <div className="text-xs font-mono text-text-secondary bg-[#0e0e0e] p-2.5 rounded-xl border border-white/5 flex items-center justify-between mt-2">
+              <div className="text-xs font-mono text-text-secondary bg-[#0e0e0e] p-2.5 rounded-xl border border-white/5 flex items-center justify-between mt-2.5">
                 <span className="truncate">{profileData.walletAddress}</span>
                 <button
                   onClick={handleCopyWallet}
@@ -257,7 +273,8 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                   const isDraw = g.winner === 'draw';
                   const oppId = g.player1 === userId ? g.player2 : g.player1;
                   const oppName = g.player1 === userId ? g.player2Name : g.player1Name;
-                  const isOppTest = oppId?.startsWith('test_');
+                  const isOppP1 = g.player1 !== userId;
+                  const isOppTest = (isOppP1 ? g.player1IsTest : g.player2IsTest) || oppId?.startsWith('test_');
                   const oppDisplay = isOppTest ? (oppName || 'Guest') : `@${oppName || 'Opponent'}`;
 
                   return (
@@ -283,7 +300,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                       <div className="flex items-center gap-2">
                         <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
                         <button
-                          onClick={(e) => handleOpponentClick(e, oppId, g.id)}
+                          onClick={(e) => handleOpponentClick(e, oppId, g.id, g)}
                           className="text-white hover:text-velocity-red transition-colors cursor-pointer text-left"
                         >
                           vs {oppDisplay}
@@ -307,25 +324,11 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             )}
           </div>
 
-          {/* Bottom Actions */}
-          <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-between items-center shrink-0">
-            {!isTestUser ? (
-              <button
-                onClick={handleOpenFullProfile}
-                className="px-5 py-2 rounded-full bg-velocity-red hover:bg-red-600 text-white text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer font-mono shadow-[0_0_15px_rgba(255,77,77,0.3)] whitespace-nowrap"
-              >
-                <span>View Full Profile Page</span>
-                <ExternalLink size={13} />
-              </button>
-            ) : (
-              <div className="text-xs text-text-muted font-mono flex items-center gap-1">
-                <FlaskConical size={12} className="text-velocity-red" />
-                <span>Guest Account</span>
-              </div>
-            )}
+          {/* Bottom Actions - Removed redundant red button */}
+          <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-end items-center shrink-0">
             <button
               onClick={onClose}
-              className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+              className="px-6 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
             >
               Close
             </button>

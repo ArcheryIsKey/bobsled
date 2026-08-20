@@ -46,14 +46,10 @@ export default function Profile() {
         setIsLoading(true);
         try {
           const docSnap = await getDoc(doc(db, 'users', targetUserId));
-          if (docSnap.exists()) {
+          if (docSnap.exists() && docSnap.data()?.walletAddress) {
             setProfileData({ id: docSnap.id, ...docSnap.data() });
           } else {
-            setProfileData({
-              id: targetUserId,
-              username: targetUserId.startsWith('test_') ? 'Guest Player' : 'Player',
-              isTestUser: true,
-            });
+            setProfileData(null);
           }
         } catch (e) {
           console.error('Error fetching profile:', e);
@@ -137,15 +133,32 @@ export default function Profile() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, matchId: string) => {
+  const handleOpponentClick = async (e: React.MouseEvent, oppId: string | null, game: any) => {
     e.stopPropagation();
-    if (!oppId || oppId.startsWith('test_')) {
-      setTestUserToast({ matchId, message: 'Test User — No permanent profile' });
+    const isOppP1 = game.player1 !== targetUserId;
+    const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || !oppId || oppId.startsWith('test_');
+
+    if (isOppTest) {
+      setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
       setTimeout(() => {
-        setTestUserToast((prev) => (prev?.matchId === matchId ? null : prev));
+        setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
       }, 2500);
       return;
     }
+
+    try {
+      const oppDoc = await getDoc(doc(db, 'users', oppId));
+      if (!oppDoc.exists() || oppDoc.data()?.isTestUser || !oppDoc.data()?.walletAddress) {
+        setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
+        setTimeout(() => {
+          setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
+        }, 2500);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     setSelectedProfileId(oppId);
   };
 
@@ -161,6 +174,7 @@ export default function Profile() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <h2 className="text-xl font-bold text-white">User not found</h2>
+        <p className="text-xs text-text-muted">This profile does not exist or was a temporary guest session.</p>
         <button
           onClick={() => navigate('/')}
           className="px-5 py-2 bg-[#141414] border border-white/10 rounded-full text-xs font-semibold hover:border-velocity-red transition-colors cursor-pointer"
@@ -448,7 +462,8 @@ export default function Profile() {
                       const isDraw = game.winner === 'draw';
                       const opponentId = game.player1 === targetUserId ? game.player2 : game.player1;
                       const opponentName = game.player1 === targetUserId ? game.player2Name : game.player1Name;
-                      const isOppTest = opponentId?.startsWith('test_');
+                      const isOppP1 = game.player1 !== targetUserId;
+                      const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || opponentId?.startsWith('test_');
                       const opponentDisplay = isOppTest ? (opponentName || 'Guest') : `@${opponentName || 'Opponent'}`;
                       const matchDate = game.createdAt?.toDate
                         ? game.createdAt.toDate().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
@@ -476,7 +491,7 @@ export default function Profile() {
                             </AnimatePresence>
 
                             <button
-                              onClick={(e) => handleOpponentClick(e, opponentId, game.id)}
+                              onClick={(e) => handleOpponentClick(e, opponentId, game)}
                               className="text-white hover:text-velocity-red font-medium transition-colors cursor-pointer text-left flex items-center gap-1.5"
                             >
                               <span>{opponentDisplay}</span>

@@ -65,9 +65,11 @@ export default function Dashboard() {
         player1: user.id,
         player1Name: user.username,
         player1Avatar: user.avatarUrl || null,
+        player1IsTest: !!user.isTestUser,
         player2: null,
         player2Name: null,
         player2Avatar: null,
+        player2IsTest: null,
         players: [user.id],
         status: 'waiting',
         wager: finalWager,
@@ -104,6 +106,7 @@ export default function Dashboard() {
         player2: user.id,
         player2Name: user.username,
         player2Avatar: user.avatarUrl || null,
+        player2IsTest: !!user.isTestUser,
         players: [game.player1, user.id],
         status: 'active',
         turn: Math.random() > 0.5 ? game.player1 : user.id,
@@ -315,8 +318,8 @@ export default function Dashboard() {
                 const isWaiting = game.status === 'waiting';
                 const isMyGame = game.player1 === user?.id;
 
-                const isP1Test = game.player1?.startsWith?.('test_');
-                const isP2Test = game.player2?.startsWith?.('test_');
+                const isP1Test = game.player1IsTest || game.player1?.startsWith?.('test_');
+                const isP2Test = game.player2IsTest || game.player2?.startsWith?.('test_');
 
                 const p1Label = isP1Test ? (game.player1Name || 'Guest') : `@${game.player1Name || 'Player 1'}`;
                 const p2Label = isP2Test ? (game.player2Name || 'Guest') : `@${game.player2Name || 'Player 2'}`;
@@ -331,9 +334,9 @@ export default function Dashboard() {
                       
                       {/* Player 1 */}
                       <div
-                        onClick={() => game.player1 && setSelectedProfileId(game.player1)}
-                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                        title="View Profile"
+                        onClick={() => !isP1Test && game.player1 && setSelectedProfileId(game.player1)}
+                        className={`flex items-center gap-3 ${!isP1Test ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                        title={!isP1Test ? 'View Profile' : 'Guest Player'}
                       >
                         <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
                           {game.player1Avatar ? (
@@ -351,9 +354,9 @@ export default function Dashboard() {
 
                       {/* Player 2 */}
                       <div
-                        onClick={() => game.player2 && setSelectedProfileId(game.player2)}
-                        className={`flex items-center gap-3 ${game.player2 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                        title={game.player2 ? 'View Profile' : ''}
+                        onClick={() => !isP2Test && game.player2 && setSelectedProfileId(game.player2)}
+                        className={`flex items-center gap-3 ${!isP2Test && game.player2 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                        title={!isP2Test && game.player2 ? 'View Profile' : ''}
                       >
                         {game.status === 'active' ? (
                           <>

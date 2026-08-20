@@ -1,12 +1,8 @@
 {
-  "projectId": "gen-lang-client-0576695681",
-  "appId": "1:521890864339:web:8e9a3714200bec0fff8826",
-  "apiKey": "AIzaSyCnIBQW69zZa1-LT3tojRV3HTAEEXNPfcQ",
-  "authDomain": "gen-lang-client-0576695681.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-2a2b709f-8ad2-4813-82d5-a8af56f2e6f7",
-  "storageBucket": "gen-lang-client-0576695681.firebasestorage.app",
-  "messagingSenderId": "521890864339",
-  "measurementId": "",
-  "oAuthClientId": "521890864339-iv79e4mjvpgh7p4m011mhvf3imeraip7.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "projectId": "bobsled-gg-app",
+  "appId": "1:318633623775:web:43c13222168f5e5f48a96a",
+  "storageBucket": "bobsled-gg-app.firebasestorage.app",
+  "apiKey": "AIzaSyBKxZCvfRaaZfra1d2K9Ha6Kh15zv25p4Y",
+  "authDomain": "bobsled-gg-app.firebaseapp.com",
+  "messagingSenderId": "318633623775"
 }

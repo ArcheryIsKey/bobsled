@@ -103,3 +103,9 @@ body { font-family: 'Inter', sans-serif; background-color: theme('colors.backgro
             border: 1px solid theme('colors.glass-border');
             backdrop-filter: blur(16px);
         }
+
+a, button, [role=\
+button\] {
+    cursor: pointer;
+}
+button, a, [role="button"] { cursor: pointer; }

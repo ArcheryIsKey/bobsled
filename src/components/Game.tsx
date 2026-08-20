@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import Chat from './Chat';
@@ -8,9 +8,15 @@ import Connect4 from './games/Connect4';
 export default function Game() {
   const { user, currentGameId, spectatingGameId, setCurrentGameId, setSpectatingGameId } = useGameStore();
   const [game, setGame] = useState<any>(null);
+  const [now, setNow] = useState(Date.now());
 
   const gameId = currentGameId || spectatingGameId;
   const isSpectator = !!spectatingGameId;
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!gameId) return;
@@ -27,6 +33,40 @@ export default function Game() {
   const handleLeave = () => {
     setSpectatingGameId(null);
     setCurrentGameId(null);
+  };
+
+  if (!game) return <div className="flex-1 flex items-center justify-center text-[10px] uppercase tracking-widest text-neutral-500 font-mono">Connecting to Signal...</div>;
+
+  const isSpectator = user?.id !== game.player1 && user?.id !== game.player2;
+  const isMyTurn = user?.id === game.turn;
+  const opponentId = game.player1 === user?.id ? game.player2 : game.player1;
+  const timeSinceLastMove = game.updatedAt ? now - game.updatedAt.toMillis() : 0;
+  const canClaimAfk = !isSpectator && !isMyTurn && timeSinceLastMove > 60000;
+
+  const handleResign = async () => {
+    if (!user || !game) return;
+    try {
+      await updateDoc(doc(db, 'games', game.id), {
+        status: 'finished',
+        winner: opponentId,
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClaimAfk = async () => {
+    if (!user || !game || !canClaimAfk) return;
+    try {
+      await updateDoc(doc(db, 'games', game.id), {
+        status: 'finished',
+        winner: user.id,
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleMove = async (newBoard: number[], winner: string | null) => {
@@ -117,24 +157,51 @@ export default function Game() {
         )}
 
         {!isSpectator && game.status === 'waiting' && (
-          <div className="absolute bottom-4 sm:bottom-12 flex flex-col items-center">
-            <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono mb-2">Waiting for opponent</p>
-            <button 
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/?game=${game.id}`);
-                alert("Invite link copied to clipboard!");
-              }} 
-              className="px-6 py-3 border border-[#14F195] bg-[#14F195]/5 text-[10px] uppercase tracking-widest text-[#14F195] hover:bg-[#14F195]/20 transition-all font-bold"
-            >
-              Copy Invite Link
-            </button>
+          <div className="absolute bottom-4 sm:bottom-12 flex flex-col items-center gap-2">
+            <p className="text-[10px] text-text-muted uppercase tracking-widest font-mono mb-2">Waiting for opponent</p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/?game=${game.id}`);
+                  alert("Invite link copied to clipboard!");
+                }} 
+                className="px-6 py-3 cursor-pointer border border-[#14F195] bg-[#14F195]/5 text-[10px] uppercase tracking-widest text-[#14F195] hover:bg-[#14F195]/20 transition-all font-bold"
+              >
+                Copy Invite Link
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    await deleteDoc(doc(db, 'games', game.id));
+                    setCurrentGameId(null);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }} 
+                className="px-6 py-3 cursor-pointer border border-glass-border bg-surface-variant text-[10px] uppercase tracking-widest text-text-primary hover:bg-surface-elevated transition-all font-bold"
+              >
+                Cancel Match
+              </button>
+            </div>
           </div>
         )}
 
         {!isSpectator && game.status === 'active' && (
           <div className="absolute bottom-4 sm:bottom-12 flex gap-4">
-            <button className="px-4 sm:px-6 py-2 border border-neutral-800 text-[10px] uppercase tracking-widest text-neutral-500 hover:text-white hover:border-white transition-colors">Offer Draw</button>
-            <button className="px-4 sm:px-6 py-2 border border-red-900/50 text-[10px] uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-colors">Resign</button>
+            {canClaimAfk && (
+              <button 
+                onClick={handleClaimAfk}
+                className="px-4 sm:px-6 py-2 border border-velocity-red text-[10px] uppercase tracking-widest text-velocity-red hover:bg-velocity-red/20 transition-colors cursor-pointer"
+              >
+                Claim Victory (AFK)
+              </button>
+            )}
+            <button 
+              onClick={handleResign}
+              className="px-4 sm:px-6 py-2 border border-red-900/50 text-[10px] uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+            >
+              Resign
+            </button>
           </div>
         )}
       </section>

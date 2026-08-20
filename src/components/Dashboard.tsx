@@ -128,59 +128,96 @@ export default function Dashboard() {
 
   return (
     <div className="bg-background text-text-primary antialiased min-h-screen flex flex-col font-body-md selection:bg-velocity-red selection:text-text-primary w-full overflow-y-auto">
-      <main className="flex-grow w-full max-w-max-width mx-auto px-margin-mobile md:px-margin-desktop py-margin-desktop">
-        <div className="max-w-3xl mx-auto space-y-gutter">
-          <div className="space-y-gutter">
-            {/* START GAME Card with Shader */}
-            <div className="bg-[rgba(18,18,18,0.8)] backdrop-blur-[16px] border border-[rgba(255,255,255,0.1)] rounded-lg flex flex-col h-full relative overflow-hidden group shadow-[0_0_20px_rgba(255,77,77,0.15)] border-velocity-red/30">
-              <div className="relative z-10 flex flex-col items-center justify-center p-8 md:p-12 gap-8 w-full text-center">
-                <div className="relative z-10 flex w-full flex-col items-center justify-center gap-6">
-                  <h2 className="text-text-primary font-headline-lg text-4xl md:text-5xl tracking-[-0.015em] mb-2 uppercase group-hover:text-velocity-red transition-colors duration-300">
-                    {myWaitingGame ? 'Waiting...' : 'Start Game'}
-                  </h2>
-                  
-                  {!myWaitingGame && (
-                    <div className="flex flex-col items-center gap-6 justify-center w-full">
-                      <div className="flex flex-col gap-2 items-center">
-                         <div className="flex gap-2">
-                           <button 
-                             onClick={() => { setWagerType('FREE'); setWagerAmount(0); setCustomWager(''); }} 
-                             className={`px-4 py-2 rounded text-xs font-label-caps border ${wagerType === 'FREE' ? 'border-velocity-red text-velocity-red bg-velocity-red/10' : 'border-glass-border text-text-muted hover:border-text-secondary'}`}
-                           >
-                             FREE PLAY
-                           </button>
-                           <button 
-                             onClick={() => { setWagerType('SOL'); setWagerAmount(0.05); setCustomWager(''); }} 
-                             className={`px-4 py-2 rounded text-xs font-label-caps border ${wagerType === 'SOL' && wagerAmount === 0.05 && !customWager ? 'border-velocity-red text-velocity-red bg-velocity-red/10' : 'border-glass-border text-text-muted hover:border-text-secondary'}`}
-                           >
-                             0.05 SOL
-                           </button>
-                         </div>
+      <div className="flex-1 w-full max-w-max-width mx-auto px-margin-mobile md:px-margin-desktop py-8 md:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10 w-full h-full">
+          
+          <div className="lg:col-span-8 flex flex-col gap-8 w-full order-2 lg:order-1 h-full">
+            <div className="bg-surface-base border border-glass-border p-6 rounded-lg relative overflow-hidden group hover:border-velocity-red/30 transition-colors w-full h-full">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h1 className="font-display-lg text-display-lg text-text-primary mb-1 tracking-tighter uppercase">Arena</h1>
+                  <p className="font-body-sm text-body-sm text-text-secondary leading-relaxed">Select your wager to enter the queue.</p>
+                </div>
+                <span className="material-symbols-outlined text-text-muted">videogame_asset</span>
+              </div>
+              
+              <div className="h-px w-full bg-glass-border mb-6"></div>
+              
+              <div className="relative group w-full">
+                <div className="absolute inset-0 bg-gradient-to-r from-velocity-red/10 via-surface-elevated to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-velocity-red/5 rounded-full blur-3xl group-hover:bg-velocity-red/10 transition-colors pointer-events-none"></div>
+                
+                <div className="relative z-10 flex flex-col items-center justify-center p-8 md:p-12 gap-8 w-full text-center">
+                  <div className="relative z-10 flex w-full flex-col items-center justify-center gap-6">
+                    <h2 className="text-text-primary font-headline-lg text-4xl md:text-5xl tracking-[-0.015em] mb-2 uppercase group-hover:text-velocity-red transition-colors duration-300">
+                      {myActiveGame ? 'Game In Progress' : myWaitingGame ? 'Waiting...' : 'Start Game'}
+                    </h2>
+                    
+                    {!myWaitingGame && !myActiveGame && (
+                      <div className="flex flex-col items-center gap-6 justify-center w-full">
+                        <div className="flex flex-col gap-2 items-center">
+                           <div className="flex gap-2">
+                            <button onClick={() => setWagerType('FREE')} className={`px-4 py-2 font-label-caps text-label-caps cursor-pointer rounded-DEFAULT transition-all ${wagerType === 'FREE' ? 'bg-velocity-red text-text-primary' : 'bg-surface-variant text-text-secondary hover:text-text-primary border border-glass-border'}`}>FREE</button>
+                            {!user?.isTestUser && <button onClick={() => setWagerType('SOL')} className={`px-4 py-2 font-label-caps text-label-caps cursor-pointer rounded-DEFAULT transition-all ${wagerType === 'SOL' ? 'bg-velocity-red text-text-primary' : 'bg-surface-variant text-text-secondary hover:text-text-primary border border-glass-border'}`}>SOL</button>}
+                           </div>
+                           {wagerType === 'SOL' && (
+                             <div className="flex flex-col gap-2 mt-2 items-center">
+                               <div className="flex gap-2">
+                                 {[0.05, 0.1, 0.25, 0.5, 1].map(amt => (
+                                   <button key={amt} onClick={() => { setWagerAmount(amt); setCustomWager(''); }} className={`w-12 h-10 font-mono text-sm cursor-pointer border rounded flex items-center justify-center transition-all ${wagerAmount === amt && customWager === '' ? 'border-velocity-red text-velocity-red bg-velocity-red/10' : 'border-glass-border text-text-muted hover:border-text-secondary'}`}>{amt}</button>
+                                 ))}
+                               </div>
+                               <input type="number" placeholder="Custom..." value={customWager} onChange={e => { setCustomWager(e.target.value); setWagerAmount(0); }} className="w-full h-10 bg-surface-container border border-glass-border rounded px-3 font-mono text-sm text-text-primary outline-none focus:border-velocity-red text-center" />
+                             </div>
+                           )}
+                        </div>
+                        
+                        <button 
+                          onClick={handleCreateMatch}
+                          disabled={isCreating}
+                          className="flex min-w-[200px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-14 px-10 bg-velocity-red hover:bg-primary-container transition-colors text-text-primary font-bold shadow-[0_0_15px_rgba(255,77,77,0.3)] hover:shadow-[0_0_20px_rgba(255,77,77,0.5)] uppercase tracking-wider text-lg disabled:opacity-50"
+                        >
+                          {isCreating ? <Loader2 className="animate-spin w-5 h-5" /> : <span className="truncate">Enter Match</span>}
+                        </button>
                       </div>
-                      
-                      <button 
-                        onClick={handleCreateMatch}
-                        disabled={isCreating}
-                        className="flex min-w-[200px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-14 px-10 bg-velocity-red hover:bg-primary-container transition-colors text-text-primary font-bold shadow-[0_0_15px_rgba(255,77,77,0.3)] hover:shadow-[0_0_20px_rgba(255,77,77,0.5)] uppercase tracking-wider text-lg disabled:opacity-50"
-                      >
-                        {isCreating ? <Loader2 className="animate-spin w-5 h-5" /> : <span className="truncate">Enter Match</span>}
-                      </button>
-                    </div>
-                  )}
+                    )}
+  
+                    {myWaitingGame && !myActiveGame && (
+                       <div className="flex flex-col items-center gap-6 justify-center w-full">
+                        <p className="text-text-primary font-body-md font-medium leading-relaxed bg-surface-container-high w-fit px-4 py-2 rounded-full border border-glass-border">
+                          Waiting for Opponent
+                        </p>
+                        <div className="flex gap-4">
+                          <button 
+                            onClick={() => setCurrentGameId(myWaitingGame.id)}
+                            className="flex min-w-[150px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-6 bg-velocity-red hover:bg-primary-container transition-colors text-text-primary font-bold shadow-[0_0_15px_rgba(255,77,77,0.2)] uppercase tracking-wider text-sm"
+                          >
+                            <span className="truncate">Go to Game</span>
+                          </button>
+                          <button 
+                            onClick={() => handleCancelMatch(myWaitingGame.id)}
+                            className="flex min-w-[150px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-6 bg-surface-variant hover:bg-surface-bright transition-colors text-text-primary font-bold shadow-[0_0_15px_rgba(255,255,255,0.05)] uppercase tracking-wider text-sm border border-glass-border"
+                          >
+                            <span className="truncate">Cancel Match</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
-                  {myWaitingGame && (
-                     <div className="flex flex-col items-center gap-6 justify-center w-full">
-                      <p className="text-text-primary font-body-md font-medium leading-relaxed bg-surface-container-high w-fit px-4 py-2 rounded-full border border-glass-border">
-                        Waiting for Opponent
-                      </p>
-                      <button 
-                        onClick={() => setCurrentGameId(myWaitingGame.id)}
-                        className="flex min-w-[200px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-14 px-10 bg-surface-variant hover:bg-surface-bright transition-colors text-text-primary font-bold shadow-[0_0_15px_rgba(255,255,255,0.05)] uppercase tracking-wider text-lg"
-                      >
-                        <span className="truncate">Go to Lobby</span>
-                      </button>
-                    </div>
-                  )}
+                    {myActiveGame && (
+                       <div className="flex flex-col items-center gap-6 justify-center w-full">
+                        <p className="text-text-primary font-body-md font-medium leading-relaxed bg-surface-container-high w-fit px-4 py-2 rounded-full border border-glass-border">
+                          You have a game in progress!
+                        </p>
+                        <button 
+                          onClick={() => setCurrentGameId(myActiveGame.id)}
+                          className="flex min-w-[200px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-14 px-10 bg-velocity-red hover:bg-primary-container transition-colors text-text-primary font-bold shadow-[0_0_15px_rgba(255,77,77,0.3)] hover:shadow-[0_0_20px_rgba(255,77,77,0.5)] uppercase tracking-wider text-lg"
+                        >
+                          <span className="truncate">Resume Game</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

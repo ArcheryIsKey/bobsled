@@ -6,6 +6,7 @@ import { useGameStore } from '../store';
 import { processImageFile, processBannerFile } from '../utils/image';
 import UserProfileModal from './UserProfileModal';
 import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical, Crown, ShieldCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const OWNER_WALLET = '11111111111111111111111111111111';
 
@@ -25,6 +26,7 @@ export default function Profile() {
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +135,18 @@ export default function Profile() {
     navigator.clipboard.writeText(wallet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, matchId: string) => {
+    e.stopPropagation();
+    if (!oppId || oppId.startsWith('test_')) {
+      setTestUserToast({ matchId, message: 'Test User — No permanent profile' });
+      setTimeout(() => {
+        setTestUserToast((prev) => (prev?.matchId === matchId ? null : prev));
+      }, 2500);
+      return;
+    }
+    setSelectedProfileId(oppId);
   };
 
   if (isLoading) {
@@ -445,17 +459,28 @@ export default function Profile() {
                           <td className="py-3.5 px-5 text-xs text-text-secondary font-mono">
                             #{game.id.substring(0, 8).toUpperCase()}
                           </td>
-                          <td className="py-3.5 px-5">
-                            {opponentId ? (
-                              <button
-                                onClick={() => setSelectedProfileId(opponentId)}
-                                className="text-white hover:text-velocity-red font-medium transition-colors cursor-pointer text-left"
-                              >
-                                {opponentDisplay}
-                              </button>
-                            ) : (
-                              <span className="text-text-muted">{opponentDisplay}</span>
-                            )}
+                          <td className="py-3.5 px-5 relative">
+                            {/* Small fading popup for test user click */}
+                            <AnimatePresence>
+                              {testUserToast?.matchId === game.id && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: -4, scale: 1 }}
+                                  exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                                  className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+                                >
+                                  <FlaskConical size={11} className="shrink-0" />
+                                  <span>{testUserToast.message}</span>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+
+                            <button
+                              onClick={(e) => handleOpponentClick(e, opponentId, game.id)}
+                              className="text-white hover:text-velocity-red font-medium transition-colors cursor-pointer text-left flex items-center gap-1.5"
+                            >
+                              <span>{opponentDisplay}</span>
+                            </button>
                           </td>
                           <td className="py-3.5 px-5 text-text-muted text-xs font-mono">
                             {matchDate}

@@ -48,6 +48,7 @@ export default function AdminPanel() {
   const [inspectSolBalance, setInspectSolBalance] = useState<number | null>(null);
   const [isLoadingInspectHistory, setIsLoadingInspectHistory] = useState(false);
   const [isLoadingInspectBalance, setIsLoadingInspectBalance] = useState(false);
+  const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
   // In-App Custom Delete Modal State
   const [userToDelete, setUserToDelete] = useState<any | null>(null);
@@ -128,6 +129,23 @@ export default function AdminPanel() {
     navigator.clipboard.writeText(wallet);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, matchId: string) => {
+    e.stopPropagation();
+    if (!oppId || oppId.startsWith('test_')) {
+      setTestUserToast({ matchId, message: 'Test User — No permanent profile' });
+      setTimeout(() => {
+        setTestUserToast((prev) => (prev?.matchId === matchId ? null : prev));
+      }, 2500);
+      return;
+    }
+    const foundUser = users.find((u) => u.id === oppId);
+    if (foundUser) {
+      setInspectUser(foundUser);
+    } else {
+      setInspectUser({ id: oppId, username: 'Player', walletAddress: null });
+    }
   };
 
   const handleToggleAdminRole = async (targetUser: any) => {
@@ -504,12 +522,11 @@ export default function AdminPanel() {
                         {/* Actions: Make Admin (Owner Only) & Delete */}
                         <td className="py-3.5 px-5 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
-                            {/* Make / Revoke Admin Button (Owner only) */}
                             {isOwner && !isTargetOwner && (
                               <button
                                 onClick={() => handleToggleAdminRole(u)}
                                 disabled={roleUpdatingId === u.id}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 border transition-all cursor-pointer ${
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                                   isTargetAdmin
                                     ? 'bg-neutral-800 hover:bg-neutral-700 text-text-secondary border-white/10'
                                     : 'bg-velocity-red/10 hover:bg-velocity-red/20 text-velocity-red border-velocity-red/30'
@@ -530,7 +547,6 @@ export default function AdminPanel() {
                               </button>
                             )}
 
-                            {/* Delete User Button (Non-owners only) */}
                             {!isTargetOwner && (
                               <button
                                 onClick={() => {
@@ -684,7 +700,7 @@ export default function AdminPanel() {
                 <X size={15} />
               </button>
 
-              {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
+              {/* Banner Container */}
               <div className="relative w-full h-32 bg-black border-b border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
                 {inspectUser.bannerUrl ? (
                   <img src={inspectUser.bannerUrl} alt="Banner" className="w-full h-full object-contain" />
@@ -695,10 +711,11 @@ export default function AdminPanel() {
                 )}
               </div>
 
-              {/* User Avatar and Meta */}
+              {/* User Avatar and Meta - Fixed No Line-Wrap */}
               <div className="px-6 pb-4 pt-0 border-b border-white/10 relative">
-                <div className="flex items-end justify-between gap-4 -mt-10 mb-3">
-                  <div className="flex items-end gap-3.5">
+                <div className="flex items-end justify-between gap-3 -mt-10 mb-3">
+                  
+                  <div className="flex items-end gap-3.5 min-w-0">
                     <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
                       {inspectUser.avatarUrl ? (
                         <img src={inspectUser.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -708,34 +725,36 @@ export default function AdminPanel() {
                         </div>
                       )}
                     </div>
-                    <div className="space-y-0.5 pb-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-bold text-white font-headline-lg">
+                    
+                    <div className="space-y-0.5 pb-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-xl font-bold text-white font-headline-lg truncate">
                           {inspectUser.isTestUser || !inspectUser.walletAddress ? inspectUser.username : `@${inspectUser.username}`}
                         </h3>
                         {inspectUser.walletAddress === OWNER_WALLET && (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase font-mono flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
                             <Crown size={11} /> Owner
                           </span>
                         )}
                         {(inspectUser.isAdmin || inspectUser.role === 'admin') && inspectUser.walletAddress !== OWNER_WALLET && (
-                          <span className="px-2 py-0.5 rounded-full bg-velocity-red/15 text-velocity-red border border-velocity-red/40 text-[10px] font-bold uppercase font-mono flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full bg-velocity-red/15 text-velocity-red border border-velocity-red/40 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
                             <ShieldCheck size={11} /> Admin
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-text-muted font-mono">
+                      <p className="text-xs text-text-muted font-mono truncate">
                         User ID: {inspectUser.id}
                       </p>
                     </div>
                   </div>
 
+                  {/* Non-wrapping Full Page Button */}
                   <Link
                     to={`/profile/${inspectUser.id}`}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 text-xs font-semibold text-white transition-all font-mono"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 text-xs font-semibold text-white transition-all font-mono shrink-0 whitespace-nowrap"
                   >
-                    <span>Full Page</span>
-                    <ExternalLink size={12} />
+                    <span className="whitespace-nowrap">Full Page</span>
+                    <ExternalLink size={12} className="shrink-0" />
                   </Link>
                 </div>
 
@@ -808,18 +827,39 @@ export default function AdminPanel() {
                     {inspectHistory.map((g) => {
                       const isWin = g.winner === inspectUser.id;
                       const isDraw = g.winner === 'draw';
+                      const oppId = g.player1 === inspectUser.id ? g.player2 : g.player1;
                       const oppName = g.player1 === inspectUser.id ? g.player2Name : g.player1Name;
-                      const isOppTest = g.player1 === inspectUser.id ? g.player2?.startsWith('test_') : g.player1?.startsWith('test_');
+                      const isOppTest = oppId?.startsWith('test_');
                       const oppDisplay = isOppTest ? (oppName || 'Guest') : `@${oppName || 'Opponent'}`;
 
                       return (
                         <div
                           key={g.id}
-                          className="flex items-center justify-between p-3 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono"
+                          className="flex items-center justify-between p-3 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono relative"
                         >
+                          {/* Test User Toast Popup */}
+                          <AnimatePresence>
+                            {testUserToast?.matchId === g.id && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                                animate={{ opacity: 1, y: -4, scale: 1 }}
+                                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                                className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+                              >
+                                <FlaskConical size={11} className="shrink-0" />
+                                <span>{testUserToast.message}</span>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
                           <div className="flex items-center gap-2">
                             <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
-                            <span className="text-white">vs {oppDisplay}</span>
+                            <button
+                              onClick={(e) => handleOpponentClick(e, oppId, g.id)}
+                              className="text-white hover:text-velocity-red transition-colors cursor-pointer text-left font-medium"
+                            >
+                              vs {oppDisplay}
+                            </button>
                           </div>
 
                           <div className="flex items-center gap-3">
@@ -846,7 +886,7 @@ export default function AdminPanel() {
                     <button
                       onClick={() => handleToggleAdminRole(inspectUser)}
                       disabled={roleUpdatingId === inspectUser.id}
-                      className="px-4 py-2 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer"
+                      className="px-4 py-2 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer whitespace-nowrap"
                     >
                       {inspectUser.isAdmin || inspectUser.role === 'admin' ? (
                         <>
@@ -867,7 +907,7 @@ export default function AdminPanel() {
                         setUserToDelete(inspectUser);
                         setDeleteConfirmInput('');
                       }}
-                      className="px-4 py-2 rounded-full bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer"
+                      className="px-4 py-2 rounded-full bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer whitespace-nowrap"
                     >
                       <Trash2 size={13} />
                       <span>Delete Account</span>
@@ -876,7 +916,7 @@ export default function AdminPanel() {
                 </div>
                 <button
                   onClick={() => setInspectUser(null)}
-                  className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
                 >
                   Close
                 </button>

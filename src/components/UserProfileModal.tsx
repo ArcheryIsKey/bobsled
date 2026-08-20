@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -17,6 +17,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -27,14 +28,12 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
     setIsLoading(true);
 
-    // Fetch user document
     getDoc(doc(db, 'users', userId))
       .then((snap) => {
         if (snap.exists()) {
           const u = { id: snap.id, ...snap.data() } as any;
           setProfileData(u);
 
-          // Fetch SOL balance if wallet is present
           if (u.walletAddress) {
             fetch(`/api/solana/balance?wallet=${u.walletAddress}`)
               .then((r) => r.json())
@@ -44,7 +43,6 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               .catch(() => {});
           }
         } else {
-          // If no doc exists (e.g. test user or deleted user)
           setProfileData({ id: userId, username: userId.startsWith('test_') ? 'Guest Player' : 'Player', isTestUser: true });
         }
       })
@@ -55,7 +53,6 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
         setIsLoading(false);
       });
 
-    // Fetch match history
     const q = query(
       collection(db, 'games'),
       where('players', 'array-contains', userId),
@@ -86,8 +83,25 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
   };
 
   const handleOpenFullProfile = () => {
+    if (isTestUser) {
+      alert('Guest / Test user accounts are temporary and do not have a persistent profile page.');
+      return;
+    }
     onClose();
     navigate(`/profile/${userId}`);
+  };
+
+  const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, matchId: string) => {
+    e.stopPropagation();
+    if (!oppId || oppId.startsWith('test_')) {
+      setTestUserToast({ matchId, message: 'Test User — No permanent profile' });
+      setTimeout(() => {
+        setTestUserToast((prev) => (prev?.matchId === matchId ? null : prev));
+      }, 2500);
+      return;
+    }
+    onClose();
+    navigate(`/profile/${oppId}`);
   };
 
   const totalGames = history.length;
@@ -132,10 +146,10 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
           {/* Profile Header Content */}
           <div className="px-6 pb-4 pt-0 border-b border-white/10 relative">
-            <div className="flex items-end justify-between gap-4 -mt-10 mb-2">
+            <div className="flex items-end justify-between gap-3 -mt-10 mb-2">
               
               {/* Avatar & User Names */}
-              <div className="flex items-end gap-3.5">
+              <div className="flex items-end gap-3.5 min-w-0">
                 <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
                   {profileData?.avatarUrl ? (
                     <img src={profileData.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -146,36 +160,38 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                   )}
                 </div>
 
-                <div className="space-y-0.5 pb-1">
-                  <div className="flex items-center gap-2">
+                <div className="space-y-0.5 pb-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={handleOpenFullProfile}
-                      className="text-xl font-bold text-white font-headline-lg hover:text-velocity-red transition-colors text-left cursor-pointer flex items-center gap-1.5"
+                      className="text-xl font-bold text-white font-headline-lg hover:text-velocity-red transition-colors text-left cursor-pointer flex items-center gap-1.5 truncate"
                     >
-                      <span>{displayName}</span>
-                      <ExternalLink size={14} className="text-text-muted hover:text-velocity-red" />
+                      <span className="truncate">{displayName}</span>
+                      {!isTestUser && <ExternalLink size={14} className="text-text-muted hover:text-velocity-red shrink-0" />}
                     </button>
                     {isTestUser && (
-                      <span className="text-[10px] font-mono text-velocity-red px-2 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                      <span className="text-[10px] font-mono text-velocity-red px-2 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold shrink-0">
                         <FlaskConical size={10} />
                         <span>Guest</span>
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-text-muted font-mono">
+                  <p className="text-[11px] text-text-muted font-mono truncate">
                     User ID: {userId.substring(0, 12)}...
                   </p>
                 </div>
               </div>
 
-              {/* View Full Profile Top Button */}
-              <button
-                onClick={handleOpenFullProfile}
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-surface-container hover:bg-surface-elevated border border-white/10 hover:border-velocity-red text-xs font-semibold text-white transition-all cursor-pointer font-mono"
-              >
-                <span>Full Profile</span>
-                <ExternalLink size={12} />
-              </button>
+              {/* View Full Profile Top Button (Non-wrapping) */}
+              {!isTestUser && (
+                <button
+                  onClick={handleOpenFullProfile}
+                  className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-surface-container hover:bg-surface-elevated border border-white/10 hover:border-velocity-red text-xs font-semibold text-white transition-all cursor-pointer font-mono shrink-0 whitespace-nowrap"
+                >
+                  <span className="whitespace-nowrap">Full Profile</span>
+                  <ExternalLink size={12} className="shrink-0" />
+                </button>
+              )}
             </div>
 
             {/* Wallet Address Pill */}
@@ -239,18 +255,39 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                 {history.slice(0, 6).map((g) => {
                   const isWin = g.winner === userId;
                   const isDraw = g.winner === 'draw';
+                  const oppId = g.player1 === userId ? g.player2 : g.player1;
                   const oppName = g.player1 === userId ? g.player2Name : g.player1Name;
-                  const isOppTest = g.player1 === userId ? g.player2?.startsWith('test_') : g.player1?.startsWith('test_');
+                  const isOppTest = oppId?.startsWith('test_');
                   const oppDisplay = isOppTest ? (oppName || 'Guest') : `@${oppName || 'Opponent'}`;
 
                   return (
                     <div
                       key={g.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono relative"
                     >
+                      {/* Test user toast */}
+                      <AnimatePresence>
+                        {testUserToast?.matchId === g.id && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                            animate={{ opacity: 1, y: -4, scale: 1 }}
+                            exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                            className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+                          >
+                            <FlaskConical size={11} className="shrink-0" />
+                            <span>{testUserToast.message}</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
                       <div className="flex items-center gap-2">
                         <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
-                        <span className="text-white">vs {oppDisplay}</span>
+                        <button
+                          onClick={(e) => handleOpponentClick(e, oppId, g.id)}
+                          className="text-white hover:text-velocity-red transition-colors cursor-pointer text-left"
+                        >
+                          vs {oppDisplay}
+                        </button>
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -272,16 +309,23 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
           {/* Bottom Actions */}
           <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-between items-center shrink-0">
-            <button
-              onClick={handleOpenFullProfile}
-              className="px-5 py-2 rounded-full bg-velocity-red hover:bg-red-600 text-white text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer font-mono shadow-[0_0_15px_rgba(255,77,77,0.3)]"
-            >
-              <span>View Full Profile Page</span>
-              <ExternalLink size={13} />
-            </button>
+            {!isTestUser ? (
+              <button
+                onClick={handleOpenFullProfile}
+                className="px-5 py-2 rounded-full bg-velocity-red hover:bg-red-600 text-white text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer font-mono shadow-[0_0_15px_rgba(255,77,77,0.3)] whitespace-nowrap"
+              >
+                <span>View Full Profile Page</span>
+                <ExternalLink size={13} />
+              </button>
+            ) : (
+              <div className="text-xs text-text-muted font-mono flex items-center gap-1">
+                <FlaskConical size={12} className="text-velocity-red" />
+                <span>Guest Account</span>
+              </div>
+            )}
             <button
               onClick={onClose}
-              className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer"
+              className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
             >
               Close
             </button>

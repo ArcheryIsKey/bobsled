@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import { processImageFile, processBannerFile } from '../utils/image';
-import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical } from 'lucide-react';
+import UserProfileModal from './UserProfileModal';
+import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical, Crown, ShieldCheck } from 'lucide-react';
+
+const OWNER_WALLET = '11111111111111111111111111111111';
 
 export default function Profile() {
   const { userId: paramUserId } = useParams<{ userId?: string }>();
@@ -13,7 +16,7 @@ export default function Profile() {
 
   const isOwnProfile = !paramUserId || paramUserId === currentUser?.id;
   const targetUserId = paramUserId || currentUser?.id;
-  const isTestUser = isOwnProfile && currentUser?.isTestUser;
+  const isTestUser = (isOwnProfile && currentUser?.isTestUser) || targetUserId?.startsWith('test_');
 
   const [profileData, setProfileData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -21,6 +24,7 @@ export default function Profile() {
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +47,11 @@ export default function Profile() {
           if (docSnap.exists()) {
             setProfileData({ id: docSnap.id, ...docSnap.data() });
           } else {
-            setProfileData(null);
+            setProfileData({
+              id: targetUserId,
+              username: targetUserId.startsWith('test_') ? 'Guest Player' : 'Player',
+              isTestUser: true,
+            });
           }
         } catch (e) {
           console.error('Error fetching profile:', e);
@@ -55,14 +63,12 @@ export default function Profile() {
     }
   }, [targetUserId, isOwnProfile, currentUser]);
 
-  // Keep own profile updated when currentUser store updates
   useEffect(() => {
     if (isOwnProfile && currentUser) {
       setProfileData(currentUser);
     }
   }, [currentUser, isOwnProfile]);
 
-  // Fetch match history for this user
   useEffect(() => {
     if (!targetUserId) return;
 
@@ -157,13 +163,29 @@ export default function Profile() {
   const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
   const lossRate = totalGames > 0 ? Math.round((losses / totalGames) * 100) : 0;
 
+  const isOwner = profileData.walletAddress === OWNER_WALLET;
+  const isAdmin = isOwner || profileData.isAdmin || profileData.role === 'admin';
+
+  const userDisplayName = isTestUser
+    ? (profileData.username || 'Guest Player')
+    : `@${profileData.username || 'Player'}`;
+
   const walletDisplay = profileData.walletAddress
     ? `${profileData.walletAddress.substring(0, 6)}...${profileData.walletAddress.substring(profileData.walletAddress.length - 6)}`
     : 'No Wallet Connected';
 
   return (
     <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
-      {/* Hidden File Inputs (Disabled for Test Users) */}
+      
+      {/* Floating User Profile Modal for inspected opponents */}
+      {selectedProfileId && (
+        <UserProfileModal
+          userId={selectedProfileId}
+          onClose={() => setSelectedProfileId(null)}
+        />
+      )}
+
+      {/* Hidden File Inputs */}
       {isOwnProfile && !isTestUser && (
         <>
           <input
@@ -212,7 +234,7 @@ export default function Profile() {
               </div>
             )}
 
-            {/* Banner edit button for own profile (Hidden for test users) */}
+            {/* Banner edit button for own profile */}
             {isOwnProfile && !isTestUser && (
               <button
                 onClick={() => bannerInputRef.current?.click()}
@@ -229,7 +251,7 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Profile Header Content: Reduced vertical gap */}
+          {/* Profile Header Content */}
           <div className="px-6 md:px-8 pb-4 pt-0 relative z-10">
             
             <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 text-center sm:text-left">
@@ -271,12 +293,24 @@ export default function Profile() {
                 )}
               </div>
 
-              {/* Names & Badges with @ prefix */}
+              {/* Names & Role Badges */}
               <div className="space-y-1 pt-1 sm:pt-2">
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
-                    @{profileData.username}
+                    {userDisplayName}
                   </h1>
+                  {isOwner && (
+                    <span className="text-[11px] font-mono text-amber-400 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 font-bold">
+                      <Crown size={12} />
+                      <span>Owner</span>
+                    </span>
+                  )}
+                  {isAdmin && !isOwner && (
+                    <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                      <ShieldCheck size={12} />
+                      <span>Admin</span>
+                    </span>
+                  )}
                   {isTestUser && (
                     <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
                       <FlaskConical size={11} />
@@ -306,7 +340,7 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Stats Grid (4 Cards - crisp and immediately beneath the profile header) */}
+        {/* Stats Grid */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           
           {/* Card 1: Matches */}
@@ -358,7 +392,7 @@ export default function Profile() {
               <span className="text-xs font-mono font-bold text-velocity-red">SOL</span>
             </div>
             <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 font-mono">
-              {isOwnProfile && solBalance !== null ? `${solBalance.toFixed(3)}` : '—'}
+              {isOwnProfile && solBalance !== null ? `${solBalance.toFixed(3)}` : isTestUser ? '—' : '0.000'}
             </div>
             <div className="text-xs text-text-muted">
               {isOwnProfile ? 'In connected wallet' : 'Solana network'}
@@ -400,7 +434,8 @@ export default function Profile() {
                       const isDraw = game.winner === 'draw';
                       const opponentId = game.player1 === targetUserId ? game.player2 : game.player1;
                       const opponentName = game.player1 === targetUserId ? game.player2Name : game.player1Name;
-                      const opponentDisplay = opponentName ? `@${opponentName}` : '@Opponent';
+                      const isOppTest = opponentId?.startsWith('test_');
+                      const opponentDisplay = isOppTest ? (opponentName || 'Guest') : `@${opponentName || 'Opponent'}`;
                       const matchDate = game.createdAt?.toDate
                         ? game.createdAt.toDate().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
                         : 'Recent';
@@ -412,12 +447,12 @@ export default function Profile() {
                           </td>
                           <td className="py-3.5 px-5">
                             {opponentId ? (
-                              <Link
-                                to={`/profile/${opponentId}`}
-                                className="text-white hover:text-velocity-red font-medium transition-colors"
+                              <button
+                                onClick={() => setSelectedProfileId(opponentId)}
+                                className="text-white hover:text-velocity-red font-medium transition-colors cursor-pointer text-left"
                               >
                                 {opponentDisplay}
-                              </Link>
+                              </button>
                             ) : (
                               <span className="text-text-muted">{opponentDisplay}</span>
                             )}
@@ -427,15 +462,15 @@ export default function Profile() {
                           </td>
                           <td className="py-3.5 px-5">
                             {isWin ? (
-                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase">
+                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
                                 Win
                               </span>
                             ) : isDraw ? (
-                              <span className="bg-[#222] text-text-secondary border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase">
+                              <span className="bg-[#222] text-text-secondary border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
                                 Draw
                               </span>
                             ) : (
-                              <span className="bg-[#1e1e1e] text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase">
+                              <span className="bg-[#1e1e1e] text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
                                 Loss
                               </span>
                             )}

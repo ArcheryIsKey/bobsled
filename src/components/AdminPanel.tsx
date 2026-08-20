@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import { 
@@ -14,14 +14,20 @@ import {
   ShieldAlert, 
   Trash2, 
   ArrowLeft, 
-  Loader2,
-  Activity,
-  X,
-  User as UserIcon,
+  Loader2, 
+  Activity, 
+  X, 
+  User as UserIcon, 
   AlertTriangle,
-  Wallet
+  Crown,
+  ShieldCheck,
+  ShieldMinus,
+  ExternalLink,
+  FlaskConical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const OWNER_WALLET = '11111111111111111111111111111111';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -48,7 +54,11 @@ export default function AdminPanel() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const isAdmin = currentUser?.walletAddress === '11111111111111111111111111111111';
+  // Admin Role Toggle State
+  const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
+
+  const isOwner = currentUser?.walletAddress === OWNER_WALLET;
+  const isAdmin = isOwner || currentUser?.isAdmin || currentUser?.role === 'admin';
 
   useEffect(() => {
     if (!isAdmin && currentUser) {
@@ -73,7 +83,6 @@ export default function AdminPanel() {
     };
   }, [isAdmin, currentUser, navigate]);
 
-  // Load match history and SOL balance when an inspect user is selected
   useEffect(() => {
     if (!inspectUser) {
       setInspectHistory([]);
@@ -81,7 +90,6 @@ export default function AdminPanel() {
       return;
     }
 
-    // Fetch match history
     setIsLoadingInspectHistory(true);
     const q = query(
       collection(db, 'games'),
@@ -96,7 +104,6 @@ export default function AdminPanel() {
       setIsLoadingInspectHistory(false);
     });
 
-    // Fetch SOL balance from on-chain RPC endpoint
     if (inspectUser.walletAddress) {
       setIsLoadingInspectBalance(true);
       fetch(`/api/solana/balance?wallet=${inspectUser.walletAddress}`)
@@ -123,6 +130,31 @@ export default function AdminPanel() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleToggleAdminRole = async (targetUser: any) => {
+    if (!isOwner) return;
+    if (targetUser.walletAddress === OWNER_WALLET) {
+      alert('The platform owner role is permanent and cannot be modified.');
+      return;
+    }
+
+    const currentlyAdmin = targetUser.isAdmin || targetUser.role === 'admin';
+    setRoleUpdatingId(targetUser.id);
+    try {
+      await updateDoc(doc(db, 'users', targetUser.id), {
+        isAdmin: !currentlyAdmin,
+        role: !currentlyAdmin ? 'admin' : 'user',
+      });
+      if (inspectUser?.id === targetUser.id) {
+        setInspectUser({ ...inspectUser, isAdmin: !currentlyAdmin, role: !currentlyAdmin ? 'admin' : 'user' });
+      }
+    } catch (e) {
+      console.error('Failed to update admin role:', e);
+      alert('Failed to update admin permissions.');
+    } finally {
+      setRoleUpdatingId(null);
+    }
+  };
+
   const handlePurgeOldGames = async () => {
     setIsPurging(true);
     try {
@@ -140,6 +172,11 @@ export default function AdminPanel() {
 
   const handleConfirmDeleteUser = async () => {
     if (!userToDelete) return;
+    if (userToDelete.walletAddress === OWNER_WALLET) {
+      alert('The platform owner account cannot be deleted.');
+      return;
+    }
+
     if (deleteConfirmInput.trim() !== userToDelete.username) {
       return;
     }
@@ -175,7 +212,7 @@ export default function AdminPanel() {
       <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] gap-4">
         <ShieldAlert size={48} className="text-velocity-red" />
         <h1 className="text-xl font-bold">Access Restricted</h1>
-        <p className="text-sm text-text-muted">Only the platform administrator can access this terminal.</p>
+        <p className="text-sm text-text-muted">Only authorized platform administrators can access this terminal.</p>
         <Link to="/" className="px-5 py-2 bg-[#141414] border border-white/10 rounded-full text-xs font-semibold cursor-pointer">
           Return to Lobby
         </Link>
@@ -189,7 +226,6 @@ export default function AdminPanel() {
   const finishedGames = games.filter((g) => g.status === 'finished');
   const totalVolumeSOL = games.reduce((sum, g) => (g.wagerCurrency === 'SOL' ? sum + (g.wager || 0) : sum), 0);
 
-  // Active users: only users in LIVE active/waiting matches or played in the last 15 minutes
   const activeUserIds = new Set<string>();
   const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
 
@@ -378,9 +414,10 @@ export default function AdminPanel() {
                 <thead>
                   <tr className="bg-[#111111] border-b border-white/10 text-text-muted text-[11px] uppercase tracking-wider font-mono">
                     <th className="py-3.5 px-5 font-semibold">User</th>
+                    <th className="py-3.5 px-5 font-semibold">Role</th>
                     <th className="py-3.5 px-5 font-semibold">Wallet Address</th>
                     <th className="py-3.5 px-5 font-semibold">Registered</th>
-                    <th className="py-3.5 px-5 font-semibold text-right">Delete</th>
+                    <th className="py-3.5 px-5 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="text-xs divide-y divide-white/5 font-body-md">
@@ -389,6 +426,10 @@ export default function AdminPanel() {
                       ? u.createdAt.toDate().toLocaleDateString()
                       : 'Earlier';
                     const walletStr = u.walletAddress || 'None';
+                    const isTargetOwner = u.walletAddress === OWNER_WALLET;
+                    const isTargetAdmin = isTargetOwner || u.isAdmin || u.role === 'admin';
+                    const isTest = u.isTestUser || !u.walletAddress;
+                    const displayLabel = isTest ? (u.username || 'Guest') : `@${u.username}`;
 
                     return (
                       <tr
@@ -397,7 +438,7 @@ export default function AdminPanel() {
                         className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
                         title="Click to view profile"
                       >
-                        {/* User Identity with @ prefix */}
+                        {/* User Identity */}
                         <td className="py-3.5 px-5">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full border border-white/10 bg-surface-container overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
@@ -407,10 +448,32 @@ export default function AdminPanel() {
                                 u.username ? u.username.substring(0, 2).toUpperCase() : 'U'
                               )}
                             </div>
-                            <span className="font-semibold text-white group-hover:text-velocity-red transition-colors">
-                              @{u.username}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-white group-hover:text-velocity-red transition-colors">
+                                {displayLabel}
+                              </span>
+                              {isTest && (
+                                <span className="text-[10px] font-mono text-velocity-red px-2 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30">
+                                  Guest
+                                </span>
+                              )}
+                            </div>
                           </div>
+                        </td>
+
+                        {/* Role Badge */}
+                        <td className="py-3.5 px-5 font-mono" onClick={(e) => e.stopPropagation()}>
+                          {isTargetOwner ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] uppercase">
+                              <Crown size={11} /> Owner
+                            </span>
+                          ) : isTargetAdmin ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-velocity-red/15 border border-velocity-red/40 text-velocity-red font-bold text-[10px] uppercase">
+                              <ShieldCheck size={11} /> Admin
+                            </span>
+                          ) : (
+                            <span className="text-text-muted text-[11px]">Player</span>
+                          )}
                         </td>
 
                         {/* Wallet Address */}
@@ -438,18 +501,49 @@ export default function AdminPanel() {
                           {regDate}
                         </td>
 
-                        {/* Delete Action */}
+                        {/* Actions: Make Admin (Owner Only) & Delete */}
                         <td className="py-3.5 px-5 text-right" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => {
-                              setUserToDelete(u);
-                              setDeleteConfirmInput('');
-                            }}
-                            className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors cursor-pointer"
-                            title="Delete Account"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Make / Revoke Admin Button (Owner only) */}
+                            {isOwner && !isTargetOwner && (
+                              <button
+                                onClick={() => handleToggleAdminRole(u)}
+                                disabled={roleUpdatingId === u.id}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 border transition-all cursor-pointer ${
+                                  isTargetAdmin
+                                    ? 'bg-neutral-800 hover:bg-neutral-700 text-text-secondary border-white/10'
+                                    : 'bg-velocity-red/10 hover:bg-velocity-red/20 text-velocity-red border-velocity-red/30'
+                                }`}
+                                title={isTargetAdmin ? 'Revoke Admin Permissions' : 'Grant Admin Permissions'}
+                              >
+                                {roleUpdatingId === u.id ? (
+                                  <Loader2 size={11} className="animate-spin" />
+                                ) : isTargetAdmin ? (
+                                  <>
+                                    <ShieldMinus size={11} /> Revoke
+                                  </>
+                                ) : (
+                                  <>
+                                    <ShieldCheck size={11} /> Make Admin
+                                  </>
+                                )}
+                              </button>
+                            )}
+
+                            {/* Delete User Button (Non-owners only) */}
+                            {!isTargetOwner && (
+                              <button
+                                onClick={() => {
+                                  setUserToDelete(u);
+                                  setDeleteConfirmInput('');
+                                }}
+                                className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors cursor-pointer"
+                                title="Delete Account"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -564,7 +658,7 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* Floating Inspect Profile Modal with SOL Balance & Game Stakes */}
+      {/* Floating Inspect Profile Modal */}
       <AnimatePresence>
         {inspectUser && (
           <motion.div
@@ -603,24 +697,46 @@ export default function AdminPanel() {
 
               {/* User Avatar and Meta */}
               <div className="px-6 pb-4 pt-0 border-b border-white/10 relative">
-                <div className="flex items-end gap-4 -mt-10 mb-3">
-                  <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
-                    {inspectUser.avatarUrl ? (
-                      <img src={inspectUser.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
-                        {inspectUser.username ? inspectUser.username.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
+                <div className="flex items-end justify-between gap-4 -mt-10 mb-3">
+                  <div className="flex items-end gap-3.5">
+                    <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
+                      {inspectUser.avatarUrl ? (
+                        <img src={inspectUser.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
+                          {inspectUser.username ? inspectUser.username.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-0.5 pb-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-white font-headline-lg">
+                          {inspectUser.isTestUser || !inspectUser.walletAddress ? inspectUser.username : `@${inspectUser.username}`}
+                        </h3>
+                        {inspectUser.walletAddress === OWNER_WALLET && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase font-mono flex items-center gap-1">
+                            <Crown size={11} /> Owner
+                          </span>
+                        )}
+                        {(inspectUser.isAdmin || inspectUser.role === 'admin') && inspectUser.walletAddress !== OWNER_WALLET && (
+                          <span className="px-2 py-0.5 rounded-full bg-velocity-red/15 text-velocity-red border border-velocity-red/40 text-[10px] font-bold uppercase font-mono flex items-center gap-1">
+                            <ShieldCheck size={11} /> Admin
+                          </span>
+                        )}
                       </div>
-                    )}
+                      <p className="text-xs text-text-muted font-mono">
+                        User ID: {inspectUser.id}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-0.5 pb-1">
-                    <h3 className="text-xl font-bold text-white font-headline-lg">
-                      @{inspectUser.username}
-                    </h3>
-                    <p className="text-xs text-text-muted font-mono">
-                      User ID: {inspectUser.id}
-                    </p>
-                  </div>
+
+                  <Link
+                    to={`/profile/${inspectUser.id}`}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 text-xs font-semibold text-white transition-all font-mono"
+                  >
+                    <span>Full Page</span>
+                    <ExternalLink size={12} />
+                  </Link>
                 </div>
 
                 {inspectUser.walletAddress && (
@@ -636,7 +752,7 @@ export default function AdminPanel() {
                 )}
               </div>
 
-              {/* Quick Stats Grid: Matches, Wins, Losses, and SOL Balance */}
+              {/* Quick Stats Grid */}
               <div className="grid grid-cols-4 border-b border-white/10 bg-[#0e0e0e] shrink-0 font-mono">
                 <div className="p-3 text-center border-r border-white/10">
                   <span className="text-[10px] text-text-muted uppercase block">Matches</span>
@@ -668,7 +784,7 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              {/* Inspect Match History with Stakes per game */}
+              {/* Inspect Match History */}
               <div className="flex-1 p-5 overflow-y-auto space-y-3 min-h-0 bg-[#121212]">
                 <div className="flex justify-between items-center">
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
@@ -693,6 +809,9 @@ export default function AdminPanel() {
                       const isWin = g.winner === inspectUser.id;
                       const isDraw = g.winner === 'draw';
                       const oppName = g.player1 === inspectUser.id ? g.player2Name : g.player1Name;
+                      const isOppTest = g.player1 === inspectUser.id ? g.player2?.startsWith('test_') : g.player1?.startsWith('test_');
+                      const oppDisplay = isOppTest ? (oppName || 'Guest') : `@${oppName || 'Opponent'}`;
+
                       return (
                         <div
                           key={g.id}
@@ -700,7 +819,7 @@ export default function AdminPanel() {
                         >
                           <div className="flex items-center gap-2">
                             <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
-                            <span className="text-white">vs @{oppName || 'Opponent'}</span>
+                            <span className="text-white">vs {oppDisplay}</span>
                           </div>
 
                           <div className="flex items-center gap-3">
@@ -722,16 +841,39 @@ export default function AdminPanel() {
 
               {/* Bottom Actions */}
               <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-between items-center shrink-0">
-                <button
-                  onClick={() => {
-                    setUserToDelete(inspectUser);
-                    setDeleteConfirmInput('');
-                  }}
-                  className="px-4 py-2 rounded-full bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer"
-                >
-                  <Trash2 size={13} />
-                  <span>Delete User Account</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {isOwner && inspectUser.walletAddress !== OWNER_WALLET && (
+                    <button
+                      onClick={() => handleToggleAdminRole(inspectUser)}
+                      disabled={roleUpdatingId === inspectUser.id}
+                      className="px-4 py-2 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer"
+                    >
+                      {inspectUser.isAdmin || inspectUser.role === 'admin' ? (
+                        <>
+                          <ShieldMinus size={13} />
+                          <span>Revoke Admin</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck size={13} />
+                          <span>Make Admin</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {inspectUser.walletAddress !== OWNER_WALLET && (
+                    <button
+                      onClick={() => {
+                        setUserToDelete(inspectUser);
+                        setDeleteConfirmInput('');
+                      }}
+                      className="px-4 py-2 rounded-full bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete Account</span>
+                    </button>
+                  )}
+                </div>
                 <button
                   onClick={() => setInspectUser(null)}
                   className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer"

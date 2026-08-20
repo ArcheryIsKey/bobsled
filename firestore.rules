@@ -73,20 +73,31 @@ service cloud.firestore {
         && data.createdAt == request.time;
     }
 
-    function isAdmin() {
+    // Owner is permanently 11111111111111111111111111111111
+    function isOwner() {
       return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.walletAddress == '11111111111111111111111111111111';
+    }
+
+    function isAdmin() {
+      return isOwner() || (
+        isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     match /users/{userId} {
       allow read: if isSignedIn();
       allow list: if isAdmin();
-      allow delete: if isAdmin();
+      // Owner cannot be deleted by anyone
+      allow delete: if isOwner() && existing().walletAddress != '11111111111111111111111111111111';
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
-      allow update: if isSignedIn() && request.auth.uid == userId 
-        && isValidId(userId)
-        && isValidUserUpdate(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['avatarUrl', 'bannerUrl', 'walletAddress', 'username']);
+      allow update: if (isSignedIn() && request.auth.uid == userId 
+          && isValidId(userId)
+          && isValidUserUpdate(incoming())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['avatarUrl', 'bannerUrl', 'walletAddress', 'username']))
+        || (isOwner() && incoming().diff(existing()).affectedKeys().hasAny(['isAdmin', 'role']));
     }
 
     match /usernames/{username} {
@@ -119,26 +130,43 @@ service cloud.firestore {
             && incoming().turn in [existing().player1, incoming().player2]
             && incoming().diff(existing()).affectedKeys().hasAny(['player2', 'player2Name', 'player2Avatar', 'status', 'turn', 'updatedAt', 'players'])
           ) ||
-          // Action: Make move or finish
+          // Action: Make move, finish, resign, or heartbeat
           (
             existing().status == 'active'
-            && incoming().status in ['active', 'finished']
             && (ownsWallet(existing().player1) || ownsWallet(existing().player2))
-            && (incoming().diff(existing()).affectedKeys().hasOnly(['board', 'turn', 'updatedAt']) ||
-                incoming().diff(existing()).affectedKeys().hasOnly(['board', 'turn', 'updatedAt', 'status', 'winner']) ||
-                incoming().diff(existing()).affectedKeys().hasOnly(['status', 'winner', 'updatedAt']))
+            && (
+              incoming().diff(existing()).affectedKeys().hasOnly(['board', 'turn', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['board', 'turn', 'updatedAt', 'status', 'winner']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'winner', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['player1Heartbeat', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['player2Heartbeat', 'updatedAt'])
+            )
           )
         );
     }
 
     match /games/{gameId}/messages/{messageId} {
-      allow read: if isSignedIn();
-      allow list: if isSignedIn();
+      allow read: if isSignedIn() && exists(/databases/$(database)/documents/games/$(gameId))
+        && (
+          get(/databases/$(database)/documents/games/$(gameId)).data.player1 == request.auth.uid
+          || get(/databases/$(database)/documents/games/$(gameId)).data.player2 == request.auth.uid
+          || isAdmin()
+        );
+      allow list: if isSignedIn() && exists(/databases/$(database)/documents/games/$(gameId))
+        && (
+          get(/databases/$(database)/documents/games/$(gameId)).data.player1 == request.auth.uid
+          || get(/databases/$(database)/documents/games/$(gameId)).data.player2 == request.auth.uid
+          || isAdmin()
+        );
       allow delete: if isAdmin();
       allow create: if ownsWallet(incoming().senderId)
         && isValidId(gameId)
         && isValidId(messageId)
-        && exists(/databases/$(database)/documents/games/$(gameId));
+        && exists(/databases/$(database)/documents/games/$(gameId))
+        && (
+          get(/databases/$(database)/documents/games/$(gameId)).data.player1 == request.auth.uid
+          || get(/databases/$(database)/documents/games/$(gameId)).data.player2 == request.auth.uid
+        );
       allow update: if false;
     }
   }

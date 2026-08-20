@@ -41,6 +41,7 @@ export default function Chat({ gameId }: { gameId: string }) {
     addDoc(collection(db, `games/${gameId}/messages`), {
       senderId: user.id,
       senderName: user.username,
+      isTestUser: !!user.isTestUser,
       text: messageToSend,
       createdAt: serverTimestamp(),
     }).catch((err) => {
@@ -72,7 +73,10 @@ export default function Chat({ gameId }: { gameId: string }) {
             const time = msg.createdAt?.toDate
               ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : '...';
-            const name = isMe ? `@${user?.username || 'You'}` : `@${msg.senderName || msg.senderId.substring(0, 6)}`;
+            
+            const isMsgSenderTest = msg.isTestUser || msg.senderId?.startsWith?.('test_');
+            const rawName = isMe ? (user?.username || 'You') : (msg.senderName || msg.senderId.substring(0, 6));
+            const name = isMsgSenderTest ? rawName : `@${rawName}`;
 
             return (
               <div key={msg.id} className="flex flex-col gap-0.5 text-xs">

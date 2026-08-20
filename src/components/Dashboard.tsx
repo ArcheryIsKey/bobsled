@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
+import UserProfileModal from './UserProfileModal';
 import { Loader2, Play, X, FlaskConical } from 'lucide-react';
 
 export default function Dashboard() {
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [wagerAmount, setWagerAmount] = useState<number>(0.1);
   const [customWager, setCustomWager] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.isTestUser) {
@@ -57,7 +59,6 @@ export default function Dashboard() {
         throw new Error('Please enter a valid SOL wager.');
       }
 
-      // Generate unique one-time player invite code
       const inviteCode = Math.random().toString(36).substring(2, 8);
 
       const docRef = await addDoc(collection(db, 'games'), {
@@ -131,6 +132,15 @@ export default function Dashboard() {
 
   return (
     <div className="bg-[#0e0e0e] text-text-primary antialiased min-h-[calc(100vh-76px)] flex flex-col font-body-md w-full overflow-y-auto">
+      
+      {/* Floating User Profile Modal */}
+      {selectedProfileId && (
+        <UserProfileModal
+          userId={selectedProfileId}
+          onClose={() => setSelectedProfileId(null)}
+        />
+      )}
+
       <main className="flex-grow w-full max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <div className="space-y-8">
           
@@ -305,24 +315,26 @@ export default function Dashboard() {
                 const isWaiting = game.status === 'waiting';
                 const isMyGame = game.player1 === user?.id;
 
+                const isP1Test = game.player1?.startsWith?.('test_');
+                const isP2Test = game.player2?.startsWith?.('test_');
+
+                const p1Label = isP1Test ? (game.player1Name || 'Guest') : `@${game.player1Name || 'Player 1'}`;
+                const p2Label = isP2Test ? (game.player2Name || 'Guest') : `@${game.player2Name || 'Player 2'}`;
+
                 return (
                   <div
                     key={game.id}
-                    onClick={() => {
-                      if (game.status === 'active') {
-                        navigate(`/game/${game.id}`);
-                      } else if (isWaiting && !isMyGame) {
-                        handleJoinMatch(game);
-                      } else if (isWaiting && isMyGame) {
-                        navigate(`/game/${game.id}`);
-                      }
-                    }}
-                    className="rounded-2xl p-4 sm:p-5 flex items-center justify-between hover:bg-[#181818] transition-colors group cursor-pointer border border-white/10 bg-[#141414]"
+                    className="rounded-2xl p-4 sm:p-5 flex items-center justify-between hover:bg-[#181818] transition-colors group border border-white/10 bg-[#141414]"
                   >
-                    {/* Players Info with @ prefix */}
+                    {/* Players Info */}
                     <div className="flex items-center gap-4 sm:gap-6">
+                      
                       {/* Player 1 */}
-                      <div className="flex items-center gap-3">
+                      <div
+                        onClick={() => game.player1 && setSelectedProfileId(game.player1)}
+                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                        title="View Profile"
+                      >
                         <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
                           {game.player1Avatar ? (
                             <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
@@ -331,18 +343,22 @@ export default function Dashboard() {
                           )}
                         </div>
                         <span className="text-sm text-white font-semibold group-hover:text-velocity-red transition-colors">
-                          @{game.player1Name || 'Player 1'}
+                          {p1Label}
                         </span>
                       </div>
 
                       <span className="text-xs italic font-semibold text-velocity-red/70 font-mono">VS</span>
 
                       {/* Player 2 */}
-                      <div className="flex items-center gap-3">
+                      <div
+                        onClick={() => game.player2 && setSelectedProfileId(game.player2)}
+                        className={`flex items-center gap-3 ${game.player2 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                        title={game.player2 ? 'View Profile' : ''}
+                      >
                         {game.status === 'active' ? (
                           <>
                             <span className="text-sm text-white font-semibold">
-                              @{game.player2Name || 'Player 2'}
+                              {p2Label}
                             </span>
                             <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-white shrink-0">
                               {game.player2Avatar ? (
@@ -358,18 +374,33 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Stakes & Action */}
+                    {/* Stakes & Action Buttons */}
                     <div className="flex items-center gap-4 sm:gap-6">
                       <div className="hidden sm:block text-xs font-mono text-text-secondary text-right">
                         {game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'Free'}
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (game.status === 'active') {
+                            navigate(`/game/${game.id}`);
+                          } else if (isWaiting && !isMyGame) {
+                            handleJoinMatch(game);
+                          } else if (isWaiting && isMyGame) {
+                            navigate(`/game/${game.id}`);
+                          }
+                        }}
+                        className={`px-4 py-1.5 rounded-full text-xs font-semibold font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                          game.status === 'active'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                            : isMyGame
+                            ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20'
+                            : 'bg-velocity-red hover:bg-red-600 text-white shadow-[0_0_12px_rgba(255,77,77,0.3)]'
+                        }`}
+                      >
                         <span className={`inline-flex h-2 w-2 rounded-full ${game.status === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400'}`} />
-                        <div className={`text-xs uppercase font-semibold tracking-wider font-mono ${game.status === 'active' ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                          {game.status === 'active' ? 'Watch' : isMyGame ? 'Your Game' : 'Join Game'}
-                        </div>
-                      </div>
+                        <span>{game.status === 'active' ? 'Watch' : isMyGame ? 'Your Game' : 'Join Game'}</span>
+                      </button>
                     </div>
                   </div>
                 );

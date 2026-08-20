@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords } from 'lucide-react';
+import UserProfileModal from './UserProfileModal';
+import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords, FlaskConical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
@@ -21,17 +22,20 @@ export default function Game() {
   const [showWinModal, setShowWinModal] = useState(true);
   const [showResignModal, setShowResignModal] = useState(false);
   const [isJoiningInvite, setIsJoiningInvite] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
-  // Check URL query parameters for ?invite=...
   const searchParams = new URLSearchParams(location.search);
   const inviteParam = searchParams.get('invite');
   const isExplicitWatchRoute = location.pathname.startsWith('/watch/');
+
+  const heartbeatIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
+  // Listen to game document
   useEffect(() => {
     if (!gameId) {
       navigate('/');
@@ -52,6 +56,68 @@ export default function Game() {
 
     return () => unsub();
   }, [gameId, navigate]);
+
+  // Test User Auto-Forfeit on Disconnect / Tab Close
+  useEffect(() => {
+    if (!game || game.status !== 'active' || !user?.id) return;
+
+    const isTestUser = user.isTestUser || user.id.startsWith('test_');
+    const isP1 = game.player1 === user.id;
+    const isP2 = game.player2 === user.id;
+    if (!isP1 && !isP2) return;
+
+    const opponentId = isP1 ? game.player2 : game.player1;
+
+    // 1. Unload & Pagehide listener
+    const handleForfeitOnDisconnect = () => {
+      if (isTestUser && game.status === 'active' && opponentId) {
+        updateDoc(doc(db, 'games', game.id), {
+          status: 'finished',
+          winner: opponentId,
+          updatedAt: serverTimestamp(),
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('beforeunload', handleForfeitOnDisconnect);
+    window.addEventListener('pagehide', handleForfeitOnDisconnect);
+
+    // 2. Periodic Heartbeat for test users
+    if (isTestUser) {
+      const field = isP1 ? 'player1Heartbeat' : 'player2Heartbeat';
+      heartbeatIntervalRef.current = setInterval(() => {
+        updateDoc(doc(db, 'games', game.id), {
+          [field]: Date.now(),
+          updatedAt: serverTimestamp(),
+        }).catch(() => {});
+      }, 3000);
+    }
+
+    // 3. Opponent checks if the test user has disconnected (no heartbeat for > 8s)
+    const opponentIsTest = isP1 ? game.player2?.startsWith('test_') : game.player1?.startsWith('test_');
+    let disconnectCheckInterval: any = null;
+
+    if (opponentIsTest) {
+      const oppHeartbeatField = isP1 ? 'player2Heartbeat' : 'player1Heartbeat';
+      disconnectCheckInterval = setInterval(() => {
+        const lastHb = game[oppHeartbeatField] || game.updatedAt?.toMillis?.() || 0;
+        if (Date.now() - lastHb > 8000 && game.status === 'active') {
+          updateDoc(doc(db, 'games', game.id), {
+            status: 'finished',
+            winner: user.id,
+            updatedAt: serverTimestamp(),
+          }).catch(() => {});
+        }
+      }, 2000);
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleForfeitOnDisconnect);
+      window.removeEventListener('pagehide', handleForfeitOnDisconnect);
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+      if (disconnectCheckInterval) clearInterval(disconnectCheckInterval);
+    };
+  }, [game, user]);
 
   // Handle joining via one-time invite link
   const handleJoinViaInvite = async () => {
@@ -186,11 +252,21 @@ export default function Game() {
   const isParticipant = isPlayer1 || isPlayer2;
   const isSpectator = !isParticipant || isExplicitWatchRoute;
 
-  // Has a valid one-time player invite link and game is waiting for player 2
   const hasValidPlayerInvite = !!inviteParam && game.status === 'waiting' && !isParticipant;
 
   const isMyTurn = isParticipant && game.turn === user?.id && game.status === 'active';
   const opponentAvatar = isPlayer1 ? game.player2Avatar : game.player1Avatar;
+
+  const isP1Test = game.player1?.startsWith?.('test_');
+  const isP2Test = game.player2?.startsWith?.('test_');
+
+  const p1DisplayName = isP1Test
+    ? (game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1')
+    : `@${game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1'}`;
+
+  const p2DisplayName = isP2Test
+    ? (game.player2 === user?.id ? (user?.username || 'You') : game.player2Name || 'Player 2')
+    : `@${game.player2 === user?.id ? (user?.username || 'You') : game.player2Name || 'Player 2'}`;
 
   const timeSinceLastMove = game.updatedAt?.toMillis ? now - game.updatedAt.toMillis() : 0;
   const afkSecondsLeft = Math.max(0, Math.ceil((60000 - timeSinceLastMove) / 1000));
@@ -199,12 +275,19 @@ export default function Game() {
   const isWinner = isParticipant && game.winner === user?.id;
   const isDraw = game.winner === 'draw';
   const isFinished = game.status === 'finished';
-
   const isFreeGame = game.wager === 0 || game.wagerCurrency === 'FREE';
 
   return (
     <div className="min-h-[calc(100vh-76px)] flex flex-col bg-[#0e0e0e] text-text-primary antialiased w-full overflow-y-auto">
       
+      {/* Floating User Profile Modal */}
+      {selectedProfileId && (
+        <UserProfileModal
+          userId={selectedProfileId}
+          onClose={() => setSelectedProfileId(null)}
+        />
+      )}
+
       {/* Player Invite Acceptance Floating Banner */}
       {hasValidPlayerInvite && (
         <div className="w-full bg-velocity-red/15 border-b border-velocity-red/40 py-3 px-4 z-40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
@@ -214,7 +297,7 @@ export default function Game() {
             </div>
             <div>
               <p className="text-xs text-white font-bold">
-                You have been invited to play Match <strong className="font-mono text-velocity-red">#{game.id.substring(0, 6).toUpperCase()}</strong> vs @{game.player1Name || 'Host'}
+                You have been invited to play Match <strong className="font-mono text-velocity-red">#{game.id.substring(0, 6).toUpperCase()}</strong> vs {p1DisplayName}
               </p>
               <p className="text-[11px] text-text-muted">
                 Stakes: {isFreeGame ? 'Free Play' : `${game.wager} SOL`}. Click below to enter as Player 2.
@@ -286,7 +369,11 @@ export default function Game() {
             <div className="bg-[#0e0e0e] rounded-xl p-4 border border-white/5 space-y-3.5">
               
               {/* Player 1 (Red) */}
-              <div className="flex items-center justify-between">
+              <div
+                onClick={() => game.player1 && setSelectedProfileId(game.player1)}
+                className="flex items-center justify-between group cursor-pointer hover:bg-white/5 p-1.5 -m-1.5 rounded-xl transition-colors"
+                title="View Profile"
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-velocity-red flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,77,77,0.35)]">
                     {game.player1Avatar ? (
@@ -296,8 +383,8 @@ export default function Game() {
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                      <span>@{game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1'}</span>
+                    <p className="text-sm font-bold text-white flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
+                      <span>{p1DisplayName}</span>
                       <span className="text-[11px] text-velocity-red font-medium">(Red)</span>
                     </p>
                     <p className="text-xs text-text-muted">
@@ -317,7 +404,11 @@ export default function Game() {
               </div>
 
               {/* Player 2 (White) */}
-              <div className="flex items-center justify-between">
+              <div
+                onClick={() => game.player2 && setSelectedProfileId(game.player2)}
+                className={`flex items-center justify-between ${game.player2 ? 'group cursor-pointer hover:bg-white/5' : ''} p-1.5 -m-1.5 rounded-xl transition-colors`}
+                title={game.player2 ? 'View Profile' : ''}
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-white flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,255,255,0.25)]">
                     {opponentAvatar && game.player2 ? (
@@ -327,8 +418,8 @@ export default function Game() {
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                      <span>{game.player2 ? `@${game.player2 === user?.id ? (user?.username || 'You') : game.player2Name || 'Player 2'}` : 'Waiting for Player 2...'}</span>
+                    <p className="text-sm font-bold text-white flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
+                      <span>{game.player2 ? p2DisplayName : 'Waiting for Player 2...'}</span>
                       <span className="text-[11px] text-text-secondary font-medium">(White)</span>
                     </p>
                     <p className="text-xs text-text-muted">
@@ -356,7 +447,7 @@ export default function Game() {
             )}
           </div>
 
-          {/* Share Links Panel (One-time player invite link vs public spectator link) */}
+          {/* Share Links Panel */}
           <div className="rounded-2xl p-4 border border-white/10 bg-[#141414] space-y-3">
             <h3 className="text-xs text-white font-bold uppercase tracking-wider font-mono">
               Share Links
@@ -411,7 +502,7 @@ export default function Game() {
             </div>
           </div>
 
-          {/* Chat Panel: Spectators cannot type nor see chat */}
+          {/* Chat Panel */}
           <div className="rounded-2xl border border-white/10 overflow-hidden flex flex-col h-64 bg-[#141414] shadow-xl">
             {isSpectator ? (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2 bg-[#121212]">
@@ -531,7 +622,7 @@ export default function Game() {
         )}
       </AnimatePresence>
 
-      {/* End Game Modal */}
+      {/* End Game Modal: Clean non-quirky standard text */}
       <AnimatePresence>
         {isFinished && showWinModal && (
           <motion.div
@@ -561,19 +652,19 @@ export default function Game() {
                 {isWinner ? <Trophy size={32} /> : isDraw ? <User size={32} /> : <XCircle size={32} />}
               </div>
 
-              {/* Title */}
+              {/* Title & Standard Subtitles */}
               <div className="space-y-1">
                 <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
                 </h2>
                 <p className="text-sm text-text-secondary">
                   {isWinner
-                    ? isFreeGame ? 'Free match victory.' : `Stakes of ${game.wager} SOL secured.`
+                    ? isFreeGame ? 'Free game' : `Stakes: ${game.wager} SOL`
                     : isDraw
-                    ? 'Match ended in a tie.'
+                    ? 'The match ended in a draw.'
                     : isSpectator
-                    ? `Player ${game.winner === game.player1 ? '1 (Red)' : '2 (White)'} won the match.`
-                    : 'Better luck in the next game.'}
+                    ? `Winner: ${game.winner === game.player1 ? 'Player 1 (Red)' : 'Player 2 (White)'}`
+                    : 'Match completed.'}
                 </p>
               </div>
 

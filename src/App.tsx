@@ -14,7 +14,10 @@ import Profile from './components/Profile';
 import AdminPanel from './components/AdminPanel';
 import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
+import UserProfileModal from './components/UserProfileModal';
 import { Shield, User, FlaskConical } from 'lucide-react';
+
+const OWNER_WALLET = '11111111111111111111111111111111';
 
 async function cleanupTestUserGames(testUserId: string) {
   try {
@@ -53,7 +56,7 @@ async function cleanupTestUserGames(testUserId: string) {
   }
 }
 
-function AppHeader() {
+function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { publicKey, disconnect } = useWallet();
@@ -75,10 +78,16 @@ function AppHeader() {
     navigate('/');
   };
 
-  const isAdmin = user?.walletAddress === '11111111111111111111111111111111';
+  const isOwner = user?.walletAddress === OWNER_WALLET;
+  const isAdmin = isOwner || user?.isAdmin || user?.role === 'admin';
+
   const isLobby = location.pathname === '/';
   const isProfile = location.pathname.startsWith('/profile');
   const isAdminRoute = location.pathname === '/admin';
+
+  const userDisplayName = user?.isTestUser
+    ? (user?.username || 'Player')
+    : `@${user?.username || 'Player'}`;
 
   return (
     <header className="sticky top-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-3 pb-2 pointer-events-none">
@@ -174,9 +183,9 @@ function AppHeader() {
                 </div>
               )}
 
-              {/* Profile Link Pill - Perfectly centered vertically */}
-              <Link
-                to="/profile"
+              {/* Profile Link Pill - Opens modal on click */}
+              <button
+                onClick={onOpenProfileModal}
                 className="flex items-center gap-2 py-1 px-1.5 sm:pr-3.5 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group cursor-pointer h-8.5"
                 title="View Profile"
               >
@@ -188,9 +197,9 @@ function AppHeader() {
                   )}
                 </div>
                 <span className="hidden sm:inline-flex items-center text-xs font-semibold text-white group-hover:text-velocity-red transition-colors leading-none">
-                  @{user?.username || 'Player'}
+                  {userDisplayName}
                 </span>
-              </Link>
+              </button>
 
               {/* Exit Button */}
               <button
@@ -294,6 +303,7 @@ export default function App() {
   const [needsUsername, setNeedsUsername] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [pendingGame, setPendingGame] = useState<any | null>(null);
+  const [showOwnProfileModal, setShowOwnProfileModal] = useState(false);
 
   // Check if URL points to an incoming game invitation
   useEffect(() => {
@@ -585,7 +595,16 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="flex flex-col min-h-screen bg-[#0e0e0e] text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
-        <AppHeader />
+        <AppHeader onOpenProfileModal={() => user?.id && setShowOwnProfileModal(true)} />
+        
+        {/* Own Profile Modal triggered from header */}
+        {showOwnProfileModal && user?.id && (
+          <UserProfileModal
+            userId={user.id}
+            onClose={() => setShowOwnProfileModal(false)}
+          />
+        )}
+
         <main className="flex flex-1 w-full relative z-10">
           <MainContent
             isAuthenticating={isAuthenticating}

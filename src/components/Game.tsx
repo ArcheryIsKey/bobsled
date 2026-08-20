@@ -165,13 +165,13 @@ export default function Game() {
           <div className="rounded-2xl p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <div>
-                <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold font-mono">Match ID</span>
+                <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold">Match ID</span>
                 <h2 className="font-headline-lg text-lg text-white font-bold font-mono">
                   #{game.id.substring(0, 8).toUpperCase()}
                 </h2>
               </div>
               <span
-                className={`text-[11px] px-3 py-1 rounded-full font-semibold uppercase tracking-wider font-mono ${
+                className={`text-[11px] px-3 py-1 rounded-full font-semibold uppercase tracking-wider ${
                   game.status === 'active'
                     ? 'bg-velocity-red/10 text-velocity-red border border-velocity-red/30'
                     : game.status === 'waiting'
@@ -183,12 +183,12 @@ export default function Game() {
               </span>
             </div>
 
-            {/* Stakes (No duplicate 'Free' labels) */}
+            {/* Stakes */}
             <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5">
               <div>
-                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
-                <p className="font-headline-lg text-xl text-velocity-red font-bold font-mono">
-                  {isFreeGame ? 'Free Play' : `${game.wager} SOL`}
+                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5">Stakes</p>
+                <p className="font-headline-lg text-xl text-velocity-red font-bold">
+                  {isFreeGame ? 'Free' : `${game.wager} SOL`}
                 </p>
               </div>
               {!isFreeGame && (
@@ -198,13 +198,13 @@ export default function Game() {
               )}
             </div>
 
-            {/* Player VS Player */}
-            <div className="bg-[#0e0e0e] rounded-xl p-3.5 border border-white/5 space-y-3">
+            {/* Player VS Player (Clean, polished typography and avatars) */}
+            <div className="bg-[#0e0e0e] rounded-xl p-4 border border-white/5 space-y-3.5">
               
               {/* Player 1 (Red) */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#181818] border-2 border-velocity-red flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_8px_rgba(255,77,77,0.4)]">
+                  <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-velocity-red flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,77,77,0.35)]">
                     {game.player1Avatar ? (
                       <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -212,28 +212,30 @@ export default function Game() {
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <p className="text-sm font-bold text-white flex items-center gap-1.5">
                       <span>{game.player1 === user?.id ? 'You' : game.player1Name || 'Player 1'}</span>
-                      <span className="text-[10px] text-velocity-red font-mono font-bold">(Red)</span>
+                      <span className="text-[11px] text-velocity-red font-medium">(Red)</span>
                     </p>
-                    <p className="text-[10px] text-text-muted font-mono">
+                    <p className="text-xs text-text-muted">
                       {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
                     </p>
                   </div>
                 </div>
                 {game.status === 'active' && game.turn === game.player1 && (
-                  <span className="w-2 h-2 rounded-full bg-velocity-red animate-ping" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-velocity-red animate-ping" />
                 )}
               </div>
 
-              <div className="flex items-center justify-center my-0.5">
-                <span className="text-[10px] text-text-muted uppercase tracking-widest font-semibold font-mono">VS</span>
+              {/* Minimal Divider */}
+              <div className="relative flex items-center justify-center my-1">
+                <div className="w-full border-t border-white/5" />
+                <span className="absolute bg-[#0e0e0e] px-2 text-[10px] text-text-muted uppercase font-semibold tracking-wider">vs</span>
               </div>
 
               {/* Player 2 (White) */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#181818] border-2 border-white flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+                  <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-white flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,255,255,0.25)]">
                     {opponentAvatar && game.player2 ? (
                       <img src={opponentAvatar} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -241,17 +243,17 @@ export default function Game() {
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>{game.player2 ? (game.player2 === user?.id ? 'You' : game.player2Name || 'Player 2') : 'Waiting for player...'}</span>
-                      <span className="text-[10px] text-white font-mono font-bold">(White)</span>
+                    <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <span>{game.player2 ? (game.player2 === user?.id ? 'You' : game.player2Name || 'Player 2') : 'Waiting...'}</span>
+                      <span className="text-[11px] text-text-secondary font-medium">(White)</span>
                     </p>
-                    <p className="text-[10px] text-text-muted font-mono">
+                    <p className="text-xs text-text-muted">
                       {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for opponent'}
                     </p>
                   </div>
                 </div>
                 {game.status === 'active' && game.turn === game.player2 && (
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
                 )}
               </div>
             </div>
@@ -272,7 +274,7 @@ export default function Game() {
 
           {/* Share Game Link Box */}
           <div className="rounded-2xl p-4 border border-white/10 bg-[#141414]">
-            <h3 className="text-xs text-white font-bold uppercase tracking-wider mb-1 font-mono">
+            <h3 className="text-xs text-white font-bold uppercase tracking-wider mb-1">
               Share Game Link
             </h3>
             <p className="text-xs text-text-muted mb-2.5">

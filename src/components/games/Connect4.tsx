@@ -108,7 +108,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
   return (
     <div className="w-full flex flex-col items-center">
       {/* Board Container */}
-      <div className="rounded-3xl p-4 sm:p-6 md:p-8 w-full max-w-2xl border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] relative bg-[#141414]">
+      <div className="rounded-3xl p-4 sm:p-6 md:p-8 w-full max-w-2xl border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] relative bg-[#141414] overflow-visible">
         
         {/* Floating Turn Indicator Pill */}
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30">
@@ -154,26 +154,26 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
             return (
               <div
                 key={`col-${colIndex}`}
-                className={`flex flex-col gap-1.5 sm:gap-3 md:gap-3.5 relative group ${
+                className={`flex flex-col gap-1.5 sm:gap-3 md:gap-3.5 relative group overflow-visible ${
                   isMyTurn ? 'cursor-pointer' : ''
                 }`}
                 onMouseEnter={() => isMyTurn && setHoverColumn(colIndex)}
                 onMouseLeave={() => isMyTurn && setHoverColumn(null)}
                 onClick={() => handleDrop(colIndex)}
               >
-                {/* Column Hover Indicator Drop Marker Arrow */}
+                {/* Column Hover Drop Marker Arrow */}
                 <AnimatePresence>
                   {isColHovered && (
                     <motion.div
-                      initial={{ y: -8, opacity: 0 }}
-                      animate={{ y: [0, -5, 0], opacity: 1 }}
-                      exit={{ y: -6, opacity: 0 }}
+                      initial={{ y: -10, opacity: 0 }}
+                      animate={{ y: [0, -6, 0], opacity: 1 }}
+                      exit={{ y: -8, opacity: 0 }}
                       transition={{ y: { repeat: Infinity, duration: 0.6, ease: 'easeInOut' } }}
-                      className={`absolute -top-7 sm:-top-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none ${
+                      className={`absolute -top-7 sm:-top-9 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none ${
                         isPlayer1 ? 'text-velocity-red' : 'text-white'
                       }`}
                     >
-                      <ChevronDown size={18} className="drop-shadow-[0_0_8px_currentColor]" />
+                      <ChevronDown size={20} className="drop-shadow-[0_0_10px_currentColor]" />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -188,16 +188,19 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
 
                   const isGhostSlot = isColHovered && hoverLandingRow === rowIndex && cellValue === 0;
 
+                  // Dynamic top-of-board drop distance based on row index
+                  const dropDistance = -((rowIndex + 2.5) * 70);
+
                   return (
                     <div
                       key={`cell-${rowIndex}-${colIndex}`}
-                      className="w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center relative overflow-hidden bg-[#0c0c0c] shadow-[inset_0_3px_8px_rgba(0,0,0,0.9),0_1px_1px_rgba(255,255,255,0.05)] border border-white/5"
+                      className="w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center relative bg-[#0c0c0c] shadow-[inset_0_3px_8px_rgba(0,0,0,0.9),0_1px_1px_rgba(255,255,255,0.05)] border border-white/5 overflow-visible"
                     >
                       {/* Ghost Landing Preview Disc */}
                       {isGhostSlot && (
                         <motion.div
                           initial={{ opacity: 0, scale: 0.7 }}
-                          animate={{ opacity: 0.6, scale: 1 }}
+                          animate={{ opacity: 0.55, scale: 1 }}
                           exit={{ opacity: 0 }}
                           className={`w-full h-full rounded-full border-2 border-dashed ${
                             isPlayer1
@@ -207,33 +210,40 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                         />
                       )}
 
-                      {/* Placed Disc with Physics Drop Animation */}
+                      {/* Placed Disc with Physics Drop from Above the Board */}
                       {cellValue !== 0 && (
                         <motion.div
                           initial={{
-                            y: -(rowIndex + 1) * 80,
-                            opacity: 0,
-                            scaleY: 1.2,
+                            y: dropDistance,
+                            opacity: 1,
+                            scaleY: 1.25,
+                            scaleX: 0.85,
                           }}
                           animate={{
                             y: 0,
                             opacity: 1,
-                            scaleY: [1.2, 0.85, 1.05, 1],
+                            scaleY: [1.25, 0.8, 1.1, 0.95, 1],
+                            scaleX: [0.85, 1.15, 0.95, 1.03, 1],
                           }}
                           transition={{
                             y: {
                               type: 'spring',
-                              damping: 14,
-                              stiffness: 160,
-                              mass: 0.85,
+                              damping: 13,
+                              stiffness: 180,
+                              mass: 0.8,
                             },
                             scaleY: {
-                              duration: 0.45,
-                              times: [0, 0.6, 0.8, 1],
+                              duration: 0.55,
+                              times: [0, 0.5, 0.7, 0.85, 1],
+                              ease: 'easeOut',
+                            },
+                            scaleX: {
+                              duration: 0.55,
+                              times: [0, 0.5, 0.7, 0.85, 1],
                               ease: 'easeOut',
                             },
                           }}
-                          className={`w-full h-full rounded-full flex items-center justify-center relative transition-all duration-300 ${
+                          className={`w-full h-full rounded-full flex items-center justify-center relative transition-all duration-300 z-10 ${
                             isDimmed ? 'opacity-35 scale-95 grayscale-[40%]' : 'opacity-100'
                           } ${
                             cellValue === 1
@@ -243,7 +253,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                         >
                           {/* Inner 3D Grooved Ring */}
                           <div className="w-[60%] h-[60%] rounded-full border border-black/20 shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)] flex items-center justify-center pointer-events-none">
-                            {/* Winning Four-In-A-Row Pulse Effect */}
+                            {/* Winning Four-In-A-Row Spark Icon */}
                             {isWinningCell && (
                               <motion.div
                                 initial={{ scale: 0.8, opacity: 0 }}

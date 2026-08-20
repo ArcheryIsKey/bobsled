@@ -6,7 +6,7 @@ import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
 import UserProfileModal from './UserProfileModal';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
@@ -300,7 +300,7 @@ export default function Game() {
               <Swords size={16} />
             </div>
             <div>
-              <p className="text-xs text-white font-bold">
+              <p className="text-xs text-white font-bold font-headline-lg">
                 You have been invited to play Match <strong className="font-mono text-velocity-red">#{game.id.substring(0, 6).toUpperCase()}</strong> vs {p1DisplayName}
               </p>
               <p className="text-[11px] text-text-muted">
@@ -387,11 +387,11 @@ export default function Game() {
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
+                    <p className="font-headline-lg text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
                       <span>{p1DisplayName}</span>
-                      <span className="text-[11px] text-velocity-red font-medium">(Red)</span>
+                      <span className="text-[11px] text-velocity-red font-semibold font-mono tracking-normal">(Red)</span>
                     </p>
-                    <p className="text-xs text-text-muted">
+                    <p className="text-xs text-text-muted font-mono">
                       {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
                     </p>
                   </div>
@@ -422,11 +422,11 @@ export default function Game() {
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
+                    <p className="font-headline-lg text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
                       <span>{game.player2 ? p2DisplayName : 'Waiting for Player 2...'}</span>
-                      <span className="text-[11px] text-text-secondary font-medium">(White)</span>
+                      <span className="text-[11px] text-text-secondary font-semibold font-mono tracking-normal">(White)</span>
                     </p>
-                    <p className="text-xs text-text-muted">
+                    <p className="text-xs text-text-muted font-mono">
                       {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Awaiting opponent'}
                     </p>
                   </div>
@@ -440,7 +440,7 @@ export default function Game() {
             {/* Inactivity warning */}
             {game.status === 'active' && !isMyTurn && isParticipant && (
               <div className="p-2.5 rounded-full bg-[#0e0e0e] border border-white/5 flex items-center justify-between text-xs px-4">
-                <span className="text-text-muted flex items-center gap-1.5">
+                <span className="text-text-muted flex items-center gap-1.5 font-mono">
                   <AlertTriangle size={13} className="text-yellow-500" />
                   Opponent Timer:
                 </span>
@@ -460,7 +460,7 @@ export default function Game() {
             {/* One-Time Player Invite Link */}
             {game.status === 'waiting' && isPlayer1 && (
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1 text-[11px] text-velocity-red font-semibold">
+                <div className="flex items-center gap-1 text-[11px] text-velocity-red font-semibold font-headline-lg">
                   <UserPlus size={12} />
                   <span>Invite Player Link (To Play)</span>
                 </div>
@@ -484,7 +484,7 @@ export default function Game() {
 
             {/* Public Spectator Link */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-1 text-[11px] text-text-secondary font-semibold">
+              <div className="flex items-center gap-1 text-[11px] text-text-secondary font-semibold font-headline-lg">
                 <Eye size={12} />
                 <span>Spectator Link (To Watch)</span>
               </div>
@@ -603,7 +603,7 @@ export default function Game() {
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md bg-[#141414] border border-white/10 shadow-2xl rounded-3xl p-6 sm:p-8 space-y-5"
             >
-              <h3 className="text-lg font-bold text-white">Resign Match</h3>
+              <h3 className="text-lg font-bold text-white font-headline-lg">Resign Match</h3>
               <p className="text-xs text-text-secondary">
                 Are you sure you want to forfeit this match? Your opponent will be awarded the victory.
               </p>
@@ -661,7 +661,7 @@ export default function Game() {
                 <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
                 </h2>
-                <p className="text-sm text-text-secondary">
+                <p className="text-sm text-text-secondary font-sans">
                   {isWinner
                     ? isFreeGame ? 'Free game' : `Stakes: ${game.wager} SOL`
                     : isDraw

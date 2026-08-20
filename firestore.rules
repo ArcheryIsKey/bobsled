@@ -47,13 +47,19 @@ service cloud.firestore {
     }
 
     function isValidGame(data) {
-      return data.keys().hasAll(['player1', 'status', 'board', 'wager', 'wagerCurrency', 'createdAt', 'updatedAt'])
+      return data.keys().hasAll(['player1', 'player1Name', 'status', 'board', 'wager', 'wagerCurrency', 'createdAt', 'updatedAt'])
         && data.player1 is string && data.player1.size() <= 100
+        && data.player1Name is string && data.player1Name.size() <= 50
         && data.status in ['waiting', 'active', 'finished']
         && data.board is list && data.board.size() == 42 && data.board[0] is number
         && data.wager is number
         && data.wagerCurrency in ['SOL', 'FREE']
         && (!("isTestGame" in data) || data.isTestGame is bool)
+        && (!("player1IsTest" in data) || data.player1IsTest is bool)
+        && (!("player2Name" in data) || (data.player2Name == null || (data.player2Name is string && data.player2Name.size() <= 50)))
+        && (!("player2" in data) || (data.player2 == null || (data.player2 is string && data.player2.size() <= 100)))
+        && (!("player2IsTest" in data) || (data.player2IsTest == null || data.player2IsTest is bool))
+        && (!("players" in data) || data.players is list)
         && data.createdAt == request.time
         && data.updatedAt == request.time;
     }
@@ -88,7 +94,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && request.auth.uid == userId 
         && isValidId(userId)
         && isValidUserUpdate(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['avatarUrl']);
+        && incoming().diff(existing()).affectedKeys().hasOnly(['avatarUrl', 'walletAddress', 'isTestUser', 'testSolBalance']);
     }
 
     match /usernames/{username} {
@@ -119,8 +125,8 @@ service cloud.firestore {
             && incoming().status == 'active'
             && ownsWallet(incoming().player2)
             && incoming().turn in [existing().player1, incoming().player2] // Random turn assigned
-            && incoming().diff(existing()).affectedKeys().hasAny(['player2', 'status', 'turn', 'updatedAt', 'players'])
-            && incoming().diff(existing()).affectedKeys().hasOnly(['player2', 'status', 'turn', 'updatedAt', 'players', 'wager', 'wagerCurrency', 'isTestGame'])
+            && incoming().diff(existing()).affectedKeys().hasAny(['player2', 'player2Name', 'player2IsTest', 'status', 'turn', 'updatedAt', 'players'])
+            && incoming().diff(existing()).affectedKeys().hasOnly(['player2', 'player2Name', 'player2IsTest', 'status', 'turn', 'updatedAt', 'players', 'wager', 'wagerCurrency', 'isTestGame'])
           ) ||
           // Action: Make move
           (

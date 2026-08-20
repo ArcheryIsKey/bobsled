@@ -73,7 +73,8 @@ export default function Game() {
           <div>
             <p className="text-[8px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-1">Player One</p>
             <p className={`text-base sm:text-xl font-bold ${game.turn === game.player1 ? 'text-[#14F195]' : 'text-neutral-400'}`}>
-              {game.player1 === user?.id ? 'YOU' : game.player1.substring(0,6)}
+              {game.player1 === user?.id ? 'YOU' : (game.player1Name || game.player1.substring(0,6))}
+              {game.player1IsTest && <span className="text-[10px] ml-1 opacity-50">(Test)</span>}
             </p>
           </div>
           <div className="flex flex-col items-center justify-center text-center">
@@ -82,7 +83,8 @@ export default function Game() {
           <div>
             <p className="text-[8px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-1">Player Two</p>
             <p className={`text-base sm:text-xl font-bold ${game.turn === game.player2 ? 'text-[#AB9FF2]' : 'text-neutral-400'}`}>
-              {game.player2 ? (game.player2 === user?.id ? 'YOU' : game.player2.substring(0,6)) : 'Searching...'}
+              {game.player2 ? (game.player2 === user?.id ? 'YOU' : (game.player2Name || game.player2.substring(0,6))) : 'Searching...'}
+              {game.player2IsTest && <span className="text-[10px] ml-1 opacity-50">(Test)</span>}
             </p>
           </div>
         </div>

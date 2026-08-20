@@ -165,20 +165,16 @@ export default function App() {
     try {
       await signOut(auth);
       const userCredential = await signInAnonymously(auth);
-      const userRef = doc(db, 'users', userCredential.user.uid);
-      const snap = await getDoc(userRef);
       
-      if (!snap.exists()) {
-        await setDoc(userRef, {
-          walletAddress: null,
-          username: username,
-          elo: 1000,
-          freeTokens: 10,
-          testSolBalance: 1,
-          isTestUser: true,
-          createdAt: serverTimestamp(),
-        });
-      }
+      setUser({
+        id: userCredential.user.uid,
+        walletAddress: null,
+        username: username,
+        elo: 1000,
+        freeTokens: 10,
+        testSolBalance: 1,
+        isTestUser: true,
+      });
       setIsTestUser(true);
     } catch (e: any) {
       console.error(e);
@@ -245,44 +241,46 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-[#0A0A0A] text-white font-sans overflow-hidden selection:bg-[#AB9FF2]/30">
-      <header className="flex justify-between items-center px-4 sm:px-8 py-4 border-b border-neutral-800 bg-[#0D0D0D] shrink-0 z-50 relative">
-        <button 
-          onClick={() => { setCurrentGameId(null); setSpectatingGameId(null); }}
-          className="text-xl sm:text-2xl font-bold tracking-tighter lowercase text-white hover:text-[#AB9FF2] transition-colors"
-        >
-          bobsled.gg
-        </button>
-        
-        <div className="flex items-center gap-4 sm:gap-6">
-          {user?.walletAddress === '11111111111111111111111111111111' && (
-            <button 
-              onClick={handleClearDatabase}
-              className="flex items-center gap-1 text-[10px] uppercase tracking-widest px-3 py-2 bg-red-900/20 border border-red-900 text-red-500 hover:bg-red-900/40 transition-colors"
-            >
-              <Shield size={12} /> Admin
-            </button>
-          )}
-
-          {!publicKey && !isTestUser ? (
-            <button 
-              onClick={() => setVisible(true)}
-              className="bg-[#AB9FF2] text-black font-bold text-[11px] uppercase tracking-[0.2em] py-2 px-6 hover:opacity-90 transition-opacity"
-            >
-              Connect Wallet
-            </button>
-          ) : (
-            <div className="flex items-center gap-4">
-              <span className="hidden sm:block text-xs font-bold uppercase tracking-wider text-[#AB9FF2] border border-[#AB9FF2]/30 bg-[#AB9FF2]/10 px-3 py-2">
-                {user?.username || 'Connecting...'}
-              </span>
+      <header className="bg-[rgba(26,26,26,0.8)] backdrop-blur-lg border-b border-[rgba(255,255,255,0.1)] sticky top-0 z-50">
+        <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
+          <button 
+            onClick={() => { setCurrentGameId(null); setSpectatingGameId(null); }}
+            className="font-headline-lg-mobile md:font-headline-lg text-2xl font-bold text-velocity-red tracking-tighter hover:opacity-80 transition-opacity"
+          >
+            bobsled.gg
+          </button>
+          
+          <div className="flex items-center space-x-4">
+            {user?.walletAddress === '11111111111111111111111111111111' && (
               <button 
-                onClick={handleLogout} 
-                className="text-[10px] uppercase tracking-widest px-3 py-2 border border-neutral-800 hover:bg-neutral-800 text-neutral-500 hover:text-white transition-colors"
+                onClick={handleClearDatabase}
+                className="flex items-center gap-1 font-label-caps text-[10px] uppercase tracking-widest px-3 py-2 bg-red-900/20 border border-red-900 text-red-500 hover:bg-red-900/40 transition-colors rounded"
               >
-                Exit
+                <Shield size={12} /> Admin
               </button>
-            </div>
-          )}
+            )}
+
+            {!publicKey && !isTestUser ? (
+              <button 
+                onClick={() => setVisible(true)}
+                className="font-label-caps text-xs text-text-primary bg-velocity-red rounded px-4 py-2 hover:bg-primary-container transition-colors uppercase font-bold"
+              >
+                Connect Wallet
+              </button>
+            ) : (
+              <div className="flex items-center gap-4">
+                <span className="hidden sm:block font-label-caps text-xs font-bold text-text-primary">
+                  {user?.username || 'Connecting...'}
+                </span>
+                <button 
+                  onClick={handleLogout} 
+                  className="font-label-caps text-[10px] uppercase tracking-widest px-3 py-2 border border-glass-border hover:bg-surface-variant text-text-secondary hover:text-text-primary transition-colors rounded"
+                >
+                  Exit
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

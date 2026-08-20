@@ -90,6 +90,7 @@ app.post('/api/auth/verify', async (req, res) => {
       token = await getAuth().createCustomToken(uid);
     } catch (tokenErr) {
       console.error('Failed to create custom token:', tokenErr);
+      return res.status(500).json({ error: 'Failed to create auth token' });
     }
 
     res.json({ success: true, token });

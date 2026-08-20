@@ -68,33 +68,42 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
   };
 
   return (
-    <div className="bg-neutral-900 p-4 sm:p-8 rounded-xl shadow-2xl border border-neutral-800 relative z-10 scale-[0.8] sm:scale-100 origin-center mt-12">
-      <div className="grid grid-cols-7 gap-2 sm:gap-4">
+    <div className="glass-panel rounded-xl p-4 md:p-8 w-full max-w-3xl border-t border-glass-border shadow-2xl relative">
+      <div className="bg-surface-elevated rounded-lg p-2 md:p-4 border border-surface-bright grid grid-cols-7 gap-2 md:gap-4 mx-auto w-fit relative z-10">
         {Array.from({ length: COLS }).map((_, colIndex) => (
           <div 
             key={`col-${colIndex}`}
-            className={`flex flex-col-reverse gap-2 sm:gap-4 relative ${!isSpectator && isMyTurn ? 'cursor-pointer' : ''}`}
+            className={`flex flex-col-reverse gap-2 md:gap-4 relative ${!isSpectator && isMyTurn ? 'cursor-pointer' : ''}`}
             onMouseEnter={() => !isSpectator && setHoverColumn(colIndex)}
             onMouseLeave={() => !isSpectator && setHoverColumn(null)}
             onClick={() => !isSpectator && handleDrop(colIndex)}
           >
             {/* Hover Indicator */}
             {hoverColumn === colIndex && isMyTurn && game.status === 'active' && (
-              <div className={`absolute -top-6 sm:-top-10 left-1/2 -translate-x-1/2 w-3 h-3 sm:w-4 sm:h-4 rounded-full ${isPlayer1 ? 'bg-[#14F195] shadow-[0_0_15px_rgba(20,241,149,0.5)]' : 'bg-[#AB9FF2] shadow-[0_0_15px_rgba(171,159,242,0.5)]'}`} />
+              <div className={`absolute -top-6 md:-top-8 left-1/2 -translate-x-1/2 w-3 h-3 md:w-4 md:h-4 rounded-full ${isPlayer1 ? 'bg-velocity-red shadow-[0_0_15px_rgba(255,77,77,0.5)]' : 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]'}`} />
             )}
             
             {Array.from({ length: ROWS }).map((_, rowIndex) => {
               const cellValue = game.board[rowIndex * COLS + colIndex];
+              let cellClass = "w-12 h-12 md:w-16 md:h-16 rounded-full transition-all duration-300 ";
+              if (cellValue === 1) {
+                cellClass += "bg-velocity-red shadow-[0_0_15px_rgba(255,77,77,0.4),inset_0_-4px_6px_rgba(0,0,0,0.3)]";
+              } else if (cellValue === 2) {
+                cellClass += "bg-white shadow-[0_0_15px_rgba(255,255,255,0.4),inset_0_-4px_6px_rgba(0,0,0,0.3)]";
+              } else {
+                cellClass += "bg-background shadow-[inset_0_4px_6px_rgba(0,0,0,0.6)] " + (!isSpectator && isMyTurn ? "hover:bg-white/5" : "");
+              }
+              
               return (
-                <div key={`cell-${rowIndex}-${colIndex}`} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-neutral-800 bg-neutral-950 shadow-inner relative flex items-center justify-center">
-                  {cellValue === 1 && <motion.div initial={{ y: -300 }} animate={{ y: 0 }} transition={{ type: "spring", bounce: 0.4 }} className="w-[85%] h-[85%] rounded-full bg-[#14F195] shadow-lg shadow-[#14F195]/20" />}
-                  {cellValue === 2 && <motion.div initial={{ y: -300 }} animate={{ y: 0 }} transition={{ type: "spring", bounce: 0.4 }} className="w-[85%] h-[85%] rounded-full bg-[#AB9FF2] shadow-lg shadow-[#AB9FF2]/20" />}
+                <div key={`cell-${rowIndex}-${colIndex}`} className={cellClass}>
+                  {cellValue !== 0 && <motion.div initial={{ y: -300 }} animate={{ y: 0 }} transition={{ type: "spring", bounce: 0.4 }} className="w-full h-full rounded-full" />}
                 </div>
               );
             })}
           </div>
         ))}
       </div>
+      <div className="w-[90%] mx-auto h-4 bg-surface-container-high rounded-b-xl mt-1 border-b border-l border-r border-glass-border relative z-10"></div>
     </div>
   );
 }

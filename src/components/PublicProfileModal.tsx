@@ -63,51 +63,56 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
           </button>
         </div>
 
-        <div className="p-6 sm:p-8 flex flex-col items-center border-b border-neutral-800">
-          <div className="w-20 h-20 border border-[#AB9FF2]/50 bg-[#AB9FF2]/10 mb-4 flex items-center justify-center overflow-hidden">
+        <div className="p-6 sm:p-8 flex flex-col items-center border-b border-glass-border">
+          <div className="w-24 h-24 rounded overflow-hidden border-2 border-glass-border relative group mb-4">
             {profile.avatarUrl ? (
-              <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
             ) : (
-              <span className="text-2xl font-mono font-bold text-[#AB9FF2]">{profile.username?.substring(0,2).toUpperCase()}</span>
+              <div className="w-full h-full bg-surface-elevated flex items-center justify-center">
+                <span className="text-3xl font-display-lg font-bold text-text-primary">{profile.username?.substring(0,2).toUpperCase()}</span>
+              </div>
             )}
           </div>
-          <h3 className="text-xl font-bold text-white uppercase tracking-wider mb-1">{profile.username}</h3>
-          <p className="text-[10px] text-neutral-500 font-mono tracking-widest">{walletAddress.substring(0,8)}...{walletAddress.substring(walletAddress.length - 8)}</p>
+          <h3 className="text-2xl font-display-lg text-text-primary uppercase tracking-tighter mb-1">{profile.username}</h3>
+          <p className="text-xs text-text-secondary font-mono tracking-widest">{walletAddress.substring(0,8)}...{walletAddress.substring(walletAddress.length - 8)}</p>
         </div>
 
-        <div className="flex border-b border-neutral-800">
-          <div className="flex-1 p-4 flex flex-col items-center border-r border-neutral-800">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Rating</span>
-            <span className="text-lg font-mono text-[#14F195]">{profile.elo}</span>
+        <div className="grid grid-cols-3 border-b border-glass-border bg-surface-base">
+          <div className="p-4 flex flex-col items-center border-r border-glass-border group hover:bg-surface-elevated transition-colors">
+            <span className="text-[10px] text-text-secondary uppercase tracking-widest mb-1 font-label-caps">Rating</span>
+            <span className="text-xl font-headline-lg text-velocity-red">{profile.elo}</span>
           </div>
-          <div className="flex-1 p-4 flex flex-col items-center border-r border-neutral-800">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Matches</span>
-            <span className="text-lg font-mono text-white">{totalGames}</span>
+          <div className="p-4 flex flex-col items-center border-r border-glass-border group hover:bg-surface-elevated transition-colors">
+            <span className="text-[10px] text-text-secondary uppercase tracking-widest mb-1 font-label-caps">Matches</span>
+            <span className="text-xl font-headline-lg text-text-primary">{totalGames}</span>
           </div>
-          <div className="flex-1 p-4 flex flex-col items-center">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Wins</span>
-            <span className="text-lg font-mono text-white">{wins}</span>
+          <div className="p-4 flex flex-col items-center group hover:bg-surface-elevated transition-colors">
+            <span className="text-[10px] text-text-secondary uppercase tracking-widest mb-1 font-label-caps">Wins</span>
+            <span className="text-xl font-headline-lg text-text-primary">{wins}</span>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 overflow-y-auto bg-neutral-900/30">
-          <h4 className="text-[10px] uppercase tracking-[0.2em] text-neutral-500 mb-4">Recent Activity</h4>
+        <div className="p-4 sm:p-6 overflow-y-auto bg-background">
+          <h4 className="text-[10px] uppercase tracking-[0.2em] text-text-secondary mb-4 font-label-caps flex items-center gap-2">
+            <span className="material-symbols-outlined text-[14px]">history</span> Recent Activity
+          </h4>
           {history.length === 0 ? (
-            <p className="text-[10px] text-neutral-600 font-mono text-center py-4">No recent matches.</p>
+            <p className="text-sm text-text-muted font-body-sm text-center py-4">No recent matches.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {history.map(game => {
                 const isWin = game.winner === userId;
                 const isDraw = game.winner === 'draw';
+                const opponent = game.player1 === userId ? game.player2 : game.player1;
                 return (
-                  <div key={game.id} className="flex justify-between items-center p-3 border border-neutral-800 bg-[#0A0A0A]">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-1.5 h-1.5 rounded-full ${isWin ? 'bg-[#14F195]' : isDraw ? 'bg-neutral-500' : 'bg-red-500'}`} />
-                      <span className="text-[10px] font-mono text-neutral-400">
-                        {game.wager} {game.wagerCurrency}
-                      </span>
-                    </div>
-                    <span className={`text-[10px] font-mono uppercase tracking-widest ${isWin ? 'text-[#14F195]' : isDraw ? 'text-neutral-500' : 'text-red-500'}`}>
+                  <div key={game.id} className="flex gap-3 text-sm p-3 rounded bg-surface-container border border-glass-border items-center">
+                    <span className="font-label-caps text-[10px] text-text-muted w-16 shrink-0 text-right">
+                       {game.createdAt ? new Date(game.createdAt.toMillis()).toLocaleDateString() : 'Just now'}
+                    </span>
+                    <p className="font-body-sm text-text-secondary flex-1">
+                      Played vs <span className="text-text-primary font-bold">{opponent ? opponent.substring(0,4) : '?'}</span>
+                    </p>
+                    <span className={`font-label-caps text-[10px] uppercase px-2 py-1 rounded ${isWin ? 'bg-velocity-red/20 text-velocity-red border border-velocity-red/30' : isDraw ? 'bg-surface-variant text-text-muted border border-glass-border' : 'bg-red-900/10 text-red-500 border border-red-900/20'}`}>
                       {isWin ? 'Victory' : isDraw ? 'Draw' : 'Defeat'}
                     </span>
                   </div>

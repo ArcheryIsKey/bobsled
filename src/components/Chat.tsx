@@ -8,7 +8,7 @@ export default function Chat({ gameId }: { gameId: string }) {
   const { user } = useGameStore();
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const q = query(
@@ -21,9 +21,12 @@ export default function Chat({ gameId }: { gameId: string }) {
       q,
       (snap) => {
         setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        // Scroll only the internal chat container, NEVER the page/window
         setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+          if (chatScrollContainerRef.current) {
+            chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
+          }
+        }, 50);
       },
       (err) => handleFirestoreError(err, OperationType.LIST, `games/${gameId}/messages`)
     );
@@ -61,8 +64,11 @@ export default function Chat({ gameId }: { gameId: string }) {
         </div>
       </div>
 
-      {/* Message Stream */}
-      <div className="flex-1 p-3.5 space-y-2.5 overflow-y-auto min-h-0">
+      {/* Message Stream with container-only scroll to prevent page jumping */}
+      <div
+        ref={chatScrollContainerRef}
+        className="flex-1 p-3.5 space-y-2.5 overflow-y-auto min-h-0 overscroll-contain"
+      >
         {messages.length === 0 ? (
           <div className="text-center text-text-muted text-xs py-6 font-mono">
             No messages yet. Say hello!
@@ -95,7 +101,6 @@ export default function Chat({ gameId }: { gameId: string }) {
             );
           })
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
@@ -111,7 +116,7 @@ export default function Chat({ gameId }: { gameId: string }) {
           <button
             type="submit"
             disabled={!text.trim()}
-            className="bg-velocity-red text-white p-2 rounded-full hover:bg-red-600 disabled:opacity-40 transition-colors shadow-md flex items-center justify-center shrink-0 cursor-pointer"
+            className="w-8 h-8 rounded-full bg-velocity-red hover:bg-red-600 disabled:opacity-40 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
             <Send size={13} />
           </button>

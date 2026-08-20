@@ -339,20 +339,121 @@ export default function Game() {
 
       {/* Spectator Mode Banner */}
       {isSpectator && !hasValidPlayerInvite && (
-        <div className="w-full bg-[#141414] border-b border-white/10 py-2.5 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2 font-mono">
+        <div className="w-full bg-[#141414] border-b border-white/10 py-2 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2 font-mono">
           <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
           <span>Watching Match <strong className="text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>
         </div>
       )}
 
       {/* Arena Main Container */}
-      <main className="flex-grow w-full max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8 flex flex-col lg:flex-row gap-6">
+      <main className="flex-grow w-full max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 flex flex-col lg:flex-row gap-5 lg:gap-6">
         
+        {/* Right Column: Game Board & Actions (Rendered Top on Mobile, Right on Desktop) */}
+        <section className="flex-1 flex flex-col items-center justify-start gap-4 sm:gap-6 order-1 lg:order-2 w-full">
+          
+          {/* Top Bar Actions with Enhanced 'Back to Lobby' Button */}
+          <div className="w-full flex justify-between items-center">
+            <button
+              onClick={handleLeave}
+              className="flex items-center gap-2 text-xs sm:text-sm text-white font-bold py-2 sm:py-2.5 px-4 sm:px-5 rounded-full bg-[#1c1c1c] hover:bg-[#262626] border border-white/20 hover:border-velocity-red transition-all shadow-md font-mono cursor-pointer group shrink-0"
+            >
+              <ArrowLeft size={15} className="text-velocity-red group-hover:-translate-x-1 transition-transform" />
+              <span>Back to Lobby</span>
+            </button>
+
+            {/* Mobile-Only Inactivity Timer pill */}
+            {game.status === 'active' && !isMyTurn && isParticipant && (
+              <div className="lg:hidden px-3 py-1.5 rounded-full bg-[#141414] border border-white/10 flex items-center gap-1.5 text-[11px] font-mono">
+                <AlertTriangle size={12} className="text-yellow-500" />
+                <span className={`font-bold ${afkSecondsLeft < 15 ? 'text-velocity-red animate-pulse' : 'text-text-secondary'}`}>
+                  {afkSecondsLeft}s
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile-Only Player Summary Bar Above Board */}
+          <div className="lg:hidden w-full bg-[#141414] border border-white/10 rounded-2xl p-2.5 flex items-center justify-between shadow-md font-mono text-xs">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="w-3 h-3 rounded-full bg-velocity-red shrink-0 shadow-[0_0_8px_rgba(255,77,77,0.6)]" />
+              <div className="min-w-0">
+                <p className={`truncate font-semibold text-xs ${game.turn === game.player1 && game.status === 'active' ? 'text-velocity-red font-bold' : 'text-white'}`}>
+                  {p1DisplayName}
+                </p>
+                <p className="text-[10px] text-text-muted">Red</p>
+              </div>
+            </div>
+
+            <div className="px-2.5 py-1 rounded-full bg-[#0e0e0e] border border-white/10 text-[10px] text-text-secondary font-bold shrink-0 mx-2">
+              {isFreeGame ? 'FREE' : `${game.wager} SOL`}
+            </div>
+
+            <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
+              <div className="min-w-0">
+                <p className={`truncate font-semibold text-xs ${game.turn === game.player2 && game.status === 'active' ? 'text-velocity-red font-bold' : 'text-white'}`}>
+                  {game.player2 ? p2DisplayName : '...'}
+                </p>
+                <p className="text-[10px] text-text-muted">White</p>
+              </div>
+              <span className="w-3 h-3 rounded-full bg-white shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+            </div>
+          </div>
+
+          {/* Connect 4 Board Component - Touch Friendly & Bigger on Mobile */}
+          <Connect4 game={game} user={user} isSpectator={isSpectator} onMove={handleMove} />
+
+          {/* Action Bar Beneath Board */}
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-1 sm:mt-2 w-full max-w-2xl">
+            
+            {/* Prominent Cancel Game Button Beneath Board when waiting */}
+            {game.status === 'waiting' && game.player1 === user?.id && (
+              <button
+                onClick={handleCancelMatch}
+                className="w-full sm:w-auto bg-red-950/40 hover:bg-red-900/60 border border-red-900/70 hover:border-red-500 text-red-400 hover:text-white px-8 py-3 rounded-full text-xs sm:text-sm uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,0,0,0.25)] flex items-center justify-center gap-2 font-bold font-mono cursor-pointer active:scale-[0.99]"
+              >
+                <X size={16} />
+                <span>Cancel Game</span>
+              </button>
+            )}
+
+            {/* Resign Button */}
+            {game.status === 'active' && isParticipant && (
+              <button
+                onClick={() => setShowResignModal(true)}
+                className="bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 px-6 py-2.5 rounded-full text-xs uppercase tracking-wider transition-all flex items-center gap-2 font-semibold font-mono cursor-pointer"
+              >
+                <Flag size={14} /> Resign
+              </button>
+            )}
+
+            {/* Claim Victory (AFK) */}
+            {canClaimAfk && (
+              <button
+                onClick={handleClaimAfk}
+                className="w-full sm:w-auto bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.6)] animate-bounce flex items-center justify-center gap-2 font-bold font-mono cursor-pointer"
+              >
+                <Trophy size={14} /> Claim Win (Opponent Inactive)
+              </button>
+            )}
+
+            {/* Finished Action */}
+            {isFinished && (
+              <button
+                onClick={handleLeave}
+                className="w-full sm:w-auto bg-velocity-red text-white text-xs uppercase tracking-wider px-8 py-3 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] font-bold flex items-center justify-center gap-2 font-mono cursor-pointer"
+              >
+                <span>Return to Lobby</span>
+                <ArrowRight size={15} />
+              </button>
+            )}
+          </div>
+        </section>
+
         {/* Left Column: Match Details & Chat (1/3) */}
         <aside className="w-full lg:w-80 flex flex-col gap-5 order-2 lg:order-1 shrink-0">
           
           {/* Match Info Panel */}
-          <div className="rounded-2xl p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
+          <div className="rounded-2xl p-4 sm:p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <div>
                 <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold font-mono">Match ID</span>
@@ -456,9 +557,9 @@ export default function Game() {
               </div>
             </div>
 
-            {/* Inactivity warning */}
+            {/* Inactivity warning (Desktop) */}
             {game.status === 'active' && !isMyTurn && isParticipant && (
-              <div className="p-2.5 rounded-full bg-[#0e0e0e] border border-white/5 flex items-center justify-between text-xs px-4">
+              <div className="hidden lg:flex p-2.5 rounded-full bg-[#0e0e0e] border border-white/5 items-center justify-between text-xs px-4">
                 <span className="text-text-muted flex items-center gap-1.5 font-mono">
                   <AlertTriangle size={13} className="text-yellow-500" />
                   Opponent Timer:
@@ -542,70 +643,6 @@ export default function Game() {
             )}
           </div>
         </aside>
-
-        {/* Right Column: Game Board & Actions (2/3) */}
-        <section className="flex-1 flex flex-col items-center justify-start gap-6 order-1 lg:order-2">
-          
-          {/* Top Bar Actions with Enhanced 'Back to Lobby' Button */}
-          <div className="w-full flex justify-between items-center">
-            <button
-              onClick={handleLeave}
-              className="flex items-center gap-2.5 text-xs sm:text-sm text-white font-bold py-2.5 px-5 rounded-full bg-[#1c1c1c] hover:bg-[#262626] border border-white/20 hover:border-velocity-red transition-all shadow-[0_4px_16px_rgba(0,0,0,0.5)] font-mono cursor-pointer group"
-            >
-              <ArrowLeft size={16} className="text-velocity-red group-hover:-translate-x-1 transition-transform" />
-              <span>Back to Lobby</span>
-            </button>
-          </div>
-
-          {/* Connect 4 Board Component */}
-          <Connect4 game={game} user={user} isSpectator={isSpectator} onMove={handleMove} />
-
-          {/* Action Bar Beneath Board */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-2 w-full max-w-2xl">
-            
-            {/* Prominent Cancel Game Button Beneath Board when waiting */}
-            {game.status === 'waiting' && game.player1 === user?.id && (
-              <button
-                onClick={handleCancelMatch}
-                className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/70 hover:border-red-500 text-red-400 hover:text-white px-8 py-3 rounded-full text-xs sm:text-sm uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,0,0,0.25)] flex items-center gap-2 font-bold font-mono cursor-pointer active:scale-[0.99]"
-              >
-                <X size={16} />
-                <span>Cancel Game</span>
-              </button>
-            )}
-
-            {/* Resign Button */}
-            {game.status === 'active' && isParticipant && (
-              <button
-                onClick={() => setShowResignModal(true)}
-                className="bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 px-6 py-2 rounded-full text-xs uppercase tracking-wider transition-all flex items-center gap-2 font-semibold font-mono cursor-pointer"
-              >
-                <Flag size={14} /> Resign
-              </button>
-            )}
-
-            {/* Claim Victory (AFK) */}
-            {canClaimAfk && (
-              <button
-                onClick={handleClaimAfk}
-                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.6)] animate-bounce flex items-center gap-2 font-bold font-mono cursor-pointer"
-              >
-                <Trophy size={14} /> Claim Win (Opponent Inactive)
-              </button>
-            )}
-
-            {/* Finished Action */}
-            {isFinished && (
-              <button
-                onClick={handleLeave}
-                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-8 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] font-bold flex items-center gap-2 font-mono cursor-pointer"
-              >
-                <span>Return to Lobby</span>
-                <ArrowRight size={15} />
-              </button>
-            )}
-          </div>
-        </section>
       </main>
 
       {/* In-App Custom Resign Confirmation Modal */}

@@ -107,8 +107,8 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
 
   return (
     <div className="w-full flex flex-col items-center">
-      {/* Board Container */}
-      <div className="rounded-3xl p-4 sm:p-6 md:p-8 w-full max-w-2xl border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] relative bg-[#141414] overflow-visible">
+      {/* Board Container - Responsive & Optimized for Mobile Screens */}
+      <div className="rounded-2xl sm:rounded-3xl p-2.5 sm:p-6 md:p-8 w-full max-w-full sm:max-w-2xl border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] relative bg-[#141414] overflow-visible">
         
         {/* Floating Turn Indicator Pill */}
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30">
@@ -117,19 +117,19 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               <motion.div
                 initial={{ scale: 0.9, y: -2 }}
                 animate={{ scale: 1, y: 0 }}
-                className="bg-velocity-red text-white px-5 py-1.5 rounded-full text-xs tracking-wider shadow-[0_0_25px_rgba(255,77,77,0.75)] flex items-center gap-2 font-bold uppercase font-mono"
+                className="bg-velocity-red text-white px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider shadow-[0_0_25px_rgba(255,77,77,0.75)] flex items-center gap-2 font-bold uppercase font-mono whitespace-nowrap"
               >
                 <span className="w-2 h-2 bg-white rounded-full animate-ping" />
                 <span>Your Turn</span>
               </motion.div>
             ) : (
-              <div className="bg-[#1e1e1e] text-text-secondary border border-white/10 px-5 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md">
+              <div className="bg-[#1e1e1e] text-text-secondary border border-white/10 px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap">
                 <span className="w-2 h-2 bg-text-muted rounded-full animate-pulse" />
                 <span>Opponent's Turn</span>
               </div>
             )
           ) : game.status === 'waiting' ? (
-            <div className="bg-[#1e1e1e] border border-velocity-red/40 text-velocity-red px-5 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md">
+            <div className="bg-[#1e1e1e] border border-velocity-red/40 text-velocity-red px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap">
               <span className="w-2 h-2 bg-velocity-red rounded-full animate-ping" />
               <span>Waiting for Opponent</span>
             </div>
@@ -138,7 +138,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               initial={{ scale: 0.95 }}
               animate={{ scale: [1, 1.03, 1] }}
               transition={{ repeat: Infinity, duration: 2 }}
-              className="bg-[#1e1e1e] border border-velocity-red/60 text-velocity-red px-5 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono shadow-[0_0_20px_rgba(255,77,77,0.4)]"
+              className="bg-[#1e1e1e] border border-velocity-red/60 text-velocity-red px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono shadow-[0_0_20px_rgba(255,77,77,0.4)] whitespace-nowrap"
             >
               <Sparkles size={13} className="text-velocity-red animate-spin" />
               <span>{game.winner === 'draw' ? 'Match Draw' : 'Match Finished'}</span>
@@ -146,15 +146,15 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
           )}
         </div>
 
-        {/* 7 Columns x 6 Rows Board Container */}
-        <div className="bg-[#181818] rounded-2xl p-3 sm:p-5 border border-white/10 grid grid-cols-7 gap-1.5 sm:gap-3 md:gap-3.5 mx-auto w-fit relative z-10 shadow-[inset_0_4px_20px_rgba(0,0,0,0.8)] overflow-visible">
+        {/* 7 Columns x 6 Rows Board Container - Large Touch Targets for Mobile */}
+        <div className="bg-[#181818] rounded-xl sm:rounded-2xl p-2 min-[380px]:p-3 sm:p-5 border border-white/10 grid grid-cols-7 gap-1 min-[380px]:gap-1.5 sm:gap-3 md:gap-3.5 mx-auto w-fit relative z-10 shadow-[inset_0_4px_20px_rgba(0,0,0,0.8)] overflow-visible select-none">
           {Array.from({ length: COLS }).map((_, colIndex) => {
             const isColHovered = hoverColumn === colIndex && isMyTurn;
 
             return (
               <div
                 key={`col-${colIndex}`}
-                className={`flex flex-col gap-1.5 sm:gap-3 md:gap-3.5 relative group overflow-visible ${
+                className={`flex flex-col gap-1 min-[380px]:gap-1.5 sm:gap-3 md:gap-3.5 relative group overflow-visible touch-manipulation active:scale-[0.98] transition-transform ${
                   isMyTurn ? 'cursor-pointer' : ''
                 }`}
                 onMouseEnter={() => isMyTurn && setHoverColumn(colIndex)}
@@ -169,16 +169,16 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                       animate={{ y: [0, -5, 0], opacity: 1 }}
                       exit={{ y: -6, opacity: 0 }}
                       transition={{ y: { repeat: Infinity, duration: 0.6, ease: 'easeInOut' } }}
-                      className={`absolute -top-7 sm:-top-9 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none ${
+                      className={`absolute -top-6 min-[380px]:-top-7 sm:-top-9 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none ${
                         isPlayer1 ? 'text-velocity-red' : 'text-white'
                       }`}
                     >
-                      <ChevronDown size={20} className="drop-shadow-[0_0_8px_currentColor]" />
+                      <ChevronDown size={18} className="drop-shadow-[0_0_8px_currentColor]" />
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                {/* Rows from 0 (top) down to 5 (bottom) */}
+                {/* Rows from 0 (top) down to 5 (bottom) - Sized for Mobile Comfort */}
                 {Array.from({ length: ROWS }).map((_, rowIndex) => {
                   const cellIndex = rowIndex * COLS + colIndex;
                   const cellValue = game.board[cellIndex];
@@ -194,7 +194,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                   return (
                     <div
                       key={`cell-${rowIndex}-${colIndex}`}
-                      className="w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center relative bg-[#0c0c0c] shadow-[inset_0_3px_8px_rgba(0,0,0,0.9),0_1px_1px_rgba(255,255,255,0.05)] border border-white/5 overflow-visible"
+                      className="w-10 h-10 min-[370px]:w-11 min-[370px]:h-11 min-[410px]:w-12 min-[410px]:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center relative bg-[#0c0c0c] shadow-[inset_0_3px_8px_rgba(0,0,0,0.9),0_1px_1px_rgba(255,255,255,0.05)] border border-white/5 overflow-visible"
                     >
                       {/* Ghost Landing Preview Disc */}
                       {isGhostSlot && (
@@ -283,8 +283,8 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
         </div>
 
         {/* Board Stand / Base */}
-        <div className="w-[94%] mx-auto h-3.5 sm:h-4 bg-[#1f1f1f] rounded-b-2xl mt-1 border-b border-l border-r border-white/10 relative z-10 shadow-2xl flex items-center justify-center">
-          <div className="w-16 h-1 rounded-full bg-white/10" />
+        <div className="w-[96%] sm:w-[94%] mx-auto h-3 sm:h-4 bg-[#1f1f1f] rounded-b-xl sm:rounded-b-2xl mt-1 border-b border-l border-r border-white/10 relative z-10 shadow-2xl flex items-center justify-center">
+          <div className="w-12 sm:w-16 h-1 rounded-full bg-white/10" />
         </div>
       </div>
     </div>

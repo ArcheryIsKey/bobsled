@@ -14,13 +14,15 @@ try {
   console.warn('Could not read firebase-applet-config.json');
 }
 
+import { cert } from 'firebase-admin/app';
+
 // Initialize Firebase Admin
 try {
   const serviceAccountPath = path.join(process.cwd(), 'service-account-key.json');
   if (fs.existsSync(serviceAccountPath)) {
     const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
     admin.initializeApp({
-      credential: (admin as any).credential?.cert(serviceAccount) || (await import('firebase-admin/app')).cert(serviceAccount),
+      credential: cert(serviceAccount),
       projectId: firebaseConfig?.projectId
     });
   } else if (firebaseConfig && firebaseConfig.projectId) {
@@ -67,7 +69,7 @@ app.post('/api/auth/verify', async (req, res) => {
   }
 
   try {
-    const message = new TextEncoder().encode(`Sign in to Bobsled.gg with nonce: ${nonce}`);
+    const message = new TextEncoder().encode(`Sign in to bobsled.gg\n\nNonce: ${nonce}`);
     const decodeFn = (bs58 as any).decode || (bs58 as any).default?.decode;
     const signatureUint8 = decodeFn(signature);
     const pubKeyUint8 = new PublicKey(publicKey).toBytes();

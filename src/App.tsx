@@ -13,7 +13,7 @@ import SetUsernameScreen from './components/SetUsernameScreen';
 import { Shield } from 'lucide-react';
 
 export default function App() {
-  const { publicKey, signMessage, disconnect } = useWallet();
+  const { publicKey, signMessage, disconnect, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const { user, setUser, currentGameId, spectatingGameId, setCurrentGameId, setSpectatingGameId } = useGameStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -24,9 +24,24 @@ export default function App() {
   const [needsUsername, setNeedsUsername] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
 
+  // Track the latest publicKey in a ref so the onAuthStateChanged listener
+  // always has access to the current value without re-subscribing.
+  const publicKeyRef = useRef(publicKey);
+  useEffect(() => { publicKeyRef.current = publicKey; }, [publicKey]);
+
+  // Firebase Auth state listener — subscribes once, never re-runs due to publicKey changes.
   useEffect(() => {
+    let unsubUser: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setAuthInitialized(true);
+
+      // Clean up previous user doc listener
+      if (unsubUser) {
+        unsubUser();
+        unsubUser = null;
+      }
+
       if (!firebaseUser) {
         setUser(null);
         setIsTestUser(false);
@@ -34,27 +49,25 @@ export default function App() {
       }
       
       const userRef = doc(db, 'users', firebaseUser.uid);
-      const unsubUser = onSnapshot(userRef, (snapshot) => {
+      unsubUser = onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
           const userData = snapshot.data() as any;
-          if (userData.isTestUser || publicKey) {
-            setUser({ id: snapshot.id, ...userData });
-            if (userData.isTestUser) setIsTestUser(true);
-          } else {
-            setUser(null);
-            setIsTestUser(false);
-          }
+          setUser({ id: snapshot.id, ...userData });
+          if (userData.isTestUser) setIsTestUser(true);
         }
+        // If user doc doesn't exist yet, don't null out — the authenticate
+        // flow will create it or show the SetUsernameScreen.
       }, (error) => {
-        if (error.code === 'permission-denied') return;
+        if ((error as any).code === 'permission-denied') return;
         handleFirestoreError(error, OperationType.GET, 'users');
       });
-
-      return () => unsubUser();
     });
 
-    return () => unsubscribe();
-  }, [setUser, publicKey]);
+    return () => {
+      unsubscribe();
+      if (unsubUser) unsubUser();
+    };
+  }, [setUser]);
 
   const authInProgress = useRef(false);
 
@@ -63,6 +76,7 @@ export default function App() {
       if (!publicKey || !signMessage) return;
       if (authInProgress.current) return;
       
+      // Already authenticated with this wallet
       if (auth.currentUser && user?.walletAddress === publicKey.toBase58()) {
         return;
       }
@@ -77,9 +91,17 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ publicKey: publicKey.toBase58() }),
         });
+
+        if (!nonceRes.ok) {
+          throw new Error('Failed to get nonce from server');
+        }
+
         const { nonce } = await nonceRes.json();
 
-        const message = new TextEncoder().encode(`Sign this message to log in to bobsled.gg. Nonce: ${nonce}`);
+        // IMPORTANT: This message must match exactly what the server verifies
+        const message = new TextEncoder().encode(
+          `Sign in to bobsled.gg\n\nNonce: ${nonce}`
+        );
         let signatureBytes;
         try {
           signatureBytes = await signMessage(message);
@@ -87,7 +109,8 @@ export default function App() {
           throw new Error('User rejected the request.');
         }
         
-        const signature = (await import('bs58')).default.encode(signatureBytes);
+        const encodeFn = (bs58 as any).encode || (bs58 as any).default?.encode;
+        const signature = encodeFn(signatureBytes);
 
         const verifyRes = await fetch('/api/auth/verify', {
           method: 'POST',
@@ -99,7 +122,8 @@ export default function App() {
         });
         
         if (!verifyRes.ok) {
-          throw new Error('Verification failed on server');
+          const errData = await verifyRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Verification failed on server');
         }
 
         const data = await verifyRes.json();
@@ -305,10 +329,10 @@ export default function App() {
               <p className="text-xs uppercase tracking-widest font-bold mb-2">Auth Failed</p>
               <p className="text-[11px] font-mono text-neutral-400 mb-6">{authError}</p>
               <button 
-                onClick={() => disconnect()}
+                onClick={() => { setAuthError(null); disconnect(); }}
                 className="px-6 py-2 border border-red-900 text-[10px] uppercase tracking-widest hover:bg-red-900/20 transition-colors"
               >
-                Disconnect & Retry
+                Disconnect &amp; Retry
               </button>
             </div>
           </div>
@@ -318,7 +342,13 @@ export default function App() {
           ) : (
              <Dashboard />
           )
-        ) : null}
+        ) : (
+          // Loading state — wallet connected but user data not yet loaded
+          <div className="flex-1 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,_#111_0%,_#0A0A0A_100%)] w-full relative">
+            <div className="w-8 h-8 border border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
+            <p className="text-[10px] uppercase tracking-widest text-neutral-500 font-mono">Loading...</p>
+          </div>
+        )}
       </main>
       
     </div>

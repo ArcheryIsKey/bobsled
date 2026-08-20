@@ -119,7 +119,7 @@ export default function Game() {
   if (!game) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] bg-[#0e0e0e]">
-        <div className="w-8 h-8 border border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
+        <div className="w-8 h-8 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
         <p className="text-xs uppercase tracking-wider text-text-muted font-mono">Loading Game...</p>
       </div>
     );
@@ -142,13 +142,14 @@ export default function Game() {
   const isDraw = game.winner === 'draw';
   const isFinished = game.status === 'finished';
 
-  const stakesDisplay = game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'Free';
+  const isFreeGame = game.wager === 0 || game.wagerCurrency === 'FREE';
 
   return (
-    <div className="min-h-[calc(100vh-64px)] flex flex-col bg-[#0e0e0e] text-text-primary antialiased w-full overflow-y-auto">
+    <div className="min-h-[calc(100vh-76px)] flex flex-col bg-[#0e0e0e] text-text-primary antialiased w-full overflow-y-auto">
+      
       {/* Spectator Mode Banner */}
       {isSpectator && (
-        <div className="w-full bg-[#141414] border-b border-white/10 py-2.5 text-center text-text-secondary text-xs tracking-wider z-50 flex items-center justify-center gap-2">
+        <div className="w-full bg-[#141414] border-b border-white/10 py-2.5 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2">
           <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
           <span>Watching Match <strong className="font-mono text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>
         </div>
@@ -161,7 +162,7 @@ export default function Game() {
         <aside className="w-full lg:w-80 flex flex-col gap-5 order-2 lg:order-1 shrink-0">
           
           {/* Match Info Panel */}
-          <div className="rounded-xl p-5 border border-white/10 shadow-xl bg-[#141414] space-y-4">
+          <div className="rounded-2xl p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <div>
                 <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold font-mono">Match ID</span>
@@ -170,7 +171,7 @@ export default function Game() {
                 </h2>
               </div>
               <span
-                className={`text-xs px-2.5 py-1 rounded font-semibold uppercase tracking-wider font-mono ${
+                className={`text-[11px] px-3 py-1 rounded-full font-semibold uppercase tracking-wider font-mono ${
                   game.status === 'active'
                     ? 'bg-velocity-red/10 text-velocity-red border border-velocity-red/30'
                     : game.status === 'waiting'
@@ -182,21 +183,24 @@ export default function Game() {
               </span>
             </div>
 
-            {/* Stakes */}
-            <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-lg border border-white/5">
+            {/* Stakes (No duplicate 'Free' labels) */}
+            <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5">
               <div>
                 <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
                 <p className="font-headline-lg text-xl text-velocity-red font-bold font-mono">
-                  {stakesDisplay}
+                  {isFreeGame ? 'Free Play' : `${game.wager} SOL`}
                 </p>
               </div>
-              <span className="text-xs text-text-secondary bg-[#1a1a1a] px-2.5 py-1 rounded border border-white/10 font-mono">
-                {game.wagerCurrency || 'SOL'}
-              </span>
+              {!isFreeGame && (
+                <span className="text-xs text-text-secondary bg-[#1a1a1a] px-3 py-1 rounded-full border border-white/10 font-mono font-bold">
+                  SOL
+                </span>
+              )}
             </div>
 
             {/* Player VS Player */}
-            <div className="bg-[#0e0e0e] rounded-lg p-3.5 border border-white/5 space-y-3">
+            <div className="bg-[#0e0e0e] rounded-xl p-3.5 border border-white/5 space-y-3">
+              
               {/* Player 1 (Red) */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -209,8 +213,8 @@ export default function Game() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                      {game.player1 === user?.id ? 'You' : game.player1Name || 'Player 1'}
-                      <span className="text-[10px] text-velocity-red font-semibold">(Red)</span>
+                      <span>{game.player1 === user?.id ? 'You' : game.player1Name || 'Player 1'}</span>
+                      <span className="text-[10px] text-velocity-red font-mono font-bold">(Red)</span>
                     </p>
                     <p className="text-[10px] text-text-muted font-mono">
                       {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
@@ -238,11 +242,11 @@ export default function Game() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                      {game.player2 ? (game.player2 === user?.id ? 'You' : game.player2Name || 'Player 2') : 'Waiting...'}
-                      <span className="text-[10px] text-white font-semibold">(White)</span>
+                      <span>{game.player2 ? (game.player2 === user?.id ? 'You' : game.player2Name || 'Player 2') : 'Waiting for player...'}</span>
+                      <span className="text-[10px] text-white font-mono font-bold">(White)</span>
                     </p>
                     <p className="text-[10px] text-text-muted font-mono">
-                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for player'}
+                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for opponent'}
                     </p>
                   </div>
                 </div>
@@ -254,7 +258,7 @@ export default function Game() {
 
             {/* Inactivity warning */}
             {game.status === 'active' && !isMyTurn && isParticipant && (
-              <div className="p-2.5 rounded-md bg-[#0e0e0e] border border-white/5 flex items-center justify-between text-xs">
+              <div className="p-2.5 rounded-full bg-[#0e0e0e] border border-white/5 flex items-center justify-between text-xs px-4">
                 <span className="text-text-muted flex items-center gap-1.5">
                   <AlertTriangle size={13} className="text-yellow-500" />
                   Opponent Timer:
@@ -267,8 +271,8 @@ export default function Game() {
           </div>
 
           {/* Share Game Link Box */}
-          <div className="rounded-xl p-4 border border-white/10 bg-[#141414]">
-            <h3 className="text-xs text-white font-bold uppercase tracking-wider mb-1">
+          <div className="rounded-2xl p-4 border border-white/10 bg-[#141414]">
+            <h3 className="text-xs text-white font-bold uppercase tracking-wider mb-1 font-mono">
               Share Game Link
             </h3>
             <p className="text-xs text-text-muted mb-2.5">
@@ -276,23 +280,23 @@ export default function Game() {
             </p>
             <div className="flex gap-2">
               <input
-                className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3 py-1.5 rounded-md focus:border-velocity-red outline-none select-all font-mono"
+                className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3.5 py-1.5 rounded-full focus:border-velocity-red outline-none select-all font-mono"
                 readOnly
                 type="text"
                 value={window.location.href}
               />
               <button
                 onClick={handleCopyLink}
-                className="bg-[#1e1e1e] border border-white/10 hover:border-velocity-red text-white px-3 py-1.5 rounded-md text-xs flex items-center gap-1 transition-colors"
+                className="bg-[#1e1e1e] border border-white/10 hover:border-velocity-red text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-colors font-medium"
               >
-                {copiedLink ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+                {copiedLink ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
                 <span>{copiedLink ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
           </div>
 
           {/* Chat Panel */}
-          <div className="rounded-xl border border-white/10 overflow-hidden flex flex-col h-64 bg-[#141414] shadow-xl">
+          <div className="rounded-2xl border border-white/10 overflow-hidden flex flex-col h-64 bg-[#141414] shadow-xl">
             <Chat gameId={game.id} />
           </div>
         </aside>
@@ -300,21 +304,22 @@ export default function Game() {
         {/* Right Column: Game Board & Actions (2/3) */}
         <section className="flex-1 flex flex-col items-center justify-start gap-6 order-1 lg:order-2">
           
-          {/* Top Bar Actions */}
+          {/* Top Bar Actions with smooth pill buttons */}
           <div className="w-full flex justify-between items-center">
             <button
               onClick={handleLeave}
-              className="flex items-center gap-2 text-xs text-text-secondary hover:text-white py-2 px-3 rounded-md bg-[#141414] border border-white/10 hover:border-velocity-red transition-colors"
+              className="flex items-center gap-2 text-xs text-text-secondary hover:text-white py-2 px-4 rounded-full bg-[#141414] hover:bg-[#1e1e1e] border border-white/10 hover:border-velocity-red transition-all font-medium"
             >
-              <ArrowLeft size={14} /> Back to Lobby
+              <ArrowLeft size={14} />
+              <span>Back to Lobby</span>
             </button>
 
             {game.status === 'waiting' && game.player1 === user?.id && (
               <button
                 onClick={handleCancelMatch}
-                className="text-xs text-red-400 hover:text-red-300 py-2 px-3 rounded-md bg-red-950/30 border border-red-900/50 hover:bg-red-900/40 transition-colors"
+                className="text-xs text-red-400 hover:text-white py-2 px-4 rounded-full bg-red-950/30 border border-red-900/50 hover:bg-red-900/60 transition-all font-medium flex items-center gap-1.5"
               >
-                Cancel Game
+                <span>Cancel Game</span>
               </button>
             )}
           </div>
@@ -328,7 +333,7 @@ export default function Game() {
             {game.status === 'active' && isParticipant && (
               <button
                 onClick={handleResign}
-                className="bg-[#141414] border border-white/10 hover:border-red-900 text-text-secondary hover:text-red-400 px-6 py-2 rounded-md text-xs uppercase tracking-wider transition-colors flex items-center gap-2 font-medium"
+                className="bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 px-6 py-2 rounded-full text-xs uppercase tracking-wider transition-all flex items-center gap-2 font-semibold font-mono"
               >
                 <Flag size={14} /> Resign
               </button>
@@ -338,7 +343,7 @@ export default function Game() {
             {canClaimAfk && (
               <button
                 onClick={handleClaimAfk}
-                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-md hover:bg-red-600 transition-all shadow-[0_0_15px_rgba(255,77,77,0.5)] animate-bounce flex items-center gap-2 font-bold"
+                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.6)] animate-bounce flex items-center gap-2 font-bold font-mono"
               >
                 <Trophy size={14} /> Claim Win (Opponent Inactive)
               </button>
@@ -348,7 +353,7 @@ export default function Game() {
             {isFinished && (
               <button
                 onClick={handleLeave}
-                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-md hover:bg-red-600 transition-all shadow-[0_0_15px_rgba(255,77,77,0.4)] font-bold flex items-center gap-2"
+                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-8 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] font-bold flex items-center gap-2 font-mono"
               >
                 <span>Return to Lobby</span>
                 <ArrowRight size={15} />
@@ -371,7 +376,7 @@ export default function Game() {
               initial={{ scale: 0.9, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 15 }}
-              className="rounded-xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#141414] relative overflow-hidden"
+              className="rounded-2xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#141414] relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
 
@@ -395,9 +400,9 @@ export default function Game() {
                 </h2>
                 <p className="text-sm text-text-secondary">
                   {isWinner
-                    ? `Stakes of ${stakesDisplay} secured.`
+                    ? isFreeGame ? 'Free match victory.' : `Stakes of ${game.wager} SOL secured.`
                     : isDraw
-                    ? 'Match ended in a tie. Stakes returned.'
+                    ? 'Match ended in a tie.'
                     : isSpectator
                     ? `Player ${game.winner === game.player1 ? '1 (Red)' : '2 (White)'} won the match.`
                     : 'Better luck in the next game.'}
@@ -410,7 +415,7 @@ export default function Game() {
                   setShowWinModal(false);
                   handleLeave();
                 }}
-                className="w-full bg-velocity-red text-white py-3 rounded-md text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)]"
+                className="w-full bg-velocity-red text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono"
               >
                 Back to Lobby
               </button>

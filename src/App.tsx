@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
@@ -24,6 +24,7 @@ function AppHeader() {
   const { user, setUser, solBalance } = useGameStore();
 
   const handleLogout = async () => {
+    localStorage.removeItem('bobsled_auth_wallet');
     try {
       await signOut(auth);
     } catch (e) {
@@ -108,7 +109,7 @@ function AppHeader() {
           {!user && !publicKey ? (
             <button
               onClick={() => setVisible(true)}
-              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98]"
+              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono"
             >
               Connect Wallet
             </button>
@@ -123,12 +124,12 @@ function AppHeader() {
                 </div>
               )}
 
-              {/* Real SOL Balance (Polled directly from on-chain Solana RPC) */}
+              {/* Real SOL Balance */}
               {publicKey && !user?.isTestUser && (
                 <div className="text-xs font-mono font-bold text-white px-3.5 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-2 shadow-inner">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   <span className="text-velocity-red">
-                    {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : 'Loading...'}
+                    {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : '0.000 SOL'}
                   </span>
                 </div>
               )}
@@ -154,7 +155,7 @@ function AppHeader() {
               {/* Exit Button */}
               <button
                 onClick={handleLogout}
-                className="text-xs px-3 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium"
+                className="text-xs px-3.5 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium"
               >
                 Exit
               </button>
@@ -186,7 +187,7 @@ function MainContent({
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh]">
         <div className="w-8 h-8 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
-        <p className="text-xs uppercase tracking-wider text-text-muted font-mono">Authenticating Signature...</p>
+        <p className="text-xs uppercase tracking-wider text-text-muted font-mono">Authenticating Wallet...</p>
       </div>
     );
   }
@@ -205,11 +206,11 @@ function MainContent({
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] px-4">
         <div className="border border-red-900/50 bg-red-900/10 text-red-400 p-8 max-w-md text-center rounded-2xl shadow-2xl space-y-4">
-          <p className="text-sm font-bold uppercase tracking-wider font-mono">Authentication Error</p>
+          <p className="text-sm font-bold uppercase tracking-wider font-mono">Authentication Notice</p>
           <p className="text-xs text-text-secondary font-mono">{authError}</p>
           <button
             onClick={() => disconnect()}
-            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-full text-white"
+            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-full text-white font-mono"
           >
             Disconnect &amp; Retry
           </button>
@@ -251,82 +252,69 @@ export default function App() {
   const [needsUsername, setNeedsUsername] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
 
-  // Live real-time SOL balance directly from user's crypto wallet
+  // Live real-time SOL balance directly from user's crypto wallet & multi-RPC backend
+  const fetchWalletBalance = useCallback(async () => {
+    if (!publicKey || user?.isTestUser) return;
+    const walletStr = publicKey.toBase58();
+
+    // 1. Try Backend Multi-RPC endpoint
+    try {
+      const res = await fetch(`/api/solana/balance?wallet=${walletStr}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.balance === 'number') {
+          setSolBalance(data.balance);
+          return;
+        }
+      }
+    } catch (err) {
+      // Backend request fallback to direct RPC
+    }
+
+    // 2. Try Provider RPC Connection
+    try {
+      if (connection) {
+        const lamports = await connection.getBalance(publicKey, 'confirmed');
+        setSolBalance(lamports / LAMPORTS_PER_SOL);
+        return;
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    // 3. Fallback direct JSON-RPC
+    try {
+      const res = await fetch('https://api.mainnet-beta.solana.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getBalance',
+          params: [walletStr, { commitment: 'confirmed' }],
+        }),
+      });
+      const data = await res.json();
+      if (data?.result?.value !== undefined) {
+        setSolBalance(data.result.value / LAMPORTS_PER_SOL);
+      }
+    } catch (err2) {
+      console.warn('Balance fallback failed:', err2);
+    }
+  }, [publicKey, connection, user?.isTestUser, setSolBalance]);
+
   useEffect(() => {
     if (!publicKey || user?.isTestUser) {
       if (user?.isTestUser) setSolBalance(null);
       return;
     }
 
-    let active = true;
+    fetchWalletBalance();
+    const interval = setInterval(fetchWalletBalance, 4000);
+    return () => clearInterval(interval);
+  }, [publicKey, user?.isTestUser, fetchWalletBalance]);
 
-    const fetchBalance = async () => {
-      try {
-        if (connection) {
-          const lamports = await connection.getBalance(publicKey, 'confirmed');
-          if (active) {
-            setSolBalance(lamports / LAMPORTS_PER_SOL);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('Provider RPC error, trying direct Solana JSON-RPC:', err);
-      }
-
-      // Direct fallback to Solana Mainnet JSON-RPC endpoint
-      try {
-        const res = await fetch('https://api.mainnet-beta.solana.com', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'getBalance',
-            params: [publicKey.toBase58(), { commitment: 'confirmed' }],
-          }),
-        });
-        const data = await res.json();
-        if (active && data?.result?.value !== undefined) {
-          setSolBalance(data.result.value / LAMPORTS_PER_SOL);
-        }
-      } catch (e) {
-        console.error('Fallback balance check failed:', e);
-      }
-    };
-
-    fetchBalance();
-
-    // WebSocket subscription for instant account balance changes
-    let subId: number | null = null;
-    try {
-      if (connection) {
-        subId = connection.onAccountChange(
-          publicKey,
-          (accountInfo) => {
-            if (active) {
-              setSolBalance(accountInfo.lamports / LAMPORTS_PER_SOL);
-            }
-          },
-          'confirmed'
-        );
-      }
-    } catch (e) {
-      console.warn('Websocket listener unavailable');
-    }
-
-    // Interval polling every 3 seconds
-    const interval = setInterval(fetchBalance, 3000);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-      if (subId !== null && connection) {
-        connection.removeAccountChangeListener(subId).catch(() => {});
-      }
-    };
-  }, [publicKey, connection, user?.isTestUser, setSolBalance]);
-
-  // Test user login handler: Signs into Firebase Auth anonymously so Firestore permissions work!
+  // Test user login handler: Signs into Firebase Auth anonymously
   const handleTestLogin = async (testUsername: string) => {
     setIsAuthenticating(true);
     setAuthError(null);
@@ -361,11 +349,12 @@ export default function App() {
       }
 
       if (!firebaseUser) {
-        setUser(null);
+        if (!user?.isTestUser) {
+          setUser(null);
+        }
         return;
       }
 
-      // If anonymous test user, keep test state
       if (firebaseUser.isAnonymous) {
         return;
       }
@@ -394,13 +383,22 @@ export default function App() {
 
   const authInProgress = useRef(false);
 
-  // Solana Sign-In Authentication
+  // Automatic Solana Sign-In without re-signing if already authenticated
   useEffect(() => {
     const authenticate = async () => {
-      if (!publicKey || !signMessage || user?.isTestUser) return;
+      if (!publicKey || !signMessage || user?.isTestUser || !authInitialized) return;
       if (authInProgress.current) return;
 
-      if (auth.currentUser && !auth.currentUser.isAnonymous && user?.walletAddress === publicKey.toBase58()) {
+      const walletStr = publicKey.toBase58();
+
+      // Check if current Firebase auth session already matches this wallet!
+      if (auth.currentUser && !auth.currentUser.isAnonymous && user?.walletAddress === walletStr) {
+        return;
+      }
+
+      // Check if local token was previously saved and Firebase is still loading
+      const lastWallet = localStorage.getItem('bobsled_auth_wallet');
+      if (lastWallet === walletStr && auth.currentUser && !auth.currentUser.isAnonymous) {
         return;
       }
 
@@ -412,7 +410,7 @@ export default function App() {
         const nonceRes = await fetch('/api/auth/nonce', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ publicKey: publicKey.toBase58() }),
+          body: JSON.stringify({ publicKey: walletStr }),
         });
 
         if (!nonceRes.ok) {
@@ -438,7 +436,7 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            publicKey: publicKey.toBase58(),
+            publicKey: walletStr,
             signature,
           }),
         });
@@ -454,6 +452,7 @@ export default function App() {
         if (data.token) {
           const userCredential = await signInWithCustomToken(auth, data.token);
           currentUser = userCredential.user;
+          localStorage.setItem('bobsled_auth_wallet', walletStr);
         } else {
           const userCredential = await signInAnonymously(auth);
           currentUser = userCredential.user;
@@ -466,26 +465,25 @@ export default function App() {
           setNeedsUsername(true);
         } else {
           await updateDoc(userDocRef, {
-            walletAddress: publicKey.toBase58(),
+            walletAddress: walletStr,
           });
           setNeedsUsername(false);
         }
       } catch (err: any) {
         console.error('Auth error:', err);
         setAuthError(err.message || 'Failed to authenticate');
-        disconnect();
       } finally {
         authInProgress.current = false;
         setIsAuthenticating(false);
       }
     };
 
-    if (publicKey && !user?.isTestUser) {
+    if (publicKey && !user?.isTestUser && authInitialized) {
       authenticate();
     } else {
       setNeedsUsername(false);
     }
-  }, [publicKey, signMessage, disconnect, user?.walletAddress, user?.isTestUser, authInitialized]);
+  }, [publicKey, signMessage, user?.walletAddress, user?.isTestUser, authInitialized]);
 
   const handleSetUsername = async (username: string, avatarUrl?: string) => {
     setIsAuthenticating(true);

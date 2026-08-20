@@ -56,19 +56,16 @@ export default function Chat({ gameId }: { gameId: string }) {
       <div className="p-3.5 border-b border-white/10 flex justify-between items-center bg-[#181818]">
         <div className="flex items-center gap-2">
           <MessageSquare size={14} className="text-velocity-red" />
-          <h3 className="text-xs text-white font-bold uppercase tracking-wider">
+          <h3 className="text-xs text-white font-bold uppercase tracking-wider font-mono">
             Game Chat
           </h3>
         </div>
-        <span className="text-[10px] text-text-muted font-mono">
-          {messages.length} msgs
-        </span>
       </div>
 
       {/* Message Stream */}
-      <div className="flex-1 p-3.5 space-y-2 overflow-y-auto min-h-0">
+      <div className="flex-1 p-3.5 space-y-2.5 overflow-y-auto min-h-0">
         {messages.length === 0 ? (
-          <div className="text-center text-text-muted text-xs py-6">
+          <div className="text-center text-text-muted text-xs py-6 font-mono">
             No messages yet. Say hello!
           </div>
         ) : (
@@ -82,14 +79,14 @@ export default function Chat({ gameId }: { gameId: string }) {
             return (
               <div key={msg.id} className="flex flex-col gap-0.5 text-xs">
                 <div className="flex items-center gap-1.5">
-                  <span className={`text-[11px] font-semibold ${isMe ? 'text-velocity-red' : 'text-text-primary'}`}>
+                  <span className={`text-[11px] font-semibold ${isMe ? 'text-velocity-red' : 'text-white'}`}>
                     {name}
                   </span>
                   <span className="text-[9px] text-text-muted font-mono">
                     {time}
                   </span>
                 </div>
-                <p className="text-text-secondary text-xs break-words bg-[#1a1a1a] p-2 rounded-md border border-white/5">
+                <p className="text-text-secondary text-xs break-words bg-[#1a1a1a] p-2 rounded-lg border border-white/5 font-body-sm">
                   {msg.text}
                 </p>
               </div>
@@ -107,12 +104,12 @@ export default function Chat({ gameId }: { gameId: string }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 bg-[#101010] border border-white/10 text-white text-xs px-3 py-1.5 rounded-md focus:border-velocity-red outline-none placeholder:text-text-muted"
+            className="flex-1 bg-[#101010] border border-white/10 text-white text-xs px-3.5 py-2 rounded-full focus:border-velocity-red outline-none placeholder:text-text-muted"
           />
           <button
             type="submit"
             disabled={!text.trim()}
-            className="bg-velocity-red text-white px-3 py-1.5 rounded-md hover:bg-red-600 disabled:opacity-40 transition-colors"
+            className="bg-velocity-red text-white p-2 rounded-full hover:bg-red-600 disabled:opacity-40 transition-colors shadow-md flex items-center justify-center shrink-0"
           >
             <Send size={13} />
           </button>

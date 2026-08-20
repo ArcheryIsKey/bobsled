@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 import fs from 'fs';
@@ -39,10 +39,9 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// In-memory store for nonces (In production, use Redis or Firestore)
+// In-memory store for nonces
 const nonces = new Map<string, string>();
 
-// Generate a random nonce
 function generateNonce() {
   return Math.floor(Math.random() * 1000000).toString();
 }
@@ -80,14 +79,11 @@ app.post('/api/auth/verify', async (req, res) => {
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    // Signature valid, remove nonce
     nonces.delete(publicKey);
 
-    // Create a Custom Token for the frontend to sign in
     let token = null;
     try {
       let uid = publicKey;
-      // Try to find if this wallet already has an account to preserve the old UID
       const { getFirestore } = await import('firebase-admin/firestore');
       const { getAuth } = await import('firebase-admin/auth');
       
@@ -107,6 +103,33 @@ app.post('/api/auth/verify', async (req, res) => {
     console.error('Auth verification error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// High-reliability Solana balance lookup with multi-RPC fallback
+app.get('/api/solana/balance', async (req, res) => {
+  const { wallet } = req.query;
+  if (!wallet || typeof wallet !== 'string') {
+    return res.status(400).json({ error: 'Missing wallet query parameter' });
+  }
+
+  const rpcEndpoints = [
+    'https://api.mainnet-beta.solana.com',
+    'https://rpc.ankr.com/solana',
+    'https://solana.public-rpc.com',
+  ];
+
+  for (const rpc of rpcEndpoints) {
+    try {
+      const conn = new Connection(rpc, 'confirmed');
+      const lamports = await conn.getBalance(new PublicKey(wallet));
+      const sol = lamports / LAMPORTS_PER_SOL;
+      return res.json({ success: true, balance: sol, sol, lamports });
+    } catch (e: any) {
+      console.warn(`RPC ${rpc} balance query failed:`, e?.message);
+    }
+  }
+
+  res.status(500).json({ error: 'Failed to query balance from Solana network' });
 });
 
 async function startServer() {

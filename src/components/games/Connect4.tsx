@@ -89,6 +89,13 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
     }
     if (emptyRow === -1) return; // Column is full
 
+    // Mobile Haptic Feedback on Move
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(15);
+      } catch {}
+    }
+
     newBoard[emptyRow * COLS + colIndex] = myPlayerNumber;
 
     const winCells = findWinningCells(newBoard);
@@ -98,6 +105,12 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
     let winner = null;
     if (isWin) {
       winner = user?.id;
+      // Mobile Haptic Celebration on Win
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate([30, 60, 40]);
+        } catch {}
+      }
     } else if (isDraw) {
       winner = 'draw';
     }

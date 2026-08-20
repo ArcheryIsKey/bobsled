@@ -1,89 +1,105 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import { processImageFile, processBannerFile } from '../utils/image';
 import UserProfileModal from './UserProfileModal';
-import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical, Crown, ShieldCheck } from 'lucide-react';
+import { 
+  Trophy, 
+  XCircle, 
+  Swords, 
+  Camera, 
+  Loader2, 
+  Copy, 
+  Check, 
+  ArrowLeft, 
+  ShieldCheck, 
+  Crown, 
+  FlaskConical, 
+  Image as ImageIcon 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const OWNER_WALLET = '11111111111111111111111111111111';
 
 export default function Profile() {
-  const { userId: paramUserId } = useParams<{ userId?: string }>();
+  const { userId: urlUserId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { user: currentUser, solBalance } = useGameStore();
 
-  const isOwnProfile = !paramUserId || paramUserId === currentUser?.id;
-  const targetUserId = paramUserId || currentUser?.id;
-  const isTestUser = (isOwnProfile && currentUser?.isTestUser) || targetUserId?.startsWith('test_');
+  const isOwnProfile = !urlUserId || urlUserId === currentUser?.id;
+  const targetUserId = isOwnProfile ? currentUser?.id : urlUserId;
 
   const [profileData, setProfileData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch profile user document
   useEffect(() => {
     if (!targetUserId) {
       setIsLoading(false);
       return;
     }
 
-    if (isOwnProfile && currentUser) {
-      setProfileData(currentUser);
+    // If it's a test/guest user, load local store data
+    if (targetUserId.startsWith('test_')) {
+      if (currentUser?.id === targetUserId) {
+        setProfileData({
+          id: currentUser.id,
+          username: currentUser.username,
+          walletAddress: null,
+          avatarUrl: currentUser.avatarUrl,
+          bannerUrl: currentUser.bannerUrl,
+          isTestUser: true,
+        });
+      } else {
+        setProfileData({
+          id: targetUserId,
+          username: 'Guest Player',
+          walletAddress: null,
+          isTestUser: true,
+        });
+      }
       setIsLoading(false);
-    } else {
-      const fetchTargetProfile = async () => {
-        setIsLoading(true);
-        try {
-          const docSnap = await getDoc(doc(db, 'users', targetUserId));
-          if (docSnap.exists() && docSnap.data()?.walletAddress) {
-            setProfileData({ id: docSnap.id, ...docSnap.data() });
-          } else {
-            setProfileData(null);
-          }
-        } catch (e) {
-          console.error('Error fetching profile:', e);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchTargetProfile();
+      return;
     }
-  }, [targetUserId, isOwnProfile, currentUser]);
 
-  useEffect(() => {
-    if (isOwnProfile && currentUser) {
-      setProfileData(currentUser);
-    }
-  }, [currentUser, isOwnProfile]);
+    // Fetch user doc from Firestore
+    const unsubUser = onSnapshot(doc(db, 'users', targetUserId), (docSnap) => {
+      if (docSnap.exists()) {
+        setProfileData({ id: docSnap.id, ...docSnap.data() });
+      } else {
+        setProfileData(null);
+      }
+      setIsLoading(false);
+    });
 
-  useEffect(() => {
-    if (!targetUserId) return;
-
-    const q = query(
+    // Fetch user match history
+    const qHistory = query(
       collection(db, 'games'),
       where('players', 'array-contains', targetUserId),
       where('status', '==', 'finished')
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      let games = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+    const unsubHistory = onSnapshot(qHistory, (snap) => {
+      let games = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
       games.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
       setHistory(games);
     });
 
-    return () => unsub();
-  }, [targetUserId]);
+    return () => {
+      unsubUser();
+      unsubHistory();
+    };
+  }, [targetUserId, currentUser]);
 
   const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isTestUser) return;
@@ -92,7 +108,7 @@ export default function Profile() {
 
     setIsUploadingAvatar(true);
     try {
-      const dataUrl = await processImageFile(file, 256, 0.8);
+      const dataUrl = await processImageFile(file, 400, 400, 0.85);
       await updateDoc(doc(db, 'users', currentUser.id), {
         avatarUrl: dataUrl,
       });
@@ -159,31 +175,42 @@ export default function Profile() {
       // ignore
     }
 
-    setSelectedProfileId(oppId);
+    if (oppId) {
+      setSelectedProfileId(oppId);
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh]">
         <Loader2 className="animate-spin text-velocity-red" size={32} />
+        <p className="text-xs uppercase tracking-wider text-text-muted mt-3 font-mono">Loading Profile...</p>
       </div>
     );
   }
 
   if (!profileData) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <h2 className="text-xl font-bold text-white">User not found</h2>
-        <p className="text-xs text-text-muted">This profile does not exist or was a temporary guest session.</p>
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] gap-4">
+        <h2 className="text-xl font-bold font-headline-lg">User Not Found</h2>
+        <p className="text-sm text-text-muted">The requested profile does not exist or has been removed.</p>
         <button
           onClick={() => navigate('/')}
-          className="px-5 py-2 bg-[#141414] border border-white/10 rounded-full text-xs font-semibold hover:border-velocity-red transition-colors cursor-pointer"
+          className="px-5 py-2 bg-[#141414] border border-white/10 hover:border-velocity-red rounded-full text-xs font-semibold font-mono cursor-pointer"
         >
-          Back to Lobby
+          Return to Lobby
         </button>
       </div>
     );
   }
+
+  const isOwner = profileData.walletAddress === OWNER_WALLET;
+  const isAdmin = isOwner || profileData.isAdmin || profileData.role === 'admin';
+  const isTestUser = profileData.isTestUser || !profileData.walletAddress;
+
+  const userDisplayName = isTestUser
+    ? (profileData.username || 'Guest')
+    : `@${profileData.username || 'Player'}`;
 
   const totalGames = history.length;
   const wins = history.filter((g) => g.winner === targetUserId).length;
@@ -191,19 +218,12 @@ export default function Profile() {
   const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
   const lossRate = totalGames > 0 ? Math.round((losses / totalGames) * 100) : 0;
 
-  const isOwner = profileData.walletAddress === OWNER_WALLET;
-  const isAdmin = isOwner || profileData.isAdmin || profileData.role === 'admin';
-
-  const userDisplayName = isTestUser
-    ? (profileData.username || 'Guest Player')
-    : `@${profileData.username || 'Player'}`;
-
   const walletDisplay = profileData.walletAddress
     ? `${profileData.walletAddress.substring(0, 6)}...${profileData.walletAddress.substring(profileData.walletAddress.length - 6)}`
     : 'No Wallet Connected';
 
   return (
-    <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
+    <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100dvh-64px)] pb-24 md:pb-12 flex flex-col font-body-md antialiased w-full overflow-y-auto">
       
       {/* Floating User Profile Modal for inspected opponents */}
       {selectedProfileId && (
@@ -233,23 +253,23 @@ export default function Profile() {
         </>
       )}
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-8">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8">
         
         {/* Top Back Link */}
         <div className="mb-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red cursor-pointer"
+            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red cursor-pointer font-mono"
           >
             <ArrowLeft size={14} /> Back to Lobby
           </button>
         </div>
 
         {/* Profile Card with Banner */}
-        <section className="mb-5 rounded-2xl bg-[#141414] border border-white/10 overflow-hidden shadow-2xl relative">
+        <section className="mb-5 rounded-2xl sm:rounded-3xl bg-[#141414] border border-white/10 overflow-hidden shadow-2xl relative">
           
           {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
-          <div className="relative w-full h-36 sm:h-44 md:h-48 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
+          <div className="relative w-full h-32 sm:h-44 md:h-48 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
             {profileData.bannerUrl ? (
               <img
                 src={profileData.bannerUrl}
@@ -267,7 +287,7 @@ export default function Profile() {
               <button
                 onClick={() => bannerInputRef.current?.click()}
                 disabled={isUploadingBanner}
-                className="absolute top-3 right-3 bg-black/80 hover:bg-black border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md cursor-pointer"
+                className="absolute top-3 right-3 bg-black/80 hover:bg-black border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md cursor-pointer font-mono"
               >
                 {isUploadingBanner ? (
                   <Loader2 size={13} className="animate-spin text-velocity-red" />
@@ -280,14 +300,14 @@ export default function Profile() {
           </div>
 
           {/* Profile Header Content */}
-          <div className="px-6 md:px-8 pb-4 pt-0 relative z-10">
+          <div className="px-5 sm:px-6 md:px-8 pb-5 pt-0 relative z-10">
             
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-3.5 sm:gap-4 text-center sm:text-left">
               
               {/* Avatar */}
               <div
                 onClick={() => isOwnProfile && !isTestUser && avatarInputRef.current?.click()}
-                className={`-mt-12 sm:-mt-14 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
+                className={`-mt-12 sm:-mt-14 w-22 h-22 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] relative group shrink-0 shadow-2xl ${
                   isOwnProfile && !isTestUser ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
                 }`}
                 title={isOwnProfile && !isTestUser ? 'Click to change profile picture' : ''}
@@ -300,7 +320,7 @@ export default function Profile() {
                   />
                 ) : (
                   <div className="w-full h-full bg-[#1e1e1e] flex items-center justify-center">
-                    <span className="text-3xl sm:text-4xl font-headline-lg font-bold text-white">
+                    <span className="text-2xl sm:text-4xl font-headline-lg font-bold text-white">
                       {profileData.username ? profileData.username.substring(0, 2).toUpperCase() : 'U'}
                     </span>
                   </div>
@@ -322,27 +342,27 @@ export default function Profile() {
               </div>
 
               {/* Names & Role Badges */}
-              <div className="space-y-1 pt-1 sm:pt-2">
+              <div className="space-y-1.5 pt-1 sm:pt-2 min-w-0">
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
+                  <h1 className="font-headline-lg text-xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight truncate max-w-[280px] sm:max-w-none">
                     {userDisplayName}
                   </h1>
                   {isOwner && (
-                    <span className="text-[11px] font-mono text-amber-400 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 font-bold">
+                    <span className="text-[10px] sm:text-[11px] font-mono text-amber-400 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 font-bold shrink-0">
                       <Crown size={12} />
                       <span>Owner</span>
                     </span>
                   )}
                   {isAdmin && !isOwner && (
-                    <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                    <span className="text-[10px] sm:text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold shrink-0">
                       <ShieldCheck size={12} />
                       <span>Admin</span>
                     </span>
                   )}
                   {isTestUser && (
-                    <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                    <span className="text-[10px] sm:text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold shrink-0">
                       <FlaskConical size={11} />
-                      <span>Guest Mode</span>
+                      <span>Guest</span>
                     </span>
                   )}
                 </div>
@@ -368,70 +388,70 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Stats Grid */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Stats Grid - 2x2 on Mobile, 4-column on Desktop */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
           
           {/* Card 1: Matches */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
-              <Swords size={16} className="text-text-muted group-hover:text-velocity-red transition-colors" />
+          <div className="bg-[#141414] border border-white/10 p-4 sm:p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+            <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
+              <Swords size={15} className="text-text-muted group-hover:text-velocity-red transition-colors" />
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5">
+            <div className="font-headline-lg text-2xl sm:text-3xl text-white font-bold mb-0.5 font-mono">
               {totalGames}
             </div>
-            <div className="text-xs text-text-muted">
-              Total games played
+            <div className="text-[11px] sm:text-xs text-text-muted">
+              Total games
             </div>
           </div>
 
           {/* Card 2: Wins */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
-              <Trophy size={16} className="text-velocity-red transition-colors" />
+          <div className="bg-[#141414] border border-white/10 p-4 sm:p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+            <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
+              <Trophy size={15} className="text-velocity-red" />
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-velocity-red font-bold mb-0.5">
+            <div className="font-headline-lg text-2xl sm:text-3xl text-velocity-red font-bold mb-0.5 font-mono">
               {wins}
             </div>
-            <div className="text-xs text-velocity-red font-medium">
+            <div className="text-[11px] sm:text-xs text-text-muted">
               {winRate}% win rate
             </div>
           </div>
 
           {/* Card 3: Losses */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
-              <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+          <div className="bg-[#141414] border border-white/10 p-4 sm:p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+            <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
+              <XCircle size={15} className="text-text-muted" />
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 text-text-secondary">
+            <div className="font-headline-lg text-2xl sm:text-3xl text-white font-bold mb-0.5 font-mono text-text-secondary">
               {losses}
             </div>
-            <div className="text-xs text-text-muted">
+            <div className="text-[11px] sm:text-xs text-text-muted">
               {lossRate}% loss rate
             </div>
           </div>
 
           {/* Card 4: SOL Holdings */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">SOL Balance</span>
+          <div className="bg-[#141414] border border-white/10 p-4 sm:p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+            <div className="flex justify-between items-start mb-1.5 sm:mb-2">
+              <span className="text-[11px] sm:text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Balance</span>
               <span className="text-xs font-mono font-bold text-velocity-red">SOL</span>
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 font-mono">
+            <div className="font-headline-lg text-2xl sm:text-3xl text-white font-bold mb-0.5 font-mono">
               {isOwnProfile && solBalance !== null ? `${solBalance.toFixed(3)}` : isTestUser ? '—' : '0.000'}
             </div>
-            <div className="text-xs text-text-muted">
-              {isOwnProfile ? 'In connected wallet' : 'Solana network'}
+            <div className="text-[11px] sm:text-xs text-text-muted">
+              {isOwnProfile ? 'In wallet' : 'Solana network'}
             </div>
           </div>
         </section>
 
-        {/* Match History Table */}
-        <section>
-          <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
-            <h2 className="font-headline-lg text-xl text-white font-bold">
+        {/* Match History Section */}
+        <section className="space-y-3 sm:space-y-4">
+          <div className="flex justify-between items-center border-b border-white/10 pb-3">
+            <h2 className="font-headline-lg text-lg sm:text-xl text-white font-bold">
               Match History
             </h2>
             <span className="text-xs text-text-muted font-mono">
@@ -439,13 +459,77 @@ export default function Profile() {
             </span>
           </div>
 
-          <div className="bg-[#141414] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
-            {history.length === 0 ? (
-              <div className="p-10 text-center text-text-muted text-sm font-mono">
-                No match history recorded yet.
+          {history.length === 0 ? (
+            <div className="bg-[#141414] border border-white/10 rounded-2xl p-10 text-center text-text-muted text-sm font-mono">
+              No match history recorded yet.
+            </div>
+          ) : (
+            <>
+              {/* Mobile Card Layout (Visible on mobile screens) */}
+              <div className="space-y-2.5 md:hidden">
+                {history.map((game) => {
+                  const isWin = game.winner === targetUserId;
+                  const isDraw = game.winner === 'draw';
+                  const opponentId = game.player1 === targetUserId ? game.player2 : game.player1;
+                  const opponentName = game.player1 === targetUserId ? game.player2Name : game.player1Name;
+                  const isOppP1 = game.player1 !== targetUserId;
+                  const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || opponentId?.startsWith('test_');
+                  const opponentDisplay = isOppTest ? (opponentName || 'Guest') : `@${opponentName || 'Opponent'}`;
+                  const matchDate = game.createdAt?.toDate
+                    ? game.createdAt.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' })
+                    : 'Recent';
+
+                  return (
+                    <div
+                      key={game.id}
+                      className="bg-[#141414] border border-white/10 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs font-mono relative"
+                    >
+                      {/* Guest User Toast Popup */}
+                      <AnimatePresence>
+                        {testUserToast?.matchId === game.id && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                            animate={{ opacity: 1, y: -4, scale: 1 }}
+                            exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                            className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+                          >
+                            <FlaskConical size={11} className="shrink-0" />
+                            <span>{testUserToast.message}</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <button
+                          onClick={(e) => handleOpponentClick(e, opponentId, game)}
+                          className="text-white hover:text-velocity-red font-semibold text-left truncate flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>vs {opponentDisplay}</span>
+                        </button>
+                        <div className="flex items-center gap-2 text-[10px] text-text-muted">
+                          <span>#{game.id.substring(0, 6).toUpperCase()}</span>
+                          <span>•</span>
+                          <span>{matchDate}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          isWin ? 'bg-velocity-red/15 text-velocity-red' : isDraw ? 'bg-white/10 text-white' : 'bg-neutral-800 text-text-muted'
+                        }`}>
+                          {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
+                        </span>
+                        <span className={`font-bold ${isWin && game.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
+                          {game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'Free'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
-              <div className="overflow-x-auto">
+
+              {/* Desktop Table (Hidden on mobile) */}
+              <div className="hidden md:block bg-[#141414] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-[#181818] border-b border-white/10">
@@ -500,23 +584,27 @@ export default function Profile() {
                           <td className="py-3.5 px-5 text-text-muted text-xs font-mono">
                             {matchDate}
                           </td>
-                          <td className="py-3.5 px-5">
-                            {isWin ? (
-                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
-                                Win
-                              </span>
-                            ) : isDraw ? (
-                              <span className="bg-[#222] text-text-secondary border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
-                                Draw
+                          <td className="py-3.5 px-5 font-mono">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                isWin
+                                  ? 'bg-velocity-red/15 text-velocity-red border border-velocity-red/30'
+                                  : isDraw
+                                  ? 'bg-white/10 text-white border border-white/20'
+                                  : 'bg-[#1e1e1e] text-text-secondary border border-white/10'
+                              }`}
+                            >
+                              {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-5 text-right font-mono font-bold text-white">
+                            {game.wager > 0 ? (
+                              <span className={isWin ? 'text-velocity-red' : 'text-text-secondary'}>
+                                {game.wager} {game.wagerCurrency}
                               </span>
                             ) : (
-                              <span className="bg-[#1e1e1e] text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
-                                Loss
-                              </span>
+                              <span className="text-text-muted font-normal">Free</span>
                             )}
-                          </td>
-                          <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}`}>
-                            {game.wager > 0 ? `${isWin ? '+' : '-'}${game.wager} ${game.wagerCurrency}` : 'Free'}
                           </td>
                         </tr>
                       );
@@ -524,8 +612,8 @@ export default function Profile() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </>
+          )}
         </section>
       </main>
     </div>

@@ -1,13 +1,13 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { signOut, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, updateDoc, writeBatch, serverTimestamp, getDocs, query, collection, where, deleteDoc } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
-import { useGameStore } from './store';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
-import bs58 from 'bs58';
+import { doc, getDoc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { signInWithCustomToken, signInAnonymously, signOut } from 'firebase/auth';
+import { auth, db } from './firebase';
+import { useGameStore } from './store';
 import Dashboard from './components/Dashboard';
 import Game from './components/Game';
 import Profile from './components/Profile';
@@ -15,67 +15,28 @@ import AdminPanel from './components/AdminPanel';
 import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
 import UserProfileModal from './components/UserProfileModal';
-import { Shield, User, FlaskConical } from 'lucide-react';
+import MobileBottomNav from './components/MobileBottomNav';
+import { User, Shield, FlaskConical } from 'lucide-react';
+import bs58 from 'bs58';
 
 const OWNER_WALLET = '11111111111111111111111111111111';
 
-async function cleanupGuestUserGames(guestUserId: string) {
-  try {
-    const waitingSnap = await getDocs(
-      query(collection(db, 'games'), where('player1', '==', guestUserId), where('status', '==', 'waiting'))
-    );
-    for (const gDoc of waitingSnap.docs) {
-      await deleteDoc(gDoc.ref);
-    }
-
-    const activeSnap1 = await getDocs(
-      query(collection(db, 'games'), where('player1', '==', guestUserId), where('status', '==', 'active'))
-    );
-    for (const gDoc of activeSnap1.docs) {
-      const g = gDoc.data();
-      await updateDoc(gDoc.ref, {
-        status: 'finished',
-        winner: g.player2,
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    const activeSnap2 = await getDocs(
-      query(collection(db, 'games'), where('player2', '==', guestUserId), where('status', '==', 'active'))
-    );
-    for (const gDoc of activeSnap2.docs) {
-      const g = gDoc.data();
-      await updateDoc(gDoc.ref, {
-        status: 'finished',
-        winner: g.player1,
-        updatedAt: serverTimestamp(),
-      });
-    }
-  } catch (err) {
-    console.warn('Guest cleanup notice:', err);
-  }
-}
-
 function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
-  const location = useLocation();
-  const navigate = useNavigate();
   const { publicKey, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
-  const { user, setUser, solBalance } = useGameStore();
+  const { user, clearUser, solBalance } = useGameStore();
+  const location = useLocation();
 
   const handleLogout = async () => {
-    localStorage.removeItem('bobsled_auth_wallet');
-    if (user?.isTestUser && user.id) {
-      await cleanupGuestUserGames(user.id);
-    }
     try {
       await signOut(auth);
+      if (publicKey) {
+        await disconnect();
+      }
+      clearUser();
     } catch (e) {
-      console.error(e);
+      console.error('Logout error:', e);
     }
-    disconnect();
-    setUser(null);
-    navigate('/');
   };
 
   const isOwner = user?.walletAddress === OWNER_WALLET;
@@ -90,14 +51,14 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
     : `@${user?.username || 'Player'}`;
 
   return (
-    <header className="sticky top-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-3 pb-2 pointer-events-none">
-      <div className="max-w-6xl mx-auto pointer-events-auto bg-[#121212]/85 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4 transition-all">
+    <header className="sticky top-0 z-50 w-full px-3 sm:px-6 md:px-8 pt-2.5 sm:pt-3 pb-2 pointer-events-none">
+      <div className="max-w-6xl mx-auto pointer-events-auto bg-[#121212]/85 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-full px-3.5 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-3 transition-all">
         
         {/* Left: Logo & Navigation */}
         <div className="flex items-center gap-4 sm:gap-8">
           <Link
             to="/"
-            className="flex items-center gap-2 font-headline-lg text-xl sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-2 font-headline-lg text-lg sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity cursor-pointer"
           >
             <img src="/logo.jpg" alt="bobsled.gg" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full mix-blend-screen" />
             <span className="text-white">bobsled<span className="text-velocity-red">.</span>gg</span>
@@ -144,30 +105,19 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
         {/* Right: Balance & User Actions */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          
-          {/* Admin Fast Link for mobile */}
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="md:hidden flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-velocity-red/10 border border-velocity-red/30 text-velocity-red rounded-full font-mono font-bold cursor-pointer"
-            >
-              Admin
-            </Link>
-          )}
-
           {!user && !publicKey ? (
             <button
               onClick={() => setVisible(true)}
-              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono cursor-pointer"
+              className="text-xs text-white bg-velocity-red rounded-full px-4 sm:px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono cursor-pointer"
             >
-              Connect Wallet
+              Connect
             </button>
           ) : (
             <div className="flex items-center gap-2 sm:gap-3">
               
               {/* Guest User Badge */}
               {user?.isTestUser && (
-                <div className="text-[11px] font-mono text-velocity-red px-3 py-1 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                <div className="text-[10px] sm:text-[11px] font-mono text-velocity-red px-2.5 sm:px-3 py-1 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
                   <FlaskConical size={12} />
                   <span>GUEST</span>
                 </div>
@@ -175,7 +125,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
               {/* Real SOL Balance */}
               {publicKey && !user?.isTestUser && (
-                <div className="text-xs font-mono font-bold text-white px-3.5 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-2 shadow-inner">
+                <div className="text-xs font-mono font-bold text-white px-3 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-1.5 sm:gap-2 shadow-inner">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   <span className="text-velocity-red">
                     {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : '0.000 SOL'}
@@ -204,7 +154,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               {/* Exit Button */}
               <button
                 onClick={handleLogout}
-                className="text-xs px-3.5 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium cursor-pointer"
+                className="text-xs px-3 sm:px-3.5 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium cursor-pointer"
               >
                 Exit
               </button>
@@ -319,241 +269,121 @@ export default function App() {
     }
   }, []);
 
-  // Cleanup guest user games on window unload
-  useEffect(() => {
-    const handleUnload = () => {
-      if (user?.isTestUser && user.id) {
-        cleanupGuestUserGames(user.id);
-      }
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [user]);
-
-  // Live real-time SOL balance
-  const fetchWalletBalance = useCallback(async () => {
-    if (!publicKey || user?.isTestUser) return;
-    const walletStr = publicKey.toBase58();
-
-    try {
-      const res = await fetch(`/api/solana/balance?wallet=${walletStr}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data.balance === 'number') {
-          setSolBalance(data.balance);
-          return;
-        }
-      }
-    } catch (err) {
-      // Ignore
-    }
-
-    try {
-      if (connection) {
-        const lamports = await connection.getBalance(publicKey, 'confirmed');
-        setSolBalance(lamports / LAMPORTS_PER_SOL);
-        return;
-      }
-    } catch (e) {
-      // Ignore
-    }
-
-    try {
-      const res = await fetch('https://api.mainnet-beta.solana.com', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getBalance',
-          params: [walletStr, { commitment: 'confirmed' }],
-        }),
-      });
-      const data = await res.json();
-      if (data?.result?.value !== undefined) {
-        setSolBalance(data.result.value / LAMPORTS_PER_SOL);
-      }
-    } catch (err2) {
-      console.warn('Balance fallback failed:', err2);
-    }
-  }, [publicKey, connection, user?.isTestUser, setSolBalance]);
-
+  // Fetch live SOL balance
   useEffect(() => {
     if (!publicKey || user?.isTestUser) {
-      if (user?.isTestUser) setSolBalance(null);
+      setSolBalance(null);
       return;
     }
 
-    fetchWalletBalance();
-    const interval = setInterval(fetchWalletBalance, 4000);
-    return () => clearInterval(interval);
-  }, [publicKey, user?.isTestUser, fetchWalletBalance]);
+    const fetchBalance = async () => {
+      try {
+        const bal = await connection.getBalance(publicKey);
+        setSolBalance(bal / LAMPORTS_PER_SOL);
+      } catch (err) {
+        console.error('Error fetching SOL balance:', err);
+      }
+    };
 
-  const handleGuestLogin = async (guestUsername: string) => {
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 10000);
+    return () => clearInterval(interval);
+  }, [publicKey, connection, setSolBalance, user?.isTestUser]);
+
+  // Handle Guest Login
+  const handleGuestLogin = async (customUsername?: string) => {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const userCredential = await signInAnonymously(auth);
-      const uid = userCredential.user.uid;
+      const userCred = await signInAnonymously(auth);
+      const guestId = userCred.user.uid;
+      const guestName = customUsername?.trim() || `Guest_${Math.floor(1000 + Math.random() * 9000)}`;
+
       setUser({
-        id: uid,
-        username: guestUsername,
-        walletAddress: null,
+        id: guestId,
+        username: guestName,
         isTestUser: true,
-        createdAt: new Date(),
+        walletAddress: null,
+        avatarUrl: null,
+        bannerUrl: null,
       });
-    } catch (err: any) {
-      console.error('Guest login failed:', err);
-      setAuthError('Could not initialize guest session.');
+    } catch (e: any) {
+      console.error('Guest login error:', e);
+      setAuthError('Failed to initialize guest session.');
     } finally {
       setIsAuthenticating(false);
+      setAuthInitialized(true);
     }
   };
 
-  useEffect(() => {
-    let unsubUser: (() => void) | null = null;
-
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setAuthInitialized(true);
-
-      if (unsubUser) {
-        unsubUser();
-        unsubUser = null;
-      }
-
-      if (!firebaseUser) {
-        if (!user?.isTestUser) {
-          setUser(null);
-        }
-        return;
-      }
-
-      if (firebaseUser.isAnonymous) {
-        return;
-      }
-
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      unsubUser = onSnapshot(
-        userRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const userData = snapshot.data() as any;
-            setUser({ id: snapshot.id, ...userData });
-          }
-        },
-        (error) => {
-          if ((error as any).code === 'permission-denied') return;
-          handleFirestoreError(error, OperationType.GET, 'users');
-        }
-      );
-    });
-
-    return () => {
-      unsubscribe();
-      if (unsubUser) unsubUser();
-    };
-  }, [setUser]);
-
-  const authInProgress = useRef(false);
-
+  // Authenticate Solana Wallet with Backend Custom Token
   useEffect(() => {
     const authenticate = async () => {
-      if (!publicKey || !signMessage || user?.isTestUser || !authInitialized) return;
-      if (authInProgress.current) return;
+      if (!publicKey || !signMessage || user?.isTestUser) return;
+      if (user && user.walletAddress === publicKey.toBase58()) return;
 
-      const walletStr = publicKey.toBase58();
-
-      if (auth.currentUser && !auth.currentUser.isAnonymous && user?.walletAddress === walletStr) {
-        return;
-      }
-
-      const lastWallet = localStorage.getItem('bobsled_auth_wallet');
-      if (lastWallet === walletStr && auth.currentUser && !auth.currentUser.isAnonymous) {
-        return;
-      }
-
-      authInProgress.current = true;
       setIsAuthenticating(true);
       setAuthError(null);
 
       try {
-        const nonceRes = await fetch('/api/auth/nonce', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ publicKey: walletStr }),
-        });
-
-        if (!nonceRes.ok) {
-          throw new Error('Failed to get nonce from server');
-        }
-
+        const walletAddress = publicKey.toBase58();
+        const nonceRes = await fetch(`/api/auth/nonce?wallet=${walletAddress}`);
+        if (!nonceRes.ok) throw new Error('Failed to retrieve authentication challenge');
         const { nonce } = await nonceRes.json();
 
-        const message = new TextEncoder().encode(
-          `Sign in to bobsled.gg\n\nNonce: ${nonce}`
-        );
-        let signatureBytes;
-        try {
-          signatureBytes = await signMessage(message);
-        } catch (e) {
-          throw new Error('Signature request cancelled.');
-        }
-
-        const encodeFn = (bs58 as any).encode || (bs58 as any).default?.encode;
-        const signature = encodeFn(signatureBytes);
+        const message = `Sign in to bobsled.gg\n\nChallenge Nonce: ${nonce}`;
+        const messageBytes = new TextEncoder().encode(message);
+        const signatureBytes = await signMessage(messageBytes);
+        const signature = bs58.encode(signatureBytes);
 
         const verifyRes = await fetch('/api/auth/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            publicKey: walletStr,
-            signature,
-          }),
+          body: JSON.stringify({ wallet: walletAddress, signature, nonce }),
         });
 
         if (!verifyRes.ok) {
-          const errData = await verifyRes.json().catch(() => ({}));
-          throw new Error(errData.error || 'Verification failed on server');
+          const errData = await verifyRes.json();
+          throw new Error(errData.error || 'Signature verification failed');
         }
 
-        const data = await verifyRes.json();
-        let currentUser;
+        const { token } = await verifyRes.json();
+        const userCred = await signInWithCustomToken(auth, token);
+        const uid = userCred.user.uid;
 
-        if (data.token) {
-          const userCredential = await signInWithCustomToken(auth, data.token);
-          currentUser = userCredential.user;
-          localStorage.setItem('bobsled_auth_wallet', walletStr);
-        } else {
-          const userCredential = await signInAnonymously(auth);
-          currentUser = userCredential.user;
-        }
+        const userDocRef = doc(db, 'users', uid);
+        const userDoc = await getDoc(userDocRef);
 
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (!userDocSnap.exists()) {
+        if (!userDoc.exists() || !userDoc.data()?.username) {
           setNeedsUsername(true);
         } else {
-          await updateDoc(userDocRef, {
-            walletAddress: walletStr,
+          const uData = userDoc.data();
+          setUser({
+            id: uid,
+            username: uData.username,
+            walletAddress: uData.walletAddress,
+            avatarUrl: uData.avatarUrl || null,
+            bannerUrl: uData.bannerUrl || null,
+            isAdmin: uData.isAdmin || uData.role === 'admin' || walletAddress === OWNER_WALLET,
+            isTestUser: false,
           });
           setNeedsUsername(false);
         }
       } catch (err: any) {
-        console.error('Auth error:', err);
-        setAuthError(err.message || 'Failed to authenticate');
+        console.error('Wallet authentication error:', err);
+        setAuthError(err.message || 'Failed to authenticate wallet');
       } finally {
-        authInProgress.current = false;
         setIsAuthenticating(false);
+        setAuthInitialized(true);
       }
     };
 
-    if (publicKey && !user?.isTestUser && authInitialized) {
+    if (publicKey && !user?.isTestUser) {
       authenticate();
     } else {
       setNeedsUsername(false);
     }
-  }, [publicKey, signMessage, user?.walletAddress, user?.isTestUser, authInitialized]);
+  }, [publicKey, signMessage, user?.walletAddress, user?.isTestUser]);
 
   const handleSetUsername = async (username: string, avatarUrl?: string) => {
     setIsAuthenticating(true);
@@ -584,6 +414,17 @@ export default function App() {
 
       batch.set(doc(db, 'users', currentUser.uid), userData);
       await batch.commit();
+
+      setUser({
+        id: currentUser.uid,
+        username,
+        walletAddress: publicKey.toBase58(),
+        avatarUrl: avatarUrl || null,
+        bannerUrl: null,
+        isAdmin: publicKey.toBase58() === OWNER_WALLET,
+        isTestUser: false,
+      });
+
       setNeedsUsername(false);
     } catch (e: any) {
       setUsernameError(e.message || 'Failed to set username');
@@ -594,7 +435,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-screen bg-[#0e0e0e] text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
+      <div className="flex flex-col min-h-[100dvh] bg-[#0e0e0e] text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
         <AppHeader onOpenProfileModal={() => user?.id && setShowOwnProfileModal(true)} />
         
         {/* Own Profile Modal triggered from header */}
@@ -617,6 +458,9 @@ export default function App() {
             pendingGame={pendingGame}
           />
         </main>
+
+        {/* Sleek Mobile Bottom Navigation Bar */}
+        <MobileBottomNav />
       </div>
     </BrowserRouter>
   );

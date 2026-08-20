@@ -6,7 +6,7 @@ import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
 import UserProfileModal from './UserProfileModal';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords, X } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords, X, MessageSquare, Share2, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
@@ -23,6 +23,7 @@ export default function Game() {
   const [showResignModal, setShowResignModal] = useState(false);
   const [isJoiningInvite, setIsJoiningInvite] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'chat' | 'share' | 'info'>('chat');
 
   const searchParams = new URLSearchParams(location.search);
   const inviteParam = searchParams.get('invite');
@@ -346,10 +347,10 @@ export default function Game() {
       )}
 
       {/* Arena Main Container */}
-      <main className="flex-grow w-full max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 flex flex-col lg:flex-row gap-5 lg:gap-6">
+      <main className="flex-grow w-full max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-3 sm:py-6 md:py-8 flex flex-col lg:flex-row gap-5 lg:gap-6">
         
-        {/* Right Column: Game Board & Actions (Rendered Top on Mobile, Right on Desktop) */}
-        <section className="flex-1 flex flex-col items-center justify-start gap-4 sm:gap-6 order-1 lg:order-2 w-full">
+        {/* Board & Action Panel (Top on Mobile, Right on Desktop) */}
+        <section className="flex-1 flex flex-col items-center justify-start gap-3 sm:gap-6 order-1 lg:order-2 w-full">
           
           {/* Top Bar Actions with Enhanced 'Back to Lobby' Button */}
           <div className="w-full flex justify-between items-center">
@@ -403,7 +404,7 @@ export default function Game() {
           <Connect4 game={game} user={user} isSpectator={isSpectator} onMove={handleMove} />
 
           {/* Action Bar Beneath Board */}
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-1 sm:mt-2 w-full max-w-2xl">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-1 w-full max-w-2xl">
             
             {/* Prominent Cancel Game Button Beneath Board when waiting */}
             {game.status === 'waiting' && game.player1 === user?.id && (
@@ -447,13 +448,144 @@ export default function Game() {
               </button>
             )}
           </div>
+
+          {/* Mobile-Only Segmented Tabs for Chat / Share / Details */}
+          <div className="lg:hidden w-full mt-2 space-y-3">
+            <div className="flex p-1 bg-[#141414] border border-white/10 rounded-full font-mono text-xs">
+              <button
+                onClick={() => setMobileTab('chat')}
+                className={`flex-1 py-2 rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  mobileTab === 'chat'
+                    ? 'bg-velocity-red text-white font-bold shadow-md'
+                    : 'text-text-secondary hover:text-white'
+                }`}
+              >
+                <MessageSquare size={13} />
+                <span>Chat</span>
+              </button>
+              <button
+                onClick={() => setMobileTab('share')}
+                className={`flex-1 py-2 rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  mobileTab === 'share'
+                    ? 'bg-velocity-red text-white font-bold shadow-md'
+                    : 'text-text-secondary hover:text-white'
+                }`}
+              >
+                <Share2 size={13} />
+                <span>Share</span>
+              </button>
+              <button
+                onClick={() => setMobileTab('info')}
+                className={`flex-1 py-2 rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  mobileTab === 'info'
+                    ? 'bg-velocity-red text-white font-bold shadow-md'
+                    : 'text-text-secondary hover:text-white'
+                }`}
+              >
+                <Info size={13} />
+                <span>Details</span>
+              </button>
+            </div>
+
+            {/* Mobile Tab 1: Chat */}
+            {mobileTab === 'chat' && (
+              <div className="rounded-2xl border border-white/10 overflow-hidden flex flex-col h-60 bg-[#141414] shadow-xl">
+                {isSpectator ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2 bg-[#121212]">
+                    <MessageSquareOff size={24} className="text-text-muted mb-1" />
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                      Private Chat
+                    </h4>
+                    <p className="text-xs text-text-muted max-w-[200px] font-sans">
+                      In-game chat is private and only available to active players.
+                    </p>
+                  </div>
+                ) : (
+                  <Chat gameId={game.id} />
+                )}
+              </div>
+            )}
+
+            {/* Mobile Tab 2: Share Links */}
+            {mobileTab === 'share' && (
+              <div className="rounded-2xl p-4 border border-white/10 bg-[#141414] space-y-3">
+                {game.status === 'waiting' && isPlayer1 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1 text-[11px] text-velocity-red font-semibold font-headline-lg">
+                      <UserPlus size={12} />
+                      <span>Invite Player Link (To Play)</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3 py-1.5 rounded-full outline-none select-all font-mono"
+                        readOnly
+                        type="text"
+                        value={getInviteUrl()}
+                      />
+                      <button
+                        onClick={handleCopyInvite}
+                        className="bg-velocity-red text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1 font-mono shrink-0"
+                      >
+                        {copiedInvite ? <Check size={12} /> : <Copy size={12} />}
+                        <span>{copiedInvite ? 'Copied' : 'Invite'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1 text-[11px] text-text-secondary font-semibold font-headline-lg">
+                    <Eye size={12} />
+                    <span>Spectator Link (To Watch)</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3 py-1.5 rounded-full outline-none select-all font-mono"
+                      readOnly
+                      type="text"
+                      value={getSpectateUrl()}
+                    />
+                    <button
+                      onClick={handleCopySpectate}
+                      className="bg-[#1e1e1e] border border-white/10 text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1 font-mono shrink-0"
+                    >
+                      {copiedSpectate ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                      <span>{copiedSpectate ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Tab 3: Match Details */}
+            {mobileTab === 'info' && (
+              <div className="rounded-2xl p-4 border border-white/10 bg-[#141414] space-y-3 font-mono text-xs">
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                  <span className="text-text-muted">Match ID</span>
+                  <span className="font-bold text-white">#{game.id.substring(0, 8).toUpperCase()}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                  <span className="text-text-muted">Stakes</span>
+                  <span className="font-bold text-velocity-red">{isFreeGame ? 'Free Play' : `${game.wager} SOL`}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                  <span className="text-text-muted">Player 1 (Red)</span>
+                  <span className="font-bold text-white">{p1DisplayName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-text-muted">Player 2 (White)</span>
+                  <span className="font-bold text-white">{game.player2 ? p2DisplayName : '...'}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* Left Column: Match Details & Chat (1/3) */}
-        <aside className="w-full lg:w-80 flex flex-col gap-5 order-2 lg:order-1 shrink-0">
+        {/* Left Column: Match Details & Chat (Desktop view only - hidden on mobile in favor of inline tabs) */}
+        <aside className="hidden lg:flex w-80 flex-col gap-5 order-2 lg:order-1 shrink-0">
           
           {/* Match Info Panel */}
-          <div className="rounded-2xl p-4 sm:p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
+          <div className="rounded-2xl p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <div>
                 <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold font-mono">Match ID</span>
@@ -559,7 +691,7 @@ export default function Game() {
 
             {/* Inactivity warning (Desktop) */}
             {game.status === 'active' && !isMyTurn && isParticipant && (
-              <div className="hidden lg:flex p-2.5 rounded-full bg-[#0e0e0e] border border-white/5 items-center justify-between text-xs px-4">
+              <div className="flex p-2.5 rounded-full bg-[#0e0e0e] border border-white/5 items-center justify-between text-xs px-4">
                 <span className="text-text-muted flex items-center gap-1.5 font-mono">
                   <AlertTriangle size={13} className="text-yellow-500" />
                   Opponent Timer:
@@ -653,15 +785,16 @@ export default function Game() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowResignModal(false)}
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+            className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4"
           >
             <motion.div
-              initial={{ scale: 0.95, y: 15 }}
+              initial={{ scale: 0.95, y: 30 }}
               animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
+              exit={{ scale: 0.95, y: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-[#141414] border border-white/10 shadow-2xl rounded-3xl p-6 sm:p-8 space-y-5"
+              className="w-full max-w-md bg-[#141414] border-t sm:border border-white/10 shadow-2xl rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 space-y-5"
             >
+              <div className="sm:hidden w-10 h-1 rounded-full bg-white/20 mx-auto -mt-2 mb-2" />
               <h3 className="text-lg font-bold text-white font-headline-lg">Resign Match</h3>
               <p className="text-xs text-text-secondary">
                 Are you sure you want to forfeit this match? Your opponent will be awarded the victory.
@@ -669,13 +802,13 @@ export default function Game() {
               <div className="flex gap-3 justify-end pt-2">
                 <button
                   onClick={() => setShowResignModal(false)}
-                  className="px-5 py-2 rounded-full bg-[#202020] text-white text-xs font-medium cursor-pointer"
+                  className="flex-1 sm:flex-none px-5 py-2.5 rounded-full bg-[#202020] text-white text-xs font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmResign}
-                  className="px-6 py-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-all shadow-[0_0_15px_rgba(255,0,0,0.4)] cursor-pointer font-mono"
+                  className="flex-1 sm:flex-none px-6 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-all shadow-[0_0_15px_rgba(255,0,0,0.4)] cursor-pointer font-mono text-center"
                 >
                   Confirm Resign
                 </button>
@@ -692,19 +825,20 @@ export default function Game() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 15 }}
+              initial={{ scale: 0.9, y: 30 }}
               animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 15 }}
-              className="rounded-3xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#141414] relative overflow-hidden"
+              exit={{ scale: 0.9, y: 30 }}
+              className="rounded-t-3xl sm:rounded-3xl p-6 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-5 sm:gap-6 border-t sm:border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#141414] relative overflow-hidden"
             >
+              <div className="sm:hidden w-10 h-1 rounded-full bg-white/20 mx-auto -mt-1" />
               <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
 
               {/* Icon */}
               <div
-                className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl ${
+                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-xl ${
                   isWinner
                     ? 'bg-velocity-red text-white shadow-[0_0_25px_rgba(255,77,77,0.7)]'
                     : isDraw
@@ -712,7 +846,7 @@ export default function Game() {
                     : 'bg-[#1a1a1a] text-text-secondary border border-white/10'
                 }`}
               >
-                {isWinner ? <Trophy size={32} /> : isDraw ? <User size={32} /> : <XCircle size={32} />}
+                {isWinner ? <Trophy size={28} /> : isDraw ? <User size={28} /> : <XCircle size={28} />}
               </div>
 
               {/* Title & Standard Subtitles */}
@@ -720,7 +854,7 @@ export default function Game() {
                 <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
                 </h2>
-                <p className="text-sm text-text-secondary font-sans">
+                <p className="text-xs sm:text-sm text-text-secondary font-sans">
                   {isWinner
                     ? isFreeGame ? 'Free game' : `Stakes: ${game.wager} SOL`
                     : isDraw
@@ -737,7 +871,7 @@ export default function Game() {
                   setShowWinModal(false);
                   handleLeave();
                 }}
-                className="w-full bg-velocity-red text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono cursor-pointer"
+                className="w-full bg-velocity-red text-white py-3.5 rounded-full text-xs sm:text-sm uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono cursor-pointer"
               >
                 Back to Lobby
               </button>

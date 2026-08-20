@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { X, ExternalLink, Copy, Check, Swords, Trophy, XCircle, Loader2, FlaskConical, User as UserIcon } from 'lucide-react';
+import { useGameStore } from '../store';
+import { X, ExternalLink, Copy, Check, Loader2, FlaskConical, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserProfileModalProps {
@@ -12,6 +13,8 @@ interface UserProfileModalProps {
 
 export default function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
   const navigate = useNavigate();
+  const { user: currentUser, solBalance: storeSolBalance } = useGameStore();
+
   const [profileData, setProfileData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [solBalance, setSolBalance] = useState<number | null>(null);
@@ -24,6 +27,14 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
       setProfileData(null);
       setHistory([]);
       return;
+    }
+
+    // Immediately seed with currentUser if inspecting own account
+    if (currentUser && currentUser.id === userId) {
+      setProfileData(currentUser);
+      if (currentUser.isTestUser) {
+        setIsLoading(false);
+      }
     }
 
     setIsLoading(true);
@@ -43,11 +54,23 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               .catch(() => {});
           }
         } else {
-          setProfileData({ id: userId, username: userId.startsWith('test_') ? 'Guest Player' : 'Player', isTestUser: true });
+          // If no doc in Firestore, check if it's the current user session (guest)
+          if (currentUser && currentUser.id === userId) {
+            setProfileData(currentUser);
+          } else {
+            setProfileData({
+              id: userId,
+              username: 'Guest Player',
+              isTestUser: true,
+            });
+          }
         }
       })
       .catch((err) => {
         console.error('Error fetching user profile:', err);
+        if (currentUser && currentUser.id === userId) {
+          setProfileData(currentUser);
+        }
       })
       .finally(() => {
         setIsLoading(false);
@@ -66,14 +89,13 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
     });
 
     return () => unsub();
-  }, [userId]);
+  }, [userId, currentUser]);
 
   if (!userId) return null;
 
   const isTestUser = profileData?.isTestUser || profileData?.id?.startsWith('test_') || !profileData?.walletAddress;
-  const displayName = isTestUser
-    ? (profileData?.username || 'Guest Player')
-    : `@${profileData?.username || 'Player'}`;
+  const rawUsername = profileData?.username || (currentUser?.id === userId ? currentUser?.username : null) || 'Guest';
+  const displayName = isTestUser ? rawUsername : `@${rawUsername}`;
 
   const handleCopyWallet = () => {
     if (!profileData?.walletAddress) return;
@@ -171,7 +193,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                   <img src={profileData.avatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
-                    {profileData?.username ? profileData.username.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
+                    {rawUsername ? rawUsername.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
                   </div>
                 )}
               </div>
@@ -242,7 +264,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             <div className="p-3 text-center">
               <span className="text-[10px] text-text-muted uppercase block">SOL</span>
               <span className="text-sm font-bold text-velocity-red">
-                {solBalance !== null ? `${solBalance.toFixed(3)}` : isTestUser ? '—' : '0.000'}
+                {solBalance !== null ? `${solBalance.toFixed(3)}` : (storeSolBalance !== null && currentUser?.id === userId ? `${storeSolBalance.toFixed(3)}` : isTestUser ? '—' : '0.000')}
               </span>
             </div>
           </div>
@@ -324,7 +346,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             )}
           </div>
 
-          {/* Bottom Actions - Removed redundant red button */}
+          {/* Bottom Actions */}
           <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-end items-center shrink-0">
             <button
               onClick={onClose}

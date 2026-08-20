@@ -134,7 +134,7 @@ export default function AdminPanel() {
   const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, matchId: string) => {
     e.stopPropagation();
     if (!oppId || oppId.startsWith('test_')) {
-      setTestUserToast({ matchId, message: 'Test User — No permanent profile' });
+      setTestUserToast({ matchId, message: 'Guest User (Temporary Account)' });
       setTimeout(() => {
         setTestUserToast((prev) => (prev?.matchId === matchId ? null : prev));
       }, 2500);
@@ -144,7 +144,7 @@ export default function AdminPanel() {
     if (foundUser) {
       setInspectUser(foundUser);
     } else {
-      setInspectUser({ id: oppId, username: 'Player', walletAddress: null });
+      setInspectUser({ id: oppId, username: 'Guest Player', walletAddress: null, isTestUser: true });
     }
   };
 
@@ -701,7 +701,7 @@ export default function AdminPanel() {
               </button>
 
               {/* Banner Container */}
-              <div className="relative w-full h-32 bg-black border-b border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+              <div className="relative w-full h-32 sm:h-36 bg-black border-b border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
                 {inspectUser.bannerUrl ? (
                   <img src={inspectUser.bannerUrl} alt="Banner" className="w-full h-full object-contain" />
                 ) : (
@@ -711,59 +711,67 @@ export default function AdminPanel() {
                 )}
               </div>
 
-              {/* User Avatar and Meta - Fixed No Line-Wrap */}
+              {/* Profile Header Content - Clean Separation without text overlapping banner */}
               <div className="px-6 pb-4 pt-0 border-b border-white/10 relative">
-                <div className="flex items-end justify-between gap-3 -mt-10 mb-3">
-                  
-                  <div className="flex items-end gap-3.5 min-w-0">
-                    <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
-                      {inspectUser.avatarUrl ? (
-                        <img src={inspectUser.avatarUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
-                          {inspectUser.username ? inspectUser.username.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-0.5 pb-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-xl font-bold text-white font-headline-lg truncate">
-                          {inspectUser.isTestUser || !inspectUser.walletAddress ? inspectUser.username : `@${inspectUser.username}`}
-                        </h3>
-                        {inspectUser.walletAddress === OWNER_WALLET && (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
-                            <Crown size={11} /> Owner
-                          </span>
-                        )}
-                        {(inspectUser.isAdmin || inspectUser.role === 'admin') && inspectUser.walletAddress !== OWNER_WALLET && (
-                          <span className="px-2 py-0.5 rounded-full bg-velocity-red/15 text-velocity-red border border-velocity-red/40 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
-                            <ShieldCheck size={11} /> Admin
-                          </span>
-                        )}
+                
+                {/* Top row: Avatar & Full Page action */}
+                <div className="flex items-end justify-between gap-3 mb-2.5">
+                  <div className="-mt-12 w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
+                    {inspectUser.avatarUrl ? (
+                      <img src={inspectUser.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
+                        {inspectUser.username ? inspectUser.username.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
                       </div>
-                      <p className="text-xs text-text-muted font-mono truncate">
-                        User ID: {inspectUser.id}
-                      </p>
-                    </div>
+                    )}
                   </div>
 
                   {/* Non-wrapping Full Page Button */}
                   <Link
                     to={`/profile/${inspectUser.id}`}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 text-xs font-semibold text-white transition-all font-mono shrink-0 whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 hover:border-velocity-red text-xs font-semibold text-white transition-all font-mono shrink-0 whitespace-nowrap"
                   >
                     <span className="whitespace-nowrap">Full Page</span>
-                    <ExternalLink size={12} className="shrink-0" />
+                    <ExternalLink size={12} className="shrink-0 text-text-muted" />
                   </Link>
                 </div>
 
+                {/* Bottom row: Username and Metadata (sitting comfortably below avatar) */}
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl font-bold text-white font-headline-lg truncate">
+                      {inspectUser.isTestUser || !inspectUser.walletAddress ? inspectUser.username : `@${inspectUser.username}`}
+                    </h3>
+                    {inspectUser.walletAddress === OWNER_WALLET && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
+                        <Crown size={11} /> Owner
+                      </span>
+                    )}
+                    {(inspectUser.isAdmin || inspectUser.role === 'admin') && inspectUser.walletAddress !== OWNER_WALLET && (
+                      <span className="px-2 py-0.5 rounded-full bg-velocity-red/15 text-velocity-red border border-velocity-red/40 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
+                        <ShieldCheck size={11} /> Admin
+                      </span>
+                    )}
+                    {(inspectUser.isTestUser || !inspectUser.walletAddress) && (
+                      <span className="text-[10px] font-mono text-velocity-red px-2 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold shrink-0">
+                        <FlaskConical size={10} />
+                        <span>Guest</span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-text-muted font-mono truncate">
+                    User ID: {inspectUser.id}
+                  </p>
+                </div>
+
+                {/* Wallet Address Pill */}
                 {inspectUser.walletAddress && (
-                  <div className="text-xs font-mono text-text-secondary bg-[#0e0e0e] p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
+                  <div className="text-xs font-mono text-text-secondary bg-[#0e0e0e] p-2.5 rounded-xl border border-white/5 flex items-center justify-between mt-2.5">
                     <span className="truncate">{inspectUser.walletAddress}</span>
                     <button
                       onClick={() => handleCopyWallet(inspectUser.walletAddress, inspectUser.id)}
                       className="ml-2 text-text-muted hover:text-white shrink-0 cursor-pointer"
+                      title="Copy wallet address"
                     >
                       {copiedId === inspectUser.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
                     </button>
@@ -829,7 +837,7 @@ export default function AdminPanel() {
                       const isDraw = g.winner === 'draw';
                       const oppId = g.player1 === inspectUser.id ? g.player2 : g.player1;
                       const oppName = g.player1 === inspectUser.id ? g.player2Name : g.player1Name;
-                      const isOppTest = oppId?.startsWith('test_');
+                      const isOppTest = oppId?.startsWith('test_') || g.player1IsTest || g.player2IsTest;
                       const oppDisplay = isOppTest ? (oppName || 'Guest') : `@${oppName || 'Opponent'}`;
 
                       return (
@@ -837,7 +845,7 @@ export default function AdminPanel() {
                           key={g.id}
                           className="flex items-center justify-between p-3 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono relative"
                         >
-                          {/* Test User Toast Popup */}
+                          {/* Guest User Toast Popup */}
                           <AnimatePresence>
                             {testUserToast?.matchId === g.id && (
                               <motion.div

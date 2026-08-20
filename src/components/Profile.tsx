@@ -196,7 +196,7 @@ export default function Profile() {
         <section className="mb-10 rounded-xl bg-surface-base border border-white/10 overflow-hidden shadow-2xl relative">
           
           {/* Banner Container */}
-          <div className="relative w-full h-36 sm:h-48 md:h-56 bg-gradient-to-r from-surface-elevated via-surface-container to-surface-base border-b border-white/10 overflow-hidden group">
+          <div className="relative w-full h-40 sm:h-52 md:h-60 bg-gradient-to-r from-surface-elevated via-surface-container to-surface-base border-b border-white/10 overflow-hidden group">
             {profileData.bannerUrl ? (
               <img src={profileData.bannerUrl} alt="Banner" className="w-full h-full object-cover" />
             ) : (
@@ -210,7 +210,7 @@ export default function Profile() {
               <button
                 onClick={() => bannerInputRef.current?.click()}
                 disabled={isUploadingBanner}
-                className="absolute top-3 right-3 bg-black/70 hover:bg-black/90 border border-white/15 text-white text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all opacity-80 group-hover:opacity-100 backdrop-blur-sm"
+                className="absolute top-3 right-3 bg-black/70 hover:bg-black/90 border border-white/15 text-white text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-sm shadow-md"
               >
                 {isUploadingBanner ? (
                   <Loader2 size={13} className="animate-spin text-velocity-red" />
@@ -222,16 +222,15 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Profile Header Content */}
-          <div className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-end justify-between gap-6 -mt-16 sm:-mt-20 relative z-10">
+          {/* Profile Header Content: Avatar overlapping cleanly without covering text */}
+          <div className="px-6 md:px-8 pb-6 md:pb-8 pt-0 relative z-10">
             
-            {/* Avatar & User Details */}
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
               
-              {/* Avatar */}
+              {/* Avatar (with only the avatar container having the negative top margin) */}
               <div
                 onClick={() => isOwnProfile && avatarInputRef.current?.click()}
-                className={`w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border-4 border-[#121212] bg-surface-elevated relative group shrink-0 shadow-2xl ${
+                className={`-mt-14 sm:-mt-16 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border-4 border-[#121212] bg-surface-elevated relative group shrink-0 shadow-2xl ${
                   isOwnProfile ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
                 }`}
                 title={isOwnProfile ? 'Click to change profile picture' : ''}
@@ -265,8 +264,8 @@ export default function Profile() {
                 )}
               </div>
 
-              {/* Names & Wallet */}
-              <div className="space-y-1.5 pb-1">
+              {/* Names & Wallet — Positioned cleanly below banner */}
+              <div className="space-y-1 pt-2 sm:pt-4">
                 <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-text-primary font-bold tracking-tight">
                   {profileData.username}
                 </h1>
@@ -275,7 +274,7 @@ export default function Profile() {
                   <div className="flex items-center justify-center sm:justify-start gap-2">
                     <button
                       onClick={handleCopyWallet}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container/80 border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-text-primary font-mono transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container/80 border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-text-primary font-mono transition-colors"
                       title="Copy wallet address"
                     >
                       <span>{walletDisplay}</span>
@@ -289,19 +288,6 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Profile Action Buttons */}
-            {isOwnProfile && (
-              <div className="flex gap-3 w-full sm:w-auto">
-                <button
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={isUploadingAvatar}
-                  className="flex-1 sm:flex-none border border-white/10 bg-surface-container hover:bg-surface-elevated text-text-primary hover:border-velocity-red px-4 py-2 rounded-md text-xs font-semibold tracking-wide transition-colors flex items-center justify-center gap-2"
-                >
-                  <Camera size={14} />
-                  {isUploadingAvatar ? 'Updating...' : 'Change Picture'}
-                </button>
-              </div>
-            )}
           </div>
         </section>
 
@@ -350,7 +336,7 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Card 4: SOL Holdings / Stakes */}
+          {/* Card 4: SOL Holdings */}
           <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">SOL Balance</span>
@@ -441,7 +427,7 @@ export default function Profile() {
                             )}
                           </td>
                           <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}`}>
-                            {game.wager > 0 ? `${isWin ? '+' : '-'}${game.wager} ${game.wagerCurrency}` : 'FREE'}
+                            {game.wager > 0 ? `${isWin ? '+' : '-'}${game.wager} ${game.wagerCurrency}` : 'Free'}
                           </td>
                           <td className="py-3.5 px-5 text-right">
                             <button

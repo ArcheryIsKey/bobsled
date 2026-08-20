@@ -6,6 +6,7 @@ export interface User {
   username: string;
   avatarUrl?: string;
   bannerUrl?: string;
+  isTestUser?: boolean;
   createdAt?: any;
 }
 

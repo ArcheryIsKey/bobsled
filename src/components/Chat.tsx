@@ -31,30 +31,32 @@ export default function Chat({ gameId }: { gameId: string }) {
     return () => unsub();
   }, [gameId]);
 
-  const handleSend = async (e: React.FormEvent) => {
+  const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || !user) return;
+    const messageToSend = text.trim();
+    if (!messageToSend || !user) return;
 
-    try {
-      await addDoc(collection(db, `games/${gameId}/messages`), {
-        senderId: user.id,
-        senderName: user.username,
-        text: text.trim(),
-        createdAt: serverTimestamp(),
-      });
-      setText('');
-    } catch (err) {
-      console.error(err);
-    }
+    // Immediately clear input box for instant feedback
+    setText('');
+
+    // Send in the background
+    addDoc(collection(db, `games/${gameId}/messages`), {
+      senderId: user.id,
+      senderName: user.username,
+      text: messageToSend,
+      createdAt: serverTimestamp(),
+    }).catch((err) => {
+      console.error('Failed to send message:', err);
+    });
   };
 
   return (
-    <div className="flex flex-col h-full bg-surface-base">
+    <div className="flex flex-col h-full bg-[#141414]">
       {/* Header */}
-      <div className="p-3.5 border-b border-white/10 flex justify-between items-center bg-surface-elevated/40">
+      <div className="p-3.5 border-b border-white/10 flex justify-between items-center bg-[#181818]">
         <div className="flex items-center gap-2">
           <MessageSquare size={14} className="text-velocity-red" />
-          <h3 className="text-xs text-text-primary font-bold uppercase tracking-wider">
+          <h3 className="text-xs text-white font-bold uppercase tracking-wider">
             Game Chat
           </h3>
         </div>
@@ -87,7 +89,7 @@ export default function Chat({ gameId }: { gameId: string }) {
                     {time}
                   </span>
                 </div>
-                <p className="text-text-secondary text-xs break-words bg-surface-container/50 p-2 rounded-md border border-white/5">
+                <p className="text-text-secondary text-xs break-words bg-[#1a1a1a] p-2 rounded-md border border-white/5">
                   {msg.text}
                 </p>
               </div>
@@ -98,14 +100,14 @@ export default function Chat({ gameId }: { gameId: string }) {
       </div>
 
       {/* Input */}
-      <div className="p-2.5 bg-surface-elevated border-t border-white/10 mt-auto">
+      <div className="p-2.5 bg-[#181818] border-t border-white/10 mt-auto">
         <form onSubmit={handleSend} className="flex gap-2">
           <input
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 bg-surface-base border border-white/10 text-text-primary text-xs px-3 py-1.5 rounded-md focus:border-velocity-red outline-none placeholder:text-text-muted"
+            className="flex-1 bg-[#101010] border border-white/10 text-white text-xs px-3 py-1.5 rounded-md focus:border-velocity-red outline-none placeholder:text-text-muted"
           />
           <button
             type="submit"

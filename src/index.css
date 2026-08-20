@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 @import "tailwindcss";
@@ -7,7 +6,7 @@
 @theme {
   --color-surface-base: #121212;
   --color-velocity-red: #ff4d4d;
-  --color-text-muted: #666666;
+  --color-text-muted: #737373;
   --color-on-tertiary-fixed: #1c1b1b;
   --color-surface-tint: #ffb3ae;
   --color-on-secondary-container: #b4b5b5;
@@ -19,91 +18,85 @@
   --color-inverse-primary: #ba1724;
   --color-error: #ffb4ab;
   --color-on-surface: #e5e2e1;
-  --color-background: #131313;
-  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-background: #0e0e0e;
+  --color-glass-border: rgba(255, 255, 255, 0.1);
   --color-text-primary: #ffffff;
   --color-error-container: #93000a;
   --color-secondary-fixed-dim: #c6c6c7;
   --color-on-surface-variant: #e4beba;
-  --color-surface-dim: #131313;
-  --color-text-secondary: #a1a1a1;
+  --color-surface-dim: #101010;
+  --color-text-secondary: #a3a3a3;
   --color-on-secondary-fixed: #1a1c1c;
-  --color-surface-variant: #353534;
+  --color-surface-variant: #262626;
   --color-tertiary-fixed-dim: #c8c6c5;
-  --color-surface-elevated: #1a1a1a;
+  --color-surface-elevated: #181818;
   --color-inverse-on-surface: #313030;
   --color-on-error: #690005;
-  --color-primary: #ffb3ae;
-  --color-surface: #131313;
+  --color-primary: #ff4d4d;
+  --color-surface: #141414;
   --color-tertiary-fixed: #e5e2e1;
   --color-on-primary-fixed-variant: #930014;
   --color-outline-variant: #5b403e;
   --color-secondary: #c6c6c7;
-  --color-surface-container-low: #1c1b1b;
+  --color-surface-container-low: #141414;
   --color-secondary-container: #454747;
   --color-secondary-fixed: #e2e2e2;
   --color-on-secondary: #2f3131;
   --color-tertiary-container: #929090;
-  --color-primary-container: #ff5352;
+  --color-primary-container: #ff4d4d;
   --color-on-tertiary-container: #2a2a2a;
-  --color-surface-container-highest: #353534;
+  --color-surface-container-highest: #2e2e2e;
   --color-primary-fixed: #ffdad7;
-  --color-surface-container-high: #2a2a2a;
-  --color-surface-container-lowest: #0e0e0e;
-  --color-surface-bright: #3a3939;
+  --color-surface-container-high: #242424;
+  --color-surface-container-lowest: #0a0a0a;
+  --color-surface-bright: #333333;
   --color-on-primary-container: #5c0008;
   --color-on-error-container: #ffdad6;
   --color-tertiary: #c8c6c5;
   --color-primary-fixed-dim: #ffb3ae;
-  --color-on-background: #e5e2e1;
+  --color-on-background: #ffffff;
   --color-inverse-surface: #e5e2e1;
   --color-on-tertiary: #313030;
-  --color-surface-container: #201f1f;
-  --radius: 0.125rem;
-  --radius-lg: 0.25rem;
-  --radius-xl: 0.5rem;
-  --radius-full: 0.75rem;
+  --color-surface-container: #1e1e1e;
+  
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
   --spacing-margin-mobile: 16px;
   --spacing-max-width: 1280px;
   --spacing-gutter: 24px;
   --spacing-base: 4px;
   --spacing-margin-desktop: 40px;
-  --font-body-md: Inter;
-  --font-headline-lg: Hanken Grotesk;
-  --font-headline-lg-mobile: Hanken Grotesk;
-  --font-display-lg: Hanken Grotesk;
-  --font-body-sm: Inter;
-  --font-label-caps: JetBrains Mono;
-  --text-body-md: 16px;
-  --text-body-md--line-height: 24px;
-  --text-body-md--font-weight: 400;
-  --text-headline-lg: 32px;
-  --text-headline-lg--line-height: 40px;
-  --text-headline-lg--font-weight: 600;
-  --text-headline-lg-mobile: 24px;
-  --text-headline-lg-mobile--line-height: 32px;
-  --text-headline-lg-mobile--font-weight: 600;
-  --text-display-lg: 48px;
-  --text-display-lg--line-height: 56px;
-  --text-display-lg--font-weight: 700;
-  --text-display-lg--letter-spacing: -0.02em;
-  --text-body-sm: 14px;
-  --text-body-sm--line-height: 20px;
-  --text-body-sm--font-weight: 400;
-  --text-label-caps: 12px;
-  --text-label-caps--line-height: 16px;
-  --text-label-caps--font-weight: 500;
-  --text-label-caps--letter-spacing: 0.05em;
+
+  --font-body-md: 'Inter', sans-serif;
+  --font-headline-lg: 'Hanken Grotesk', sans-serif;
+  --font-headline-lg-mobile: 'Hanken Grotesk', sans-serif;
+  --font-display-lg: 'Hanken Grotesk', sans-serif;
+  --font-body-sm: 'Inter', sans-serif;
+  --font-label-caps: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-body { font-family: 'Inter', sans-serif; background-color: theme('colors.background'); color: theme('colors.text-primary'); }
-        h1, h2, h3, h4, h5, h6, .font-display-lg, .font-headline-lg { font-family: 'Hanken Grotesk', sans-serif; }
-        .glass-panel {
-            background-color: theme('colors.surface-base');
-            border: 1px solid theme('colors.glass-border');
-            backdrop-filter: blur(16px);
-        }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #0e0e0e;
+  color: #ffffff;
+}
 
-button, a, [role="button"], input[type="submit"], input[type="button"], input[type="checkbox"], input[type="radio"], select, summary, label, .clickable { 
-  cursor: pointer; 
+h1, h2, h3, h4, h5, h6, .font-display-lg, .font-headline-lg {
+  font-family: 'Hanken Grotesk', sans-serif;
+}
+
+code, pre, .font-mono, .font-label-caps {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.glass-panel {
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }

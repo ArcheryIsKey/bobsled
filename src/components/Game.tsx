@@ -423,11 +423,11 @@ export default function Game() {
                   </div>
                   <div>
                     <p className="font-headline-lg text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
-                      <span>{game.player2 ? p2DisplayName : 'Waiting for Player 2...'}</span>
+                      <span>{game.player2 ? p2DisplayName : '...'}</span>
                       <span className="text-[11px] text-text-secondary font-semibold font-mono tracking-normal">(White)</span>
                     </p>
                     <p className="text-xs text-text-muted font-mono">
-                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Awaiting opponent'}
+                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for opponent'}
                     </p>
                   </div>
                 </div>

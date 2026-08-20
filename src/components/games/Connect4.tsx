@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ChevronDown } from 'lucide-react';
 
@@ -48,29 +48,10 @@ interface Connect4Props {
 
 export default function Connect4({ game, user, isSpectator, onMove }: Connect4Props) {
   const [hoverColumn, setHoverColumn] = useState<number | null>(null);
-  const [lastPlacedIndex, setLastPlacedIndex] = useState<number | null>(null);
-  const prevBoardRef = useRef<number[]>(game.board);
 
   const isMyTurn = !isSpectator && game.turn === user?.id && game.status === 'active';
   const isPlayer1 = user?.id === game.player1;
   const myPlayerNumber = isPlayer1 ? 1 : 2;
-
-  // Track the most recently dropped piece so only it animates from top
-  useEffect(() => {
-    const prev = prevBoardRef.current;
-    const curr = game.board;
-    let changedIdx: number | null = null;
-    for (let i = 0; i < curr.length; i++) {
-      if (prev[i] === 0 && curr[i] !== 0) {
-        changedIdx = i;
-        break;
-      }
-    }
-    if (changedIdx !== null) {
-      setLastPlacedIndex(changedIdx);
-    }
-    prevBoardRef.current = curr;
-  }, [game.board]);
 
   // Calculate winning cells if match is finished
   const winningIndices = useMemo(() => {
@@ -206,10 +187,9 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                   const isDimmed = isFinishedWithWinner && !isWinningCell;
 
                   const isGhostSlot = isColHovered && hoverLandingRow === rowIndex && cellValue === 0;
-                  const isJustDropped = lastPlacedIndex === cellIndex;
 
-                  // Dynamic top-of-board drop distance based on row index
-                  const dropDistance = -((rowIndex + 2.2) * 65);
+                  // Distance from above the board down to this row
+                  const dropY = -((rowIndex + 2.2) * 75);
 
                   return (
                     <div
@@ -230,23 +210,17 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                         />
                       )}
 
-                      {/* Placed Disc with Clean Circular Physics Drop (No awkward hovering or deformation) */}
+                      {/* Placed Disc with Physics Drop from Above the Board */}
                       {cellValue !== 0 && (
                         <motion.div
-                          initial={
-                            isJustDropped
-                              ? { y: dropDistance, opacity: 0.9 }
-                              : false
-                          }
-                          animate={{
-                            y: 0,
-                            opacity: 1,
-                          }}
+                          key={`disc-${cellValue}`}
+                          initial={{ y: dropY }}
+                          animate={{ y: 0 }}
                           transition={{
                             type: 'spring',
-                            damping: 16,
-                            stiffness: 220,
-                            mass: 0.85,
+                            damping: 14,
+                            stiffness: 180,
+                            mass: 0.8,
                           }}
                           className={`w-full h-full rounded-full flex items-center justify-center relative transition-all duration-300 z-10 ${
                             isDimmed ? 'opacity-35 scale-95 grayscale-[40%]' : 'opacity-100'

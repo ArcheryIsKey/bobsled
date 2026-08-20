@@ -105,31 +105,22 @@ export default function Dashboard() {
     try {
       const gameRef = doc(db, 'games', game.id);
 
-      // Randomly assign who plays as Red (Player 1) vs White (Player 2)
+      // Randomly assign who is Red vs White
       const isHostRed = Math.random() > 0.5;
-      const assignedP1 = isHostRed ? game.player1 : user.id;
-      const assignedP1Name = isHostRed ? game.player1Name : user.username;
-      const assignedP1Avatar = isHostRed ? game.player1Avatar : (user.avatarUrl || null);
-      const assignedP1IsTest = isHostRed ? game.player1IsTest : !!user.isTestUser;
-
-      const assignedP2 = isHostRed ? user.id : game.player1;
-      const assignedP2Name = isHostRed ? user.username : game.player1Name;
-      const assignedP2Avatar = isHostRed ? (user.avatarUrl || null) : game.player1Avatar;
-      const assignedP2IsTest = isHostRed ? !!user.isTestUser : game.player1IsTest;
+      const player1Color = isHostRed ? 'red' : 'white';
+      const player2Color = isHostRed ? 'white' : 'red';
 
       // Randomly assign who goes first
-      const firstTurn = Math.random() > 0.5 ? assignedP1 : assignedP2;
+      const firstTurn = Math.random() > 0.5 ? game.player1 : user.id;
 
       const updates: any = {
-        player1: assignedP1,
-        player1Name: assignedP1Name,
-        player1Avatar: assignedP1Avatar,
-        player1IsTest: assignedP1IsTest,
-        player2: assignedP2,
-        player2Name: assignedP2Name,
-        player2Avatar: assignedP2Avatar,
-        player2IsTest: assignedP2IsTest,
-        players: [assignedP1, assignedP2],
+        player2: user.id,
+        player2Name: user.username || 'Player 2',
+        player2Avatar: user.avatarUrl || null,
+        player2IsTest: !!user.isTestUser,
+        players: [game.player1, user.id],
+        player1Color,
+        player2Color,
         status: 'active',
         turn: firstTurn,
         updatedAt: serverTimestamp(),
@@ -137,9 +128,9 @@ export default function Dashboard() {
 
       await updateDoc(gameRef, updates);
       navigate(`/game/${game.id}`);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to join match');
+    } catch (e: any) {
+      console.error('Failed to join match:', e);
+      alert(e?.message || 'Failed to join match');
     }
   };
 

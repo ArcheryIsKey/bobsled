@@ -28,10 +28,7 @@ export default function Game() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [dismissedInviteModal, setDismissedInviteModal] = useState(false);
 
-  const searchParams = new URLSearchParams(location.search);
-  const inviteParam = searchParams.get('invite');
   const isExplicitWatchRoute = location.pathname.startsWith('/watch/');
-
   const heartbeatIntervalRef = useRef<any>(null);
 
   useEffect(() => {
@@ -161,7 +158,7 @@ export default function Game() {
     };
   }, [game, user]);
 
-  // Handle joining via one-time invite link with randomized Red vs White and Turn
+  // Handle joining via match challenge modal with randomized Red vs White and Turn
   const handleJoinViaInvite = async () => {
     if (!user || !game || game.status !== 'waiting') return;
     if (user.id === game.player1) return;
@@ -173,31 +170,22 @@ export default function Game() {
 
     setIsJoiningInvite(true);
     try {
-      // Randomly assign who plays as Red (Player 1) vs White (Player 2)
+      // Randomly assign who is Red vs White
       const isHostRed = Math.random() > 0.5;
-      const assignedP1 = isHostRed ? game.player1 : user.id;
-      const assignedP1Name = isHostRed ? game.player1Name : user.username;
-      const assignedP1Avatar = isHostRed ? game.player1Avatar : (user.avatarUrl || null);
-      const assignedP1IsTest = isHostRed ? game.player1IsTest : !!user.isTestUser;
-
-      const assignedP2 = isHostRed ? user.id : game.player1;
-      const assignedP2Name = isHostRed ? user.username : game.player1Name;
-      const assignedP2Avatar = isHostRed ? (user.avatarUrl || null) : game.player1Avatar;
-      const assignedP2IsTest = isHostRed ? !!user.isTestUser : game.player1IsTest;
+      const player1Color = isHostRed ? 'red' : 'white';
+      const player2Color = isHostRed ? 'white' : 'red';
 
       // Randomly assign who goes first
-      const firstTurn = Math.random() > 0.5 ? assignedP1 : assignedP2;
+      const firstTurn = Math.random() > 0.5 ? game.player1 : user.id;
 
       const updates: any = {
-        player1: assignedP1,
-        player1Name: assignedP1Name,
-        player1Avatar: assignedP1Avatar,
-        player1IsTest: assignedP1IsTest,
-        player2: assignedP2,
-        player2Name: assignedP2Name,
-        player2Avatar: assignedP2Avatar,
-        player2IsTest: assignedP2IsTest,
-        players: [assignedP1, assignedP2],
+        player2: user.id,
+        player2Name: user.username || 'Player 2',
+        player2Avatar: user.avatarUrl || null,
+        player2IsTest: !!user.isTestUser,
+        players: [game.player1, user.id],
+        player1Color,
+        player2Color,
         status: 'active',
         turn: firstTurn,
         updatedAt: serverTimestamp(),
@@ -205,9 +193,9 @@ export default function Game() {
 
       await updateDoc(doc(db, 'games', game.id), updates);
       setDismissedInviteModal(true);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to join match via invite:', e);
-      alert('Failed to join match.');
+      alert(e?.message || 'Failed to join match.');
     } finally {
       setIsJoiningInvite(false);
     }
@@ -324,6 +312,14 @@ export default function Game() {
   const isP1Guest = game.player1IsTest || game.player1?.startsWith?.('test_');
   const isP2Guest = game.player2IsTest || game.player2?.startsWith?.('test_');
 
+  const p1Color = game.player1Color || 'red';
+  const p2Color = game.player2Color || (p1Color === 'red' ? 'white' : 'red');
+  const p1IsRed = p1Color === 'red';
+  const p2IsRed = p2Color === 'red';
+
+  const p1ColorLabel = p1IsRed ? 'Red' : 'White';
+  const p2ColorLabel = p2IsRed ? 'Red' : 'White';
+
   const p1DisplayName = isP1Guest
     ? (game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1')
     : `@${game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1'}`;
@@ -400,12 +396,12 @@ export default function Game() {
           {/* Mobile-Only Player Summary Bar Above Board */}
           <div className="lg:hidden w-full bg-[#141414] border border-white/10 rounded-2xl p-2.5 flex items-center justify-between shadow-md font-mono text-xs">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="w-3 h-3 rounded-full bg-velocity-red shrink-0 shadow-[0_0_8px_rgba(255,77,77,0.6)]" />
+              <span className={`w-3 h-3 rounded-full shrink-0 ${p1IsRed ? 'bg-velocity-red shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
               <div className="min-w-0">
                 <p className={`truncate font-semibold text-xs ${game.turn === game.player1 && game.status === 'active' ? 'text-velocity-red font-bold' : 'text-white'}`}>
                   {p1DisplayName}
                 </p>
-                <p className="text-[10px] text-text-muted">Red</p>
+                <p className="text-[10px] text-text-muted">{p1ColorLabel}</p>
               </div>
             </div>
 
@@ -418,9 +414,9 @@ export default function Game() {
                 <p className={`truncate font-semibold text-xs ${game.turn === game.player2 && game.status === 'active' ? 'text-velocity-red font-bold' : 'text-white'}`}>
                   {game.player2 ? p2DisplayName : '...'}
                 </p>
-                <p className="text-[10px] text-text-muted">White</p>
+                <p className="text-[10px] text-text-muted">{p2ColorLabel}</p>
               </div>
-              <span className="w-3 h-3 rounded-full bg-white shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+              <span className={`w-3 h-3 rounded-full shrink-0 ${p2IsRed ? 'bg-velocity-red shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
             </div>
           </div>
 
@@ -517,24 +513,28 @@ export default function Game() {
             {/* Player VS Player */}
             <div className="bg-[#0e0e0e] rounded-xl p-4 border border-white/5 space-y-3.5">
               
-              {/* Player 1 (Red) */}
+              {/* Player 1 */}
               <div
                 onClick={() => !isP1Guest && game.player1 && setSelectedProfileId(game.player1)}
                 className={`flex items-center justify-between p-1.5 -m-1.5 rounded-xl transition-colors ${!isP1Guest ? 'group cursor-pointer hover:bg-white/5' : ''}`}
                 title={!isP1Guest ? 'View Profile' : 'Guest Player'}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-velocity-red flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,77,77,0.35)]">
+                  <div className={`w-9 h-9 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
+                    p1IsRed ? 'border-velocity-red shadow-[0_0_10px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_10px_rgba(255,255,255,0.25)]'
+                  }`}>
                     {game.player1Avatar ? (
                       <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="w-3.5 h-3.5 rounded-full bg-velocity-red" />
+                      <span className={`w-3.5 h-3.5 rounded-full ${p1IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
                     )}
                   </div>
                   <div>
                     <p className="font-headline-lg text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
                       <span>{p1DisplayName}</span>
-                      <span className="text-[11px] text-velocity-red font-semibold font-mono tracking-normal">(Red)</span>
+                      <span className={`text-[11px] font-semibold font-mono tracking-normal ${p1IsRed ? 'text-velocity-red' : 'text-text-secondary'}`}>
+                        ({p1ColorLabel})
+                      </span>
                     </p>
                     <p className="text-xs text-text-muted font-mono">
                       {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
@@ -542,7 +542,7 @@ export default function Game() {
                   </div>
                 </div>
                 {game.status === 'active' && game.turn === game.player1 && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-velocity-red animate-ping" />
+                  <span className={`w-2.5 h-2.5 rounded-full animate-ping ${p1IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
                 )}
               </div>
 
@@ -552,24 +552,28 @@ export default function Game() {
                 <span className="absolute bg-[#0e0e0e] px-2 text-[10px] text-text-muted uppercase font-semibold tracking-wider font-mono">vs</span>
               </div>
 
-              {/* Player 2 (White) */}
+              {/* Player 2 */}
               <div
                 onClick={() => !isP2Guest && game.player2 && setSelectedProfileId(game.player2)}
                 className={`flex items-center justify-between ${!isP2Guest && game.player2 ? 'group cursor-pointer hover:bg-white/5' : ''} p-1.5 -m-1.5 rounded-xl transition-colors`}
                 title={!isP2Guest && game.player2 ? 'View Profile' : ''}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#181818] border-2 border-white flex items-center justify-center shrink-0 overflow-hidden shadow-[0_0_10px_rgba(255,255,255,0.25)]">
+                  <div className={`w-9 h-9 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
+                    p2IsRed ? 'border-velocity-red shadow-[0_0_10px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_10px_rgba(255,255,255,0.25)]'
+                  }`}>
                     {opponentAvatar && game.player2 ? (
                       <img src={opponentAvatar} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="w-3.5 h-3.5 rounded-full bg-white" />
+                      <span className={`w-3.5 h-3.5 rounded-full ${p2IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
                     )}
                   </div>
                   <div>
                     <p className="font-headline-lg text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
                       <span>{game.player2 ? p2DisplayName : '...'}</span>
-                      <span className="text-[11px] text-text-secondary font-semibold font-mono tracking-normal">(White)</span>
+                      <span className={`text-[11px] font-semibold font-mono tracking-normal ${p2IsRed ? 'text-velocity-red' : 'text-text-secondary'}`}>
+                        ({p2ColorLabel})
+                      </span>
                     </p>
                     <p className="text-xs text-text-muted font-mono">
                       {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : '...'}
@@ -577,7 +581,7 @@ export default function Game() {
                   </div>
                 </div>
                 {game.status === 'active' && game.turn === game.player2 && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                  <span className={`w-2.5 h-2.5 rounded-full animate-ping ${p2IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
                 )}
               </div>
             </div>
@@ -751,7 +755,7 @@ export default function Game() {
                     : isDraw
                     ? 'The match ended in a draw.'
                     : isSpectator
-                    ? `Winner: ${game.winner === game.player1 ? 'Player 1 (Red)' : 'Player 2 (White)'}`
+                    ? `Winner: ${game.winner === game.player1 ? 'Player 1' : 'Player 2'}`
                     : 'Match completed.'}
                 </p>
               </div>

@@ -126,9 +126,11 @@ service cloud.firestore {
           (
             existing().status == 'waiting'
             && incoming().status == 'active'
-            && ownsWallet(incoming().player2)
-            && incoming().turn in [existing().player1, incoming().player2]
-            && incoming().diff(existing()).affectedKeys().hasAny(['player2', 'player2Name', 'player2Avatar', 'status', 'turn', 'updatedAt', 'players'])
+            && (
+              ownsWallet(incoming().player2) ||
+              ownsWallet(incoming().player1)
+            )
+            && incoming().turn in [existing().player1, request.auth.uid]
           ) ||
           // Action: Make move, finish, resign, or heartbeat
           (

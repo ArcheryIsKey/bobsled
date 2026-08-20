@@ -53,6 +53,10 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
   const isPlayer1 = user?.id === game.player1;
   const myPlayerNumber = isPlayer1 ? 1 : 2;
 
+  const p1IsRed = game.player1Color !== 'white';
+  const myDiscIsRed = isPlayer1 ? p1IsRed : !p1IsRed;
+  const isDiscRed = (val: number) => (p1IsRed ? val === 1 : val === 2);
+
   // Calculate winning cells if match is finished
   const winningIndices = useMemo(() => {
     if (game.status === 'finished' && game.winner && game.winner !== 'draw') {
@@ -108,24 +112,36 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
   return (
     <div className="w-full flex flex-col items-center">
       {/* Board Container - Responsive & Optimized for Mobile Screens */}
-      <div className="rounded-2xl sm:rounded-3xl p-2.5 sm:p-6 md:p-8 w-full max-w-full sm:max-w-2xl border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] relative bg-[#141414] overflow-visible">
+      <div className="bg-[#121212] p-2.5 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative w-full max-w-2xl overflow-visible">
         
-        {/* Floating Turn Indicator Pill */}
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30">
+        {/* Subtle Top Accent Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[2px] bg-gradient-to-r from-transparent via-velocity-red to-transparent opacity-80" />
+
+        {/* Turn & Status Header */}
+        <div className="mb-3 sm:mb-4 flex items-center justify-between px-1 sm:px-2">
           {game.status === 'active' ? (
-            isMyTurn ? (
+            isSpectator ? (
+              <div className="bg-[#1e1e1e] border border-white/10 text-text-secondary px-4 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-mono">
+                <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
+                <span>Spectating Live Game</span>
+              </div>
+            ) : isMyTurn ? (
               <motion.div
-                initial={{ scale: 0.9, y: -2 }}
-                animate={{ scale: 1, y: 0 }}
-                className="bg-velocity-red text-white px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider shadow-[0_0_25px_rgba(255,77,77,0.75)] flex items-center gap-2 font-bold uppercase font-mono whitespace-nowrap"
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                className={`border px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono whitespace-nowrap shadow-md ${
+                  myDiscIsRed
+                    ? 'bg-velocity-red/15 border-velocity-red text-velocity-red shadow-[0_0_20px_rgba(255,77,77,0.4)]'
+                    : 'bg-white/15 border-white text-white shadow-[0_0_20px_rgba(255,255,255,0.3)]'
+                }`}
               >
-                <span className="w-2 h-2 bg-white rounded-full animate-ping" />
-                <span>Your Turn</span>
+                <span className={`w-2 h-2 rounded-full animate-ping ${myDiscIsRed ? 'bg-velocity-red' : 'bg-white'}`} />
+                <span>Your Turn to Move ({myDiscIsRed ? 'Red' : 'White'})</span>
               </motion.div>
             ) : (
-              <div className="bg-[#1e1e1e] text-text-secondary border border-white/10 px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap">
+              <div className="bg-[#1a1a1a] border border-white/10 text-text-muted px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-sm whitespace-nowrap">
                 <span className="w-2 h-2 bg-text-muted rounded-full animate-pulse" />
-                <span>Opponent's Turn</span>
+                <span>Opponent's Turn ({myDiscIsRed ? 'White' : 'Red'})</span>
               </div>
             )
           ) : game.status === 'waiting' ? (
@@ -170,7 +186,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                       exit={{ y: -6, opacity: 0 }}
                       transition={{ y: { repeat: Infinity, duration: 0.6, ease: 'easeInOut' } }}
                       className={`absolute -top-6 min-[380px]:-top-7 sm:-top-9 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none ${
-                        isPlayer1 ? 'text-velocity-red' : 'text-white'
+                        myDiscIsRed ? 'text-velocity-red' : 'text-white'
                       }`}
                     >
                       <ChevronDown size={18} className="drop-shadow-[0_0_8px_currentColor]" />
@@ -190,6 +206,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
 
                   // Distance from above the board down to this row
                   const dropY = -((rowIndex + 2.2) * 75);
+                  const cellIsRed = isDiscRed(cellValue);
 
                   return (
                     <div
@@ -203,7 +220,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                           animate={{ opacity: 0.45, scale: 1 }}
                           exit={{ opacity: 0 }}
                           className={`w-full h-full rounded-full border-2 border-dashed ${
-                            isPlayer1
+                            myDiscIsRed
                               ? 'border-velocity-red bg-velocity-red/20 shadow-[0_0_10px_rgba(255,77,77,0.3)]'
                               : 'border-white bg-white/20 shadow-[0_0_10px_rgba(255,255,255,0.3)]'
                           }`}
@@ -225,7 +242,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                           className={`w-full h-full rounded-full flex items-center justify-center relative transition-all duration-300 z-10 ${
                             isDimmed ? 'opacity-35 scale-95 grayscale-[40%]' : 'opacity-100'
                           } ${
-                            cellValue === 1
+                            cellIsRed
                               ? 'bg-[radial-gradient(circle_at_35%_35%,_#ff6666_0%,_#e60000_65%,_#990000_100%)] shadow-[0_0_16px_rgba(255,77,77,0.6),inset_0_-3px_5px_rgba(0,0,0,0.5),inset_0_2px_4px_rgba(255,255,255,0.4)] border border-red-400/40'
                               : 'bg-[radial-gradient(circle_at_35%_35%,_#ffffff_0%,_#dddddd_65%,_#999999_100%)] shadow-[0_0_16px_rgba(255,255,255,0.5),inset_0_-3px_5px_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.8)] border border-white/80'
                           }`}
@@ -239,6 +256,11 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                                 animate={{
                                   scale: [1, 1.25, 1],
                                   opacity: [0.8, 1, 0.8],
+                                  boxShadow: [
+                                    '0 0 10px #ffffff',
+                                    '0 0 25px #ffffff',
+                                    '0 0 10px #ffffff',
+                                  ],
                                 }}
                                 transition={{
                                   repeat: Infinity,
@@ -247,7 +269,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                                 }}
                                 className="w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_15px_#ffffff] flex items-center justify-center"
                               >
-                                <Sparkles size={11} className={cellValue === 1 ? 'text-velocity-red' : 'text-black'} />
+                                <Sparkles size={11} className={cellIsRed ? 'text-velocity-red' : 'text-black'} />
                               </motion.div>
                             )}
                           </div>
@@ -257,19 +279,23 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                             <motion.div
                               animate={{
                                 boxShadow: [
-                                  cellValue === 1
-                                    ? '0 0 10px 2px rgba(255,77,77,0.8)'
-                                    : '0 0 10px 2px rgba(255,255,255,0.8)',
-                                  cellValue === 1
-                                    ? '0 0 25px 6px rgba(255,77,77,1)'
-                                    : '0 0 25px 6px rgba(255,255,255,1)',
-                                  cellValue === 1
-                                    ? '0 0 10px 2px rgba(255,77,77,0.8)'
-                                    : '0 0 10px 2px rgba(255,255,255,0.8)',
+                                  cellIsRed
+                                    ? '0 0 10px rgba(255,77,77,0.5)'
+                                    : '0 0 10px rgba(255,255,255,0.5)',
+                                  cellIsRed
+                                    ? '0 0 30px rgba(255,77,77,1)'
+                                    : '0 0 30px rgba(255,255,255,1)',
+                                  cellIsRed
+                                    ? '0 0 10px rgba(255,77,77,0.5)'
+                                    : '0 0 10px rgba(255,255,255,0.5)',
                                 ],
                               }}
-                              transition={{ repeat: Infinity, duration: 1.2 }}
-                              className="absolute inset-0 rounded-full border-2 border-white pointer-events-none"
+                              transition={{
+                                repeat: Infinity,
+                                duration: 1.1,
+                                ease: 'easeInOut',
+                              }}
+                              className="absolute inset-0 rounded-full pointer-events-none"
                             />
                           )}
                         </motion.div>
@@ -280,11 +306,6 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               </div>
             );
           })}
-        </div>
-
-        {/* Board Stand / Base */}
-        <div className="w-[96%] sm:w-[94%] mx-auto h-3 sm:h-4 bg-[#1f1f1f] rounded-b-xl sm:rounded-b-2xl mt-1 border-b border-l border-r border-white/10 relative z-10 shadow-2xl flex items-center justify-center">
-          <div className="w-12 sm:w-16 h-1 rounded-full bg-white/10" />
         </div>
       </div>
     </div>

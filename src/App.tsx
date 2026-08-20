@@ -24,13 +24,13 @@ function AppHeader() {
   const { user, setUser, solBalance } = useGameStore();
 
   const handleLogout = async () => {
-    if (user?.isTestUser) {
-      setUser(null);
-      navigate('/');
-      return;
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error(e);
     }
-    await signOut(auth);
     disconnect();
+    setUser(null);
     navigate('/');
   };
 
@@ -40,26 +40,26 @@ function AppHeader() {
   const isAdminRoute = location.pathname === '/admin';
 
   return (
-    <header className="bg-[#141414]/90 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
-      <div className="flex justify-between items-center w-full px-4 md:px-8 max-w-6xl mx-auto h-16">
+    <header className="sticky top-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-3 pb-2 pointer-events-none">
+      <div className="max-w-6xl mx-auto pointer-events-auto bg-[#121212]/85 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4 transition-all">
         
         {/* Left: Logo & Navigation */}
-        <div className="flex items-center gap-6 md:gap-8">
+        <div className="flex items-center gap-4 sm:gap-8">
           <Link
             to="/"
-            className="flex items-center gap-2.5 font-headline-lg text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 font-headline-lg text-xl sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity"
           >
-            <img src="/logo.jpg" alt="bobsled.gg logo" className="w-8 h-8 mix-blend-screen" />
-            <span>bobsled.gg</span>
+            <img src="/logo.jpg" alt="bobsled.gg" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full mix-blend-screen" />
+            <span className="text-white">bobsled<span className="text-velocity-red">.</span>gg</span>
           </Link>
 
           {user && (
-            <nav className="hidden md:flex items-center space-x-1.5">
+            <nav className="hidden md:flex items-center space-x-1 bg-[#1a1a1a]/80 p-1 rounded-full border border-white/5">
               <Link
                 to="/"
-                className={`text-xs px-3 py-1.5 rounded-md font-semibold tracking-wide transition-all ${
+                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all ${
                   isLobby
-                    ? 'text-white bg-white/10'
+                    ? 'text-white bg-white/15 shadow-sm'
                     : 'text-text-secondary hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -67,9 +67,9 @@ function AppHeader() {
               </Link>
               <Link
                 to="/profile"
-                className={`text-xs px-3 py-1.5 rounded-md font-semibold tracking-wide transition-all ${
+                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all ${
                   isProfile
-                    ? 'text-white bg-white/10'
+                    ? 'text-white bg-white/15 shadow-sm'
                     : 'text-text-secondary hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -78,13 +78,13 @@ function AppHeader() {
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className={`text-xs px-3 py-1.5 rounded-md font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+                  className={`text-xs px-3.5 py-1.5 rounded-full font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
                     isAdminRoute
-                      ? 'text-velocity-red bg-velocity-red/10 border border-velocity-red/30'
+                      ? 'text-velocity-red bg-velocity-red/15 border border-velocity-red/30'
                       : 'text-text-secondary hover:text-velocity-red hover:bg-white/5'
                   }`}
                 >
-                  <Shield size={13} />
+                  <Shield size={12} />
                   <span>Admin</span>
                 </Link>
               )}
@@ -93,13 +93,13 @@ function AppHeader() {
         </div>
 
         {/* Right: Balance & User Actions */}
-        <div className="flex items-center space-x-3 sm:space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-3">
           
           {/* Admin Fast Link for mobile */}
           {isAdmin && (
             <Link
               to="/admin"
-              className="md:hidden flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-velocity-red/10 border border-velocity-red/30 text-velocity-red rounded-md font-mono font-bold"
+              className="md:hidden flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-velocity-red/10 border border-velocity-red/30 text-velocity-red rounded-full font-mono font-bold"
             >
               Admin
             </Link>
@@ -108,27 +108,27 @@ function AppHeader() {
           {!user && !publicKey ? (
             <button
               onClick={() => setVisible(true)}
-              className="text-xs text-white bg-velocity-red rounded-md px-4 py-2 hover:bg-red-600 transition-colors font-semibold shadow-[0_0_15px_rgba(255,77,77,0.35)] tracking-wide uppercase"
+              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98]"
             >
               Connect Wallet
             </button>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               
               {/* Test User Badge */}
               {user?.isTestUser && (
-                <div className="text-[11px] font-mono text-velocity-red px-2.5 py-1 rounded-md bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1">
+                <div className="text-[11px] font-mono text-velocity-red px-3 py-1 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
                   <FlaskConical size={12} />
                   <span>TEST</span>
                 </div>
               )}
 
-              {/* Real SOL Balance (Polled directly from Solana wallet RPC) */}
+              {/* Real SOL Balance (Polled directly from on-chain Solana RPC) */}
               {publicKey && !user?.isTestUser && (
-                <div className="text-xs font-mono font-bold text-text-primary px-3 py-1.5 rounded-md bg-[#0e0e0e] border border-white/10 flex items-center gap-1.5 shadow-inner">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="text-xs font-mono font-bold text-white px-3.5 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-2 shadow-inner">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   <span className="text-velocity-red">
-                    {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : '...'}
+                    {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : 'Loading...'}
                   </span>
                 </div>
               )}
@@ -136,17 +136,17 @@ function AppHeader() {
               {/* Profile Link Pill */}
               <Link
                 to="/profile"
-                className="flex items-center gap-2 p-1 sm:pr-3 rounded-md bg-[#0e0e0e] hover:bg-[#1c1c1c] border border-white/10 hover:border-velocity-red transition-all group"
+                className="flex items-center gap-2 p-1 sm:pr-3 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group"
                 title="View Profile"
               >
-                <div className="w-7 h-7 rounded-md overflow-hidden border border-white/10 group-hover:border-velocity-red bg-surface-container flex items-center justify-center font-bold text-xs text-velocity-red transition-colors shrink-0">
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 group-hover:border-velocity-red bg-surface-container flex items-center justify-center font-bold text-xs text-velocity-red transition-colors shrink-0">
                   {user?.avatarUrl ? (
                     <img src={user.avatarUrl} alt={user.username} className="w-full h-full object-cover" />
                   ) : (
                     user?.username ? user.username.substring(0, 2).toUpperCase() : <User size={13} />
                   )}
                 </div>
-                <span className="hidden sm:block text-xs font-semibold text-text-primary group-hover:text-velocity-red transition-colors">
+                <span className="hidden sm:block text-xs font-semibold text-white group-hover:text-velocity-red transition-colors">
                   {user?.username || 'Player'}
                 </span>
               </Link>
@@ -154,7 +154,7 @@ function AppHeader() {
               {/* Exit Button */}
               <button
                 onClick={handleLogout}
-                className="text-xs px-2.5 py-1.5 border border-white/10 hover:bg-white/5 text-text-secondary hover:text-white transition-colors rounded-md font-medium"
+                className="text-xs px-3 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium"
               >
                 Exit
               </button>
@@ -204,12 +204,12 @@ function MainContent({
   if (authError) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] px-4">
-        <div className="border border-red-900/50 bg-red-900/10 text-red-400 p-8 max-w-md text-center rounded-xl shadow-2xl space-y-4">
-          <p className="text-sm font-bold uppercase tracking-wider">Authentication Error</p>
+        <div className="border border-red-900/50 bg-red-900/10 text-red-400 p-8 max-w-md text-center rounded-2xl shadow-2xl space-y-4">
+          <p className="text-sm font-bold uppercase tracking-wider font-mono">Authentication Error</p>
           <p className="text-xs text-text-secondary font-mono">{authError}</p>
           <button
             onClick={() => disconnect()}
-            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-md text-white"
+            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-full text-white"
           >
             Disconnect &amp; Retry
           </button>
@@ -251,9 +251,9 @@ export default function App() {
   const [needsUsername, setNeedsUsername] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
 
-  // Live real-time SOL balance directly from user's crypto wallet RPC
+  // Live real-time SOL balance directly from user's crypto wallet
   useEffect(() => {
-    if (!publicKey || !connection || user?.isTestUser) {
+    if (!publicKey || user?.isTestUser) {
       if (user?.isTestUser) setSolBalance(null);
       return;
     }
@@ -262,12 +262,35 @@ export default function App() {
 
     const fetchBalance = async () => {
       try {
-        const lamports = await connection.getBalance(publicKey, 'confirmed');
-        if (active) {
-          setSolBalance(lamports / LAMPORTS_PER_SOL);
+        if (connection) {
+          const lamports = await connection.getBalance(publicKey, 'confirmed');
+          if (active) {
+            setSolBalance(lamports / LAMPORTS_PER_SOL);
+            return;
+          }
         }
       } catch (err) {
-        console.error('Error fetching SOL balance from wallet:', err);
+        console.warn('Provider RPC error, trying direct Solana JSON-RPC:', err);
+      }
+
+      // Direct fallback to Solana Mainnet JSON-RPC endpoint
+      try {
+        const res = await fetch('https://api.mainnet-beta.solana.com', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getBalance',
+            params: [publicKey.toBase58(), { commitment: 'confirmed' }],
+          }),
+        });
+        const data = await res.json();
+        if (active && data?.result?.value !== undefined) {
+          setSolBalance(data.result.value / LAMPORTS_PER_SOL);
+        }
+      } catch (e) {
+        console.error('Fallback balance check failed:', e);
       }
     };
 
@@ -276,37 +299,53 @@ export default function App() {
     // WebSocket subscription for instant account balance changes
     let subId: number | null = null;
     try {
-      subId = connection.onAccountChange(publicKey, (accountInfo) => {
-        if (active) {
-          setSolBalance(accountInfo.lamports / LAMPORTS_PER_SOL);
-        }
-      }, 'confirmed');
+      if (connection) {
+        subId = connection.onAccountChange(
+          publicKey,
+          (accountInfo) => {
+            if (active) {
+              setSolBalance(accountInfo.lamports / LAMPORTS_PER_SOL);
+            }
+          },
+          'confirmed'
+        );
+      }
     } catch (e) {
-      console.warn('Websocket account subscription not available, falling back to interval polling');
+      console.warn('Websocket listener unavailable');
     }
 
-    // Interval polling fallback every 4 seconds
-    const interval = setInterval(fetchBalance, 4000);
+    // Interval polling every 3 seconds
+    const interval = setInterval(fetchBalance, 3000);
 
     return () => {
       active = false;
       clearInterval(interval);
-      if (subId !== null) {
+      if (subId !== null && connection) {
         connection.removeAccountChangeListener(subId).catch(() => {});
       }
     };
   }, [publicKey, connection, user?.isTestUser, setSolBalance]);
 
-  // Test user login handler
-  const handleTestLogin = (testUsername: string) => {
-    const testId = 'test_' + Math.random().toString(36).substring(2, 9);
-    setUser({
-      id: testId,
-      username: testUsername,
-      walletAddress: null,
-      isTestUser: true,
-      createdAt: new Date(),
-    });
+  // Test user login handler: Signs into Firebase Auth anonymously so Firestore permissions work!
+  const handleTestLogin = async (testUsername: string) => {
+    setIsAuthenticating(true);
+    setAuthError(null);
+    try {
+      const userCredential = await signInAnonymously(auth);
+      const uid = userCredential.user.uid;
+      setUser({
+        id: uid,
+        username: testUsername,
+        walletAddress: null,
+        isTestUser: true,
+        createdAt: new Date(),
+      });
+    } catch (err: any) {
+      console.error('Test user login failed:', err);
+      setAuthError('Could not initialize test session.');
+    } finally {
+      setIsAuthenticating(false);
+    }
   };
 
   // Firebase Auth state listener
@@ -322,9 +361,12 @@ export default function App() {
       }
 
       if (!firebaseUser) {
-        if (!user?.isTestUser) {
-          setUser(null);
-        }
+        setUser(null);
+        return;
+      }
+
+      // If anonymous test user, keep test state
+      if (firebaseUser.isAnonymous) {
         return;
       }
 
@@ -348,7 +390,7 @@ export default function App() {
       unsubscribe();
       if (unsubUser) unsubUser();
     };
-  }, [setUser, user?.isTestUser]);
+  }, [setUser]);
 
   const authInProgress = useRef(false);
 
@@ -358,7 +400,7 @@ export default function App() {
       if (!publicKey || !signMessage || user?.isTestUser) return;
       if (authInProgress.current) return;
 
-      if (auth.currentUser && user?.walletAddress === publicKey.toBase58()) {
+      if (auth.currentUser && !auth.currentUser.isAnonymous && user?.walletAddress === publicKey.toBase58()) {
         return;
       }
 

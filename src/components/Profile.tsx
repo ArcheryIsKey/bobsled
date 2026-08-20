@@ -4,7 +4,7 @@ import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'fi
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import { processImageFile, processBannerFile } from '../utils/image';
-import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, ArrowUpRight, Image as ImageIcon } from 'lucide-react';
+import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon } from 'lucide-react';
 
 export default function Profile() {
   const { userId: paramUserId } = useParams<{ userId?: string }>();
@@ -159,7 +159,7 @@ export default function Profile() {
     : 'No Wallet Connected';
 
   return (
-    <div className="bg-background text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
+    <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
       {/* Hidden File Inputs */}
       {isOwnProfile && (
         <>
@@ -186,14 +186,14 @@ export default function Profile() {
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary transition-colors py-2 px-3 rounded-md bg-surface-base border border-white/10 hover:border-velocity-red"
+            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red"
           >
             <ArrowLeft size={14} /> Back to Lobby
           </button>
         </div>
 
         {/* Profile Card with Banner */}
-        <section className="mb-10 rounded-xl bg-surface-base border border-white/10 overflow-hidden shadow-2xl relative">
+        <section className="mb-10 rounded-2xl bg-[#141414] border border-white/10 overflow-hidden shadow-2xl relative">
           
           {/* Banner Container */}
           <div className="relative w-full h-40 sm:h-52 md:h-60 bg-gradient-to-r from-surface-elevated via-surface-container to-surface-base border-b border-white/10 overflow-hidden group">
@@ -210,7 +210,7 @@ export default function Profile() {
               <button
                 onClick={() => bannerInputRef.current?.click()}
                 disabled={isUploadingBanner}
-                className="absolute top-3 right-3 bg-black/70 hover:bg-black/90 border border-white/15 text-white text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-sm shadow-md"
+                className="absolute top-3 right-3 bg-black/75 hover:bg-black/95 border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md"
               >
                 {isUploadingBanner ? (
                   <Loader2 size={13} className="animate-spin text-velocity-red" />
@@ -227,10 +227,10 @@ export default function Profile() {
             
             <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
               
-              {/* Avatar (with only the avatar container having the negative top margin) */}
+              {/* Avatar */}
               <div
                 onClick={() => isOwnProfile && avatarInputRef.current?.click()}
-                className={`-mt-14 sm:-mt-16 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden border-4 border-[#121212] bg-surface-elevated relative group shrink-0 shadow-2xl ${
+                className={`-mt-14 sm:-mt-16 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
                   isOwnProfile ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
                 }`}
                 title={isOwnProfile ? 'Click to change profile picture' : ''}
@@ -266,7 +266,7 @@ export default function Profile() {
 
               {/* Names & Wallet — Positioned cleanly below banner */}
               <div className="space-y-1 pt-2 sm:pt-4">
-                <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-text-primary font-bold tracking-tight">
+                <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
                   {profileData.username}
                 </h1>
 
@@ -274,14 +274,14 @@ export default function Profile() {
                   <div className="flex items-center justify-center sm:justify-start gap-2">
                     <button
                       onClick={handleCopyWallet}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container/80 border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-text-primary font-mono transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0e0e0e] border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-white font-mono transition-colors"
                       title="Copy wallet address"
                     >
                       <span>{walletDisplay}</span>
-                      {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+                      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                     </button>
                     {copied && (
-                      <span className="text-xs text-green-400 font-mono">Copied!</span>
+                      <span className="text-xs text-emerald-400 font-mono">Copied!</span>
                     )}
                   </div>
                 )}
@@ -295,12 +295,12 @@ export default function Profile() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           
           {/* Card 1: Matches */}
-          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Matches</span>
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
               <Swords size={16} className="text-text-muted group-hover:text-velocity-red transition-colors" />
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-text-primary font-bold mb-0.5">
+            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5">
               {totalGames}
             </div>
             <div className="text-xs text-text-muted">
@@ -309,9 +309,9 @@ export default function Profile() {
           </div>
 
           {/* Card 2: Wins */}
-          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Wins</span>
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
               <Trophy size={16} className="text-velocity-red transition-colors" />
             </div>
             <div className="font-headline-lg text-2xl md:text-3xl text-velocity-red font-bold mb-0.5">
@@ -323,12 +323,12 @@ export default function Profile() {
           </div>
 
           {/* Card 3: Losses */}
-          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Losses</span>
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
               <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-text-primary font-bold mb-0.5 text-text-secondary">
+            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 text-text-secondary">
               {losses}
             </div>
             <div className="text-xs text-text-muted">
@@ -337,12 +337,12 @@ export default function Profile() {
           </div>
 
           {/* Card 4: SOL Holdings */}
-          <div className="bg-surface-base border border-white/10 p-5 rounded-lg relative overflow-hidden group hover:bg-surface-elevated transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">SOL Balance</span>
+              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">SOL Balance</span>
               <span className="text-xs font-mono font-bold text-velocity-red">SOL</span>
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-text-primary font-bold mb-0.5 font-mono">
+            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 font-mono">
               {isOwnProfile && solBalance !== null ? `${solBalance.toFixed(3)}` : '—'}
             </div>
             <div className="text-xs text-text-muted">
@@ -351,33 +351,32 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Match History Table */}
+        {/* Match History Table (No "Watch" button on finished matches) */}
         <section>
           <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
-            <h2 className="font-headline-lg text-xl text-text-primary font-bold">
+            <h2 className="font-headline-lg text-xl text-white font-bold">
               Match History
             </h2>
-            <span className="text-xs text-text-muted">
+            <span className="text-xs text-text-muted font-mono">
               {history.length} Matches
             </span>
           </div>
 
-          <div className="bg-surface-base border border-white/10 rounded-lg overflow-hidden shadow-xl">
+          <div className="bg-[#141414] border border-white/10 rounded-xl overflow-hidden shadow-xl">
             {history.length === 0 ? (
-              <div className="p-10 text-center text-text-muted text-sm">
+              <div className="p-10 text-center text-text-muted text-sm font-mono">
                 No match history recorded yet.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-surface-elevated/80 border-b border-white/10">
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Match</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Opponent</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Date</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Result</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right">Stakes</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right">View</th>
+                    <tr className="bg-[#181818] border-b border-white/10">
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Match ID</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Opponent</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Date</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Result</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right font-mono">Stakes</th>
                     </tr>
                   </thead>
                   <tbody className="text-sm divide-y divide-white/5 font-body-sm">
@@ -392,7 +391,7 @@ export default function Profile() {
                         : 'Recent';
 
                       return (
-                        <tr key={game.id} className="hover:bg-surface-elevated/40 transition-colors">
+                        <tr key={game.id} className="hover:bg-[#1c1c1c] transition-colors">
                           <td className="py-3.5 px-5 text-xs text-text-secondary font-mono">
                             #{game.id.substring(0, 8).toUpperCase()}
                           </td>
@@ -400,7 +399,7 @@ export default function Profile() {
                             {opponentId ? (
                               <Link
                                 to={`/profile/${opponentId}`}
-                                className="text-text-primary hover:text-velocity-red font-medium transition-colors"
+                                className="text-white hover:text-velocity-red font-medium transition-colors"
                               >
                                 {opponentDisplay}
                               </Link>
@@ -413,29 +412,21 @@ export default function Profile() {
                           </td>
                           <td className="py-3.5 px-5">
                             {isWin ? (
-                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2 py-0.5 rounded text-[11px] font-semibold uppercase">
+                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase">
                                 Win
                               </span>
                             ) : isDraw ? (
-                              <span className="bg-surface-variant text-text-secondary border border-white/10 px-2 py-0.5 rounded text-[11px] font-semibold uppercase">
+                              <span className="bg-[#222] text-text-secondary border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase">
                                 Draw
                               </span>
                             ) : (
-                              <span className="bg-surface-container-highest text-text-muted border border-white/10 px-2 py-0.5 rounded text-[11px] font-semibold uppercase">
+                              <span className="bg-[#1e1e1e] text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase">
                                 Loss
                               </span>
                             )}
                           </td>
                           <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}`}>
                             {game.wager > 0 ? `${isWin ? '+' : '-'}${game.wager} ${game.wagerCurrency}` : 'Free'}
-                          </td>
-                          <td className="py-3.5 px-5 text-right">
-                            <button
-                              onClick={() => navigate(`/game/${game.id}`)}
-                              className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-velocity-red transition-colors px-2.5 py-1 rounded bg-surface-container hover:bg-surface-elevated border border-white/10"
-                            >
-                              Watch <ArrowUpRight size={12} />
-                            </button>
                           </td>
                         </tr>
                       );

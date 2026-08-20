@@ -14,9 +14,16 @@ try {
   console.warn('Could not read firebase-applet-config.json');
 }
 
-// Initialize Firebase Admin (Uses Application Default Credentials on Cloud Run)
+// Initialize Firebase Admin
 try {
-  if (firebaseConfig && firebaseConfig.projectId) {
+  const serviceAccountPath = path.join(process.cwd(), 'service-account-key.json');
+  if (fs.existsSync(serviceAccountPath)) {
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    admin.initializeApp({
+      credential: (admin as any).credential?.cert(serviceAccount) || (await import('firebase-admin/app')).cert(serviceAccount),
+      projectId: firebaseConfig?.projectId
+    });
+  } else if (firebaseConfig && firebaseConfig.projectId) {
     admin.initializeApp({ projectId: firebaseConfig.projectId });
   } else {
     admin.initializeApp();

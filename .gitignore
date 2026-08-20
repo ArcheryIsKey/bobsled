@@ -13,3 +13,4 @@ env/
 bun.lock
 .agents/
 .antigravity/
+service-account-key.json

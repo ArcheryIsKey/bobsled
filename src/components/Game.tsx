@@ -7,6 +7,7 @@ import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
 import UserProfileModal from './UserProfileModal';
+import MatchInviteModal from './MatchInviteModal';
 import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,6 +26,7 @@ export default function Game() {
   const [showResignModal, setShowResignModal] = useState(false);
   const [isJoiningInvite, setIsJoiningInvite] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [dismissedInviteModal, setDismissedInviteModal] = useState(false);
 
   const searchParams = new URLSearchParams(location.search);
   const inviteParam = searchParams.get('invite');
@@ -202,6 +204,7 @@ export default function Game() {
       };
 
       await updateDoc(doc(db, 'games', game.id), updates);
+      setDismissedInviteModal(true);
     } catch (e) {
       console.error('Failed to join match via invite:', e);
       alert('Failed to join match.');
@@ -312,7 +315,8 @@ export default function Game() {
   const isParticipant = isPlayer1 || isPlayer2;
   const isSpectator = !isParticipant || isExplicitWatchRoute;
 
-  const hasValidPlayerInvite = !!inviteParam && game.status === 'waiting' && !isParticipant;
+  // Invite modal is shown to any non-participant opening a waiting game
+  const showMatchInviteModal = !isParticipant && game.status === 'waiting' && !dismissedInviteModal && !isExplicitWatchRoute;
 
   const isMyTurn = isParticipant && game.turn === user?.id && game.status === 'active';
   const opponentAvatar = isPlayer1 ? game.player2Avatar : game.player1Avatar;
@@ -348,44 +352,18 @@ export default function Game() {
         />
       )}
 
-      {/* Player Invite Acceptance Floating Banner */}
-      {hasValidPlayerInvite && (
-        <div className="w-full bg-velocity-red/15 border-b border-velocity-red/40 py-3 px-4 z-40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-          <div className="flex items-center gap-3 text-center sm:text-left">
-            <div className="w-8 h-8 rounded-full bg-velocity-red flex items-center justify-center text-white shrink-0 shadow-md">
-              <Swords size={16} />
-            </div>
-            <div>
-              <p className="text-xs text-white font-bold font-headline-lg">
-                You have been invited to play Match <strong className="font-mono text-velocity-red">#{game.id.substring(0, 6).toUpperCase()}</strong> vs {p1DisplayName}
-              </p>
-              <p className="text-[11px] text-text-muted">
-                Stakes: {isFreeGame ? 'Free Play' : `${game.wager} SOL`}. {user?.isTestUser && !isFreeGame ? 'Connect a Solana wallet to place stakes and enter.' : 'Click below to enter as Player 2.'}
-              </p>
-            </div>
-          </div>
-          {user?.isTestUser && !isFreeGame ? (
-            <button
-              onClick={() => setWalletModalVisible(true)}
-              className="px-6 py-2 bg-velocity-red hover:bg-red-600 text-white rounded-full text-xs font-bold uppercase tracking-wider shadow-[0_0_15px_rgba(255,77,77,0.4)] transition-all cursor-pointer font-mono shrink-0 flex items-center gap-1.5"
-            >
-              <User size={13} />
-              <span>Connect Wallet to Play ({game.wager} SOL)</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleJoinViaInvite}
-              disabled={isJoiningInvite}
-              className="px-6 py-2 bg-velocity-red hover:bg-red-600 text-white rounded-full text-xs font-semibold uppercase tracking-wider shadow-[0_0_15px_rgba(255,77,77,0.4)] transition-all cursor-pointer font-mono shrink-0"
-            >
-              {isJoiningInvite ? 'Joining Match...' : 'Join as Player 2'}
-            </button>
-          )}
-        </div>
+      {/* Match Challenge Invitation Modal Popup */}
+      {showMatchInviteModal && (
+        <MatchInviteModal
+          pendingGame={game}
+          currentUser={user}
+          onDirectJoin={handleJoinViaInvite}
+          onDismiss={() => setDismissedInviteModal(true)}
+        />
       )}
 
       {/* Spectator Mode Banner */}
-      {isSpectator && !hasValidPlayerInvite && (
+      {isSpectator && !showMatchInviteModal && (
         <div className="w-full bg-[#141414] border-b border-white/10 py-2 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2 font-mono">
           <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
           <span>Watching Match <strong className="text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>

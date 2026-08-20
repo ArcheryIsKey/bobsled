@@ -5,6 +5,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
 import UserProfileModal from './UserProfileModal';
 import { Loader2, Play, X, FlaskConical } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const [customWager, setCustomWager] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
   useEffect(() => {
     if (user?.isTestUser) {
@@ -148,6 +150,19 @@ export default function Dashboard() {
     } catch (e) {
       console.error('Failed to cancel match:', e);
     }
+  };
+
+  const handlePlayerClick = (e: React.MouseEvent, playerId: string | null, isGuest: boolean, matchSlotKey: string) => {
+    e.stopPropagation();
+    if (!playerId) return;
+    if (isGuest || playerId.startsWith('test_')) {
+      setTestUserToast({ matchId: matchSlotKey, message: 'Guest User (Temporary Account)' });
+      setTimeout(() => {
+        setTestUserToast((prev) => (prev?.matchId === matchSlotKey ? null : prev));
+      }, 2500);
+      return;
+    }
+    setSelectedProfileId(playerId);
   };
 
   const myWaitingGame = waitingGames.find((g) => g.player1 === user?.id);
@@ -354,18 +369,33 @@ export default function Dashboard() {
                       
                       {/* Player 1 */}
                       <div
-                        onClick={() => !isP1Test && game.player1 && setSelectedProfileId(game.player1)}
-                        className={`flex items-center gap-3 ${!isP1Test ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                        onClick={(e) => handlePlayerClick(e, game.player1, isP1Test, `${game.id}-p1`)}
+                        className="flex items-center gap-3 cursor-pointer group/p1 hover:opacity-90 transition-all select-none relative"
                         title={!isP1Test ? 'View Profile' : 'Guest Player'}
                       >
-                        <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
+                        {/* Guest toast popup */}
+                        <AnimatePresence>
+                          {testUserToast?.matchId === `${game.id}-p1` && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                              animate={{ opacity: 1, y: -26, scale: 1 }}
+                              exit={{ opacity: 0, y: -26, scale: 0.95 }}
+                              className="absolute -top-2 left-0 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+                            >
+                              <FlaskConical size={11} className="shrink-0" />
+                              <span>{testUserToast.message}</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        <div className="w-10 h-10 rounded-full border border-white/10 group-hover/p1:border-velocity-red bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0 transition-colors shadow-sm">
                           {game.player1Avatar ? (
                             <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
                           ) : (
                             game.player1Name ? game.player1Name.substring(0, 2).toUpperCase() : 'P1'
                           )}
                         </div>
-                        <span className="text-sm text-white font-semibold group-hover:text-velocity-red transition-colors">
+                        <span className="text-sm text-white font-semibold group-hover/p1:text-velocity-red transition-colors underline-offset-2 hover:underline">
                           {p1Label}
                         </span>
                       </div>
@@ -374,16 +404,31 @@ export default function Dashboard() {
 
                       {/* Player 2 */}
                       <div
-                        onClick={() => !isP2Test && game.player2 && setSelectedProfileId(game.player2)}
-                        className={`flex items-center gap-3 ${!isP2Test && game.player2 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                        title={!isP2Test && game.player2 ? 'View Profile' : ''}
+                        onClick={(e) => game.player2 && handlePlayerClick(e, game.player2, isP2Test, `${game.id}-p2`)}
+                        className={`flex items-center gap-3 ${game.player2 ? 'cursor-pointer group/p2 hover:opacity-90 transition-all select-none relative' : ''}`}
+                        title={game.player2 ? (!isP2Test ? 'View Profile' : 'Guest Player') : ''}
                       >
+                        {/* Guest toast popup */}
+                        <AnimatePresence>
+                          {testUserToast?.matchId === `${game.id}-p2` && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                              animate={{ opacity: 1, y: -26, scale: 1 }}
+                              exit={{ opacity: 0, y: -26, scale: 0.95 }}
+                              className="absolute -top-2 right-0 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+                            >
+                              <FlaskConical size={11} className="shrink-0" />
+                              <span>{testUserToast.message}</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                         {game.status === 'active' ? (
                           <>
-                            <span className="text-sm text-white font-semibold">
+                            <span className="text-sm text-white font-semibold group-hover/p2:text-velocity-red transition-colors underline-offset-2 hover:underline">
                               {p2Label}
                             </span>
-                            <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-white shrink-0">
+                            <div className="w-10 h-10 rounded-full border border-white/10 group-hover/p2:border-white bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-white shrink-0 transition-colors shadow-sm">
                               {game.player2Avatar ? (
                                 <img src={game.player2Avatar} alt="" className="w-full h-full object-cover" />
                               ) : (

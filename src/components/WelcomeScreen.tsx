@@ -1,15 +1,24 @@
 import React, { useState } from 'react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { Swords, User, FlaskConical } from 'lucide-react';
+import { User, FlaskConical } from 'lucide-react';
+import MatchInviteModal from './MatchInviteModal';
 
 interface WelcomeScreenProps {
   onTestLogin?: (username: string) => void;
+  onSpectateGuest?: (username: string) => void;
   pendingGame?: any;
+  onDismissInvite?: () => void;
 }
 
-export default function WelcomeScreen({ onTestLogin, pendingGame }: WelcomeScreenProps) {
+export default function WelcomeScreen({
+  onTestLogin,
+  onSpectateGuest,
+  pendingGame,
+  onDismissInvite,
+}: WelcomeScreenProps) {
   const { setVisible } = useWalletModal();
   const [guestUsername, setGuestUsername] = useState('');
+  const [inviteDismissed, setInviteDismissed] = useState(false);
 
   const handleGuestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,30 +27,26 @@ export default function WelcomeScreen({ onTestLogin, pendingGame }: WelcomeScree
     }
   };
 
+  const showInviteModal = pendingGame && !inviteDismissed;
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 min-h-[calc(100vh-80px)] w-full">
+      
+      {/* High-Priority Match Invitation Popup Modal for Logged-Out Users */}
+      {showInviteModal && (
+        <MatchInviteModal
+          pendingGame={pendingGame}
+          onGuestLogin={(uname) => onTestLogin?.(uname)}
+          onSpectateGuest={(uname) => onSpectateGuest?.(uname)}
+          onDismiss={() => {
+            setInviteDismissed(true);
+            onDismissInvite?.();
+          }}
+        />
+      )}
+
       <div className="w-full max-w-md space-y-6">
         
-        {/* Match Invitation Card (if entering via direct match link) */}
-        {pendingGame && (
-          <div className="p-4 rounded-2xl bg-velocity-red/15 border border-velocity-red/40 shadow-[0_0_30px_rgba(255,77,77,0.25)] flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-full bg-velocity-red flex items-center justify-center text-white shrink-0 shadow-md">
-              <Swords size={20} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-mono font-bold text-velocity-red tracking-wider block">
-                Match Invitation
-              </span>
-              <p className="text-xs text-white font-bold truncate">
-                Match #{pendingGame.id.substring(0, 6).toUpperCase()} vs @{pendingGame.player1Name || 'Host'}
-              </p>
-              <p className="text-[11px] text-text-secondary font-mono">
-                Stakes: {pendingGame.wager > 0 ? `${pendingGame.wager} SOL` : 'Free Play'}
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* Main Welcome Container */}
         <div className="bg-[#141414] border border-white/10 p-8 sm:p-10 rounded-3xl shadow-2xl flex flex-col items-center text-center gap-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
@@ -69,12 +74,6 @@ export default function WelcomeScreen({ onTestLogin, pendingGame }: WelcomeScree
               <User size={16} />
               <span>Connect Wallet to Play</span>
             </button>
-
-            {pendingGame && (
-              <p className="text-[11px] text-text-muted font-mono">
-                Connect your wallet to join Match #{pendingGame.id.substring(0, 6).toUpperCase()}
-              </p>
-            )}
           </div>
 
           {/* Divider */}

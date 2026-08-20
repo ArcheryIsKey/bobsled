@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import Chat from './Chat';
@@ -14,6 +15,7 @@ export default function Game() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useGameStore();
+  const { setVisible: setWalletModalVisible } = useWalletModal();
 
   const [game, setGame] = useState<any>(null);
   const [now, setNow] = useState(Date.now());
@@ -163,7 +165,7 @@ export default function Game() {
     if (user.id === game.player1) return;
 
     if (user.isTestUser && game.wager > 0) {
-      alert('Guest users can only join Free games. Connect a wallet to play with SOL stakes.');
+      setWalletModalVisible(true);
       return;
     }
 
@@ -358,17 +360,27 @@ export default function Game() {
                 You have been invited to play Match <strong className="font-mono text-velocity-red">#{game.id.substring(0, 6).toUpperCase()}</strong> vs {p1DisplayName}
               </p>
               <p className="text-[11px] text-text-muted">
-                Stakes: {isFreeGame ? 'Free Play' : `${game.wager} SOL`}. Click below to enter as Player 2.
+                Stakes: {isFreeGame ? 'Free Play' : `${game.wager} SOL`}. {user?.isTestUser && !isFreeGame ? 'Connect a Solana wallet to place stakes and enter.' : 'Click below to enter as Player 2.'}
               </p>
             </div>
           </div>
-          <button
-            onClick={handleJoinViaInvite}
-            disabled={isJoiningInvite}
-            className="px-6 py-2 bg-velocity-red hover:bg-red-600 text-white rounded-full text-xs font-semibold uppercase tracking-wider shadow-[0_0_15px_rgba(255,77,77,0.4)] transition-all cursor-pointer font-mono shrink-0"
-          >
-            {isJoiningInvite ? 'Joining Match...' : 'Join as Player 2'}
-          </button>
+          {user?.isTestUser && !isFreeGame ? (
+            <button
+              onClick={() => setWalletModalVisible(true)}
+              className="px-6 py-2 bg-velocity-red hover:bg-red-600 text-white rounded-full text-xs font-bold uppercase tracking-wider shadow-[0_0_15px_rgba(255,77,77,0.4)] transition-all cursor-pointer font-mono shrink-0 flex items-center gap-1.5"
+            >
+              <User size={13} />
+              <span>Connect Wallet to Play ({game.wager} SOL)</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleJoinViaInvite}
+              disabled={isJoiningInvite}
+              className="px-6 py-2 bg-velocity-red hover:bg-red-600 text-white rounded-full text-xs font-semibold uppercase tracking-wider shadow-[0_0_15px_rgba(255,77,77,0.4)] transition-all cursor-pointer font-mono shrink-0"
+            >
+              {isJoiningInvite ? 'Joining Match...' : 'Join as Player 2'}
+            </button>
+          )}
         </div>
       )}
 

@@ -32,7 +32,7 @@ async function cleanupGuestUserGames(guestUserId: string) {
       query(collection(db, 'games'), where('player1', '==', guestUserId), where('status', '==', 'active'))
     );
     for (const gDoc of activeSnap1.docs) {
-      const g = gDoc.data();
+      const g = gDoc.data() as any;
       await updateDoc(gDoc.ref, {
         status: 'finished',
         winner: g.player2,
@@ -44,7 +44,7 @@ async function cleanupGuestUserGames(guestUserId: string) {
       query(collection(db, 'games'), where('player2', '==', guestUserId), where('status', '==', 'active'))
     );
     for (const gDoc of activeSnap2.docs) {
-      const g = gDoc.data();
+      const g = gDoc.data() as any;
       await updateDoc(gDoc.ref, {
         status: 'finished',
         winner: g.player1,
@@ -201,16 +201,18 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
                 </span>
               </button>
 
-              {/* Exit Button */}
+              {/* Disconnect / Logout Button */}
               <button
                 onClick={handleLogout}
-                className="text-xs px-3.5 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium cursor-pointer"
+                className="text-xs text-text-secondary hover:text-white bg-[#1a1a1a] hover:bg-[#222] border border-white/5 hover:border-white/10 px-3.5 py-1.5 rounded-full transition-all font-medium font-mono cursor-pointer"
+                title="Disconnect Account"
               >
-                Exit
+                Logout
               </button>
             </div>
           )}
         </div>
+
       </div>
     </header>
   );
@@ -223,6 +225,8 @@ function MainContent({
   authError,
   handleSetUsername,
   handleGuestLogin,
+  handleSpectateGuest,
+  handleDismissInvite,
   disconnect,
   pendingGame,
 }: any) {
@@ -237,7 +241,14 @@ function MainContent({
   }, [location.pathname]);
 
   if (!user && !publicKey) {
-    return <WelcomeScreen onTestLogin={handleGuestLogin} pendingGame={pendingGame} />;
+    return (
+      <WelcomeScreen
+        onTestLogin={handleGuestLogin}
+        onSpectateGuest={handleSpectateGuest}
+        pendingGame={pendingGame}
+        onDismissInvite={handleDismissInvite}
+      />
+    );
   }
 
   if (isAuthenticating) {
@@ -373,20 +384,20 @@ export default function App() {
           jsonrpc: '2.0',
           id: 1,
           method: 'getBalance',
-          params: [walletStr, { commitment: 'confirmed' }],
+          params: [walletStr],
         }),
       });
       const data = await res.json();
       if (data?.result?.value !== undefined) {
         setSolBalance(data.result.value / LAMPORTS_PER_SOL);
       }
-    } catch (err2) {
-      console.warn('Balance fallback failed:', err2);
+    } catch (e) {
+      // Fallback
     }
-  }, [publicKey, connection, user?.isTestUser, setSolBalance]);
+  }, [publicKey, user?.isTestUser, connection, setSolBalance]);
 
   useEffect(() => {
-    if (!publicKey || user?.isTestUser) {
+    if (!publicKey) {
       if (user?.isTestUser) setSolBalance(null);
       return;
     }
@@ -415,6 +426,14 @@ export default function App() {
     } finally {
       setIsAuthenticating(false);
     }
+  };
+
+  const handleSpectateGuest = async (guestUsername: string) => {
+    await handleGuestLogin(guestUsername);
+  };
+
+  const handleDismissInvite = () => {
+    setPendingGame(null);
   };
 
   useEffect(() => {
@@ -620,6 +639,8 @@ export default function App() {
             authError={authError}
             handleSetUsername={handleSetUsername}
             handleGuestLogin={handleGuestLogin}
+            handleSpectateGuest={handleSpectateGuest}
+            handleDismissInvite={handleDismissInvite}
             disconnect={disconnect}
             pendingGame={pendingGame}
           />

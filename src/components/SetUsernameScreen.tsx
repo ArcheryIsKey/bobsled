@@ -1,14 +1,20 @@
 import React, { useState, useRef } from 'react';
-import { Loader2, CheckCircle, ArrowRight, Plus, X } from 'lucide-react';
+import { Loader2, CheckCircle, ArrowRight, Plus, X, Gamepad2 } from 'lucide-react';
 import { processImageFile } from '../utils/image';
 
 interface SetUsernameScreenProps {
   onSubmit: (username: string, avatarUrl?: string) => void;
   isSubmitting: boolean;
   error: string | null;
+  pendingGame?: {
+    id: string;
+    player1Name?: string;
+    wager?: number;
+    wagerCurrency?: string;
+  } | null;
 }
 
-export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: SetUsernameScreenProps) {
+export default function SetUsernameScreen({ onSubmit, isSubmitting, error, pendingGame }: SetUsernameScreenProps) {
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isProcessingAvatar, setIsProcessingAvatar] = useState(false);
@@ -37,7 +43,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
   };
 
   return (
-    <div className="bg-surface-base text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md relative overflow-hidden w-full">
+    <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md relative overflow-hidden w-full">
       {/* Background Atmospheric Effect */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-velocity-red/5 rounded-full blur-[120px]" />
@@ -53,10 +59,27 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
         className="hidden"
       />
 
-      <main className="flex-grow flex items-center justify-center p-4 md:p-8 relative z-10 w-full max-w-lg mx-auto py-12">
-        <div className="bg-[#161616]/95 backdrop-blur-[16px] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-xl w-full overflow-hidden transition-all duration-300">
+      <main className="flex-grow flex flex-col items-center justify-center p-4 md:p-8 relative z-10 w-full max-w-lg mx-auto py-12">
+        
+        {/* Game Invitation Floating Banner */}
+        {pendingGame && (
+          <div className="w-full mb-5 p-4 rounded-2xl bg-velocity-red/10 border border-velocity-red/40 flex items-center gap-3.5 text-left shadow-[0_0_30px_rgba(255,77,77,0.2)]">
+            <div className="w-10 h-10 rounded-full bg-velocity-red flex items-center justify-center text-white shrink-0 shadow-md">
+              <Gamepad2 size={20} />
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase tracking-wider text-velocity-red font-mono font-bold block">
+                Match Invitation
+              </span>
+              <p className="text-xs text-white font-semibold">
+                Complete your username to enter Match <strong className="font-mono text-velocity-red">#{pendingGame.id.substring(0, 6).toUpperCase()}</strong> ({pendingGame.wager ? `${pendingGame.wager} SOL` : 'Free'})
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-[#141414] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.6)] rounded-2xl w-full overflow-hidden transition-all duration-300">
           
-          {/* Header Accent Line */}
           <div className="w-full bg-surface-container-highest h-1">
             <div className="bg-velocity-red h-full w-1/3 transition-all duration-500 ease-out" />
           </div>
@@ -70,7 +93,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
           >
             {/* Title */}
             <div className="text-center space-y-1">
-              <h1 className="font-headline-lg text-2xl md:text-3xl text-text-primary font-bold tracking-tight">
+              <h1 className="font-headline-lg text-2xl md:text-3xl text-white font-bold tracking-tight">
                 Create Your Account
               </h1>
               <p className="font-body-sm text-text-secondary text-sm">
@@ -86,7 +109,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
 
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="w-24 h-24 rounded-lg border-2 border-dashed border-white/15 hover:border-velocity-red bg-surface-container hover:bg-surface-container-high transition-all flex flex-col items-center justify-center cursor-pointer relative overflow-hidden group shadow-inner"
+                className="w-24 h-24 rounded-2xl border-2 border-dashed border-white/15 hover:border-velocity-red bg-surface-container hover:bg-surface-container-high transition-all flex flex-col items-center justify-center cursor-pointer relative overflow-hidden group shadow-inner"
                 title="Upload Profile Picture"
               >
                 {avatarUrl ? (
@@ -124,11 +147,11 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
               <label className="text-xs text-text-secondary font-medium block" htmlFor="username">
                 Username
               </label>
-              <div className="relative flex items-center bg-surface-container rounded-md border border-white/10 transition-colors duration-200 focus-within:border-velocity-red focus-within:ring-1 focus-within:ring-velocity-red">
-                <span className="pl-3.5 text-text-muted select-none text-sm">@</span>
+              <div className="relative flex items-center bg-[#0e0e0e] rounded-full border border-white/10 transition-colors duration-200 focus-within:border-velocity-red">
+                <span className="pl-4 text-text-muted select-none text-sm font-mono">@</span>
                 <input
                   autoComplete="off"
-                  className="w-full bg-transparent border-none text-text-primary text-sm py-2.5 px-2 focus:ring-0 placeholder:text-text-muted outline-none"
+                  className="w-full bg-transparent border-none text-white text-sm py-2.5 px-2 focus:ring-0 placeholder:text-text-muted outline-none font-mono"
                   id="username"
                   name="username"
                   placeholder="username"
@@ -139,7 +162,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
                   maxLength={15}
                 />
                 {username.length >= 3 && !error && (
-                  <div className="pr-3">
+                  <div className="pr-4">
                     <CheckCircle className="text-green-400 w-4 h-4" />
                   </div>
                 )}
@@ -150,7 +173,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
                 {error ? (
                   <p className="text-xs text-velocity-red">{error}</p>
                 ) : (
-                  <p className="text-xs text-text-muted">3-15 characters, letters, numbers, and underscores.</p>
+                  <p className="text-xs text-text-muted font-mono">3-15 characters, letters, numbers, and underscores.</p>
                 )}
               </div>
             </div>
@@ -158,7 +181,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
             {/* Submit Action */}
             <div className="pt-2">
               <button
-                className="w-full bg-velocity-red text-white text-sm py-3 rounded-md font-semibold tracking-wide hover:bg-red-600 active:scale-[0.99] transition-all duration-200 flex justify-center items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,77,77,0.3)]"
+                className="w-full bg-velocity-red text-white text-sm py-3 rounded-full font-semibold tracking-wide hover:bg-red-600 active:scale-[0.99] transition-all duration-200 flex justify-center items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,77,77,0.3)] cursor-pointer font-mono"
                 type="submit"
                 disabled={!username.trim() || isSubmitting || username.length < 3}
               >
@@ -169,7 +192,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error }: Set
                   </>
                 ) : (
                   <>
-                    <span>Continue to Games</span>
+                    <span>Enter Bobsled</span>
                     <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
                   </>
                 )}

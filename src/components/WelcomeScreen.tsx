@@ -1,8 +1,18 @@
 import React, { useState } from 'react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { Play, FlaskConical } from 'lucide-react';
+import { Play, FlaskConical, Gamepad2 } from 'lucide-react';
 
-export default function WelcomeScreen({ onTestLogin }: { onTestLogin?: (username: string) => void }) {
+interface WelcomeScreenProps {
+  onTestLogin?: (username: string) => void;
+  pendingGame?: {
+    id: string;
+    player1Name?: string;
+    wager?: number;
+    wagerCurrency?: string;
+  } | null;
+}
+
+export default function WelcomeScreen({ onTestLogin, pendingGame }: WelcomeScreenProps) {
   const [testUsername, setTestUsername] = useState('');
 
   const handleTestSubmit = (e: React.FormEvent) => {
@@ -20,8 +30,29 @@ export default function WelcomeScreen({ onTestLogin }: { onTestLogin?: (username
         <div className="absolute bottom-1/3 right-1/4 w-[600px] h-[600px] bg-[#1a1a1a]/40 rounded-full blur-[120px]" />
       </div>
 
-      <main className="flex-grow flex items-center justify-center p-4 md:p-8 relative z-10 w-full max-w-md mx-auto py-12">
-        <div className="bg-[#141414] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-xl w-full overflow-hidden transition-all duration-300">
+      <main className="flex-grow flex flex-col items-center justify-center p-4 md:p-8 relative z-10 w-full max-w-md mx-auto py-12">
+        
+        {/* Game Invitation Floating Banner */}
+        {pendingGame && (
+          <div className="w-full mb-5 p-4 rounded-2xl bg-velocity-red/10 border border-velocity-red/40 flex items-center gap-3.5 text-left shadow-[0_0_30px_rgba(255,77,77,0.2)] animate-pulse">
+            <div className="w-10 h-10 rounded-full bg-velocity-red flex items-center justify-center text-white shrink-0 shadow-md">
+              <Gamepad2 size={20} />
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase tracking-wider text-velocity-red font-mono font-bold block">
+                Match Invitation
+              </span>
+              <p className="text-xs text-white font-semibold">
+                You're joining Match <strong className="font-mono text-velocity-red">#{pendingGame.id.substring(0, 6).toUpperCase()}</strong> ({pendingGame.wager ? `${pendingGame.wager} SOL` : 'Free'})
+              </p>
+              <p className="text-[11px] text-text-muted">
+                Connect your wallet or test mode to start playing right away.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-[#141414] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.8)] rounded-2xl w-full overflow-hidden transition-all duration-300">
           
           <div className="w-full bg-surface-container-highest h-1">
             <div className="bg-velocity-red h-full w-full opacity-80" />
@@ -41,7 +72,7 @@ export default function WelcomeScreen({ onTestLogin }: { onTestLogin?: (username
 
             {/* Wallet Connect Primary Action */}
             <div className="w-full flex justify-center">
-              <WalletMultiButton className="!w-full !justify-center !bg-velocity-red hover:!bg-red-600 !text-white !font-semibold !text-xs !py-3.5 !px-6 !transition-all !rounded-md !shadow-[0_0_20px_rgba(255,77,77,0.35)] !tracking-wide uppercase" />
+              <WalletMultiButton className="!w-full !justify-center !bg-velocity-red hover:!bg-red-600 !text-white !font-semibold !text-xs !py-3.5 !px-6 !transition-all !rounded-full !shadow-[0_0_20px_rgba(255,77,77,0.35)] !tracking-wide uppercase cursor-pointer" />
             </div>
 
             {/* Test User Mode */}
@@ -53,21 +84,21 @@ export default function WelcomeScreen({ onTestLogin }: { onTestLogin?: (username
                 </div>
 
                 <form onSubmit={handleTestSubmit} className="flex flex-col gap-2.5 w-full">
-                  <div className="relative flex items-center bg-[#0e0e0e] rounded-md border border-white/10 focus-within:border-velocity-red">
-                    <span className="pl-3 text-text-muted text-xs font-mono">@</span>
+                  <div className="relative flex items-center bg-[#0e0e0e] rounded-full border border-white/10 focus-within:border-velocity-red">
+                    <span className="pl-3.5 text-text-muted text-xs font-mono">@</span>
                     <input
                       type="text"
                       placeholder="Enter test username..."
                       value={testUsername}
                       onChange={(e) => setTestUsername(e.target.value)}
                       maxLength={15}
-                      className="w-full bg-transparent border-none text-white text-xs py-2 px-2 focus:ring-0 outline-none placeholder:text-text-muted"
+                      className="w-full bg-transparent border-none text-white text-xs py-2.5 px-2 focus:ring-0 outline-none placeholder:text-text-muted font-mono"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={!testUsername.trim()}
-                    className="w-full bg-surface-container hover:bg-surface-elevated text-text-secondary hover:text-white border border-white/10 hover:border-velocity-red text-xs py-2 rounded-md font-semibold transition-all disabled:opacity-40 flex items-center justify-center gap-1.5"
+                    className="w-full bg-surface-container hover:bg-surface-elevated text-text-secondary hover:text-white border border-white/10 hover:border-velocity-red text-xs py-2.5 rounded-full font-semibold transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 cursor-pointer font-mono"
                   >
                     <Play size={12} />
                     <span>Enter Test Mode</span>

@@ -5,7 +5,7 @@ import { db } from '../firebase';
 import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
@@ -17,6 +17,7 @@ export default function Game() {
   const [now, setNow] = useState(Date.now());
   const [copiedLink, setCopiedLink] = useState(false);
   const [showWinModal, setShowWinModal] = useState(true);
+  const [showResignModal, setShowResignModal] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -60,9 +61,8 @@ export default function Game() {
     }
   };
 
-  const handleResign = async () => {
+  const handleConfirmResign = async () => {
     if (!user || !game || game.status !== 'active') return;
-    if (!confirm('Are you sure you want to resign this match?')) return;
     const opponentId = game.player1 === user.id ? game.player2 : game.player1;
     try {
       await updateDoc(doc(db, 'games', game.id), {
@@ -70,6 +70,7 @@ export default function Game() {
         winner: opponentId,
         updatedAt: serverTimestamp(),
       });
+      setShowResignModal(false);
     } catch (e) {
       console.error(e);
     }
@@ -131,7 +132,6 @@ export default function Game() {
   const isSpectator = !isParticipant;
 
   const isMyTurn = isParticipant && game.turn === user?.id && game.status === 'active';
-  const opponentName = isPlayer1 ? game.player2Name : game.player1Name;
   const opponentAvatar = isPlayer1 ? game.player2Avatar : game.player1Avatar;
 
   const timeSinceLastMove = game.updatedAt?.toMillis ? now - game.updatedAt.toMillis() : 0;
@@ -198,7 +198,7 @@ export default function Game() {
               )}
             </div>
 
-            {/* Player VS Player (Clean, polished typography and avatars) */}
+            {/* Player VS Player */}
             <div className="bg-[#0e0e0e] rounded-xl p-4 border border-white/5 space-y-3.5">
               
               {/* Player 1 (Red) */}
@@ -289,7 +289,7 @@ export default function Game() {
               />
               <button
                 onClick={handleCopyLink}
-                className="bg-[#1e1e1e] border border-white/10 hover:border-velocity-red text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-colors font-medium"
+                className="bg-[#1e1e1e] border border-white/10 hover:border-velocity-red text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-colors font-medium cursor-pointer"
               >
                 {copiedLink ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
                 <span>{copiedLink ? 'Copied' : 'Copy'}</span>
@@ -297,20 +297,32 @@ export default function Game() {
             </div>
           </div>
 
-          {/* Chat Panel */}
+          {/* Chat Panel: Spectators cannot type nor see chat */}
           <div className="rounded-2xl border border-white/10 overflow-hidden flex flex-col h-64 bg-[#141414] shadow-xl">
-            <Chat gameId={game.id} />
+            {isSpectator ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2 bg-[#121212]">
+                <MessageSquareOff size={24} className="text-text-muted mb-1" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  Private Chat
+                </h4>
+                <p className="text-xs text-text-muted max-w-[200px] font-sans">
+                  In-game chat is private and only available to active players.
+                </p>
+              </div>
+            ) : (
+              <Chat gameId={game.id} />
+            )}
           </div>
         </aside>
 
         {/* Right Column: Game Board & Actions (2/3) */}
         <section className="flex-1 flex flex-col items-center justify-start gap-6 order-1 lg:order-2">
           
-          {/* Top Bar Actions with smooth pill buttons */}
+          {/* Top Bar Actions */}
           <div className="w-full flex justify-between items-center">
             <button
               onClick={handleLeave}
-              className="flex items-center gap-2 text-xs text-text-secondary hover:text-white py-2 px-4 rounded-full bg-[#141414] hover:bg-[#1e1e1e] border border-white/10 hover:border-velocity-red transition-all font-medium"
+              className="flex items-center gap-2 text-xs text-text-secondary hover:text-white py-2 px-4 rounded-full bg-[#141414] hover:bg-[#1e1e1e] border border-white/10 hover:border-velocity-red transition-all font-medium cursor-pointer"
             >
               <ArrowLeft size={14} />
               <span>Back to Lobby</span>
@@ -319,7 +331,7 @@ export default function Game() {
             {game.status === 'waiting' && game.player1 === user?.id && (
               <button
                 onClick={handleCancelMatch}
-                className="text-xs text-red-400 hover:text-white py-2 px-4 rounded-full bg-red-950/30 border border-red-900/50 hover:bg-red-900/60 transition-all font-medium flex items-center gap-1.5"
+                className="text-xs text-red-400 hover:text-white py-2 px-4 rounded-full bg-red-950/30 border border-red-900/50 hover:bg-red-900/60 transition-all font-medium flex items-center gap-1.5 cursor-pointer"
               >
                 <span>Cancel Game</span>
               </button>
@@ -334,8 +346,8 @@ export default function Game() {
             {/* Resign Button */}
             {game.status === 'active' && isParticipant && (
               <button
-                onClick={handleResign}
-                className="bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 px-6 py-2 rounded-full text-xs uppercase tracking-wider transition-all flex items-center gap-2 font-semibold font-mono"
+                onClick={() => setShowResignModal(true)}
+                className="bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 px-6 py-2 rounded-full text-xs uppercase tracking-wider transition-all flex items-center gap-2 font-semibold font-mono cursor-pointer"
               >
                 <Flag size={14} /> Resign
               </button>
@@ -345,7 +357,7 @@ export default function Game() {
             {canClaimAfk && (
               <button
                 onClick={handleClaimAfk}
-                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.6)] animate-bounce flex items-center gap-2 font-bold font-mono"
+                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.6)] animate-bounce flex items-center gap-2 font-bold font-mono cursor-pointer"
               >
                 <Trophy size={14} /> Claim Win (Opponent Inactive)
               </button>
@@ -355,7 +367,7 @@ export default function Game() {
             {isFinished && (
               <button
                 onClick={handleLeave}
-                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-8 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] font-bold flex items-center gap-2 font-mono"
+                className="bg-velocity-red text-white text-xs uppercase tracking-wider px-8 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] font-bold flex items-center gap-2 font-mono cursor-pointer"
               >
                 <span>Return to Lobby</span>
                 <ArrowRight size={15} />
@@ -364,6 +376,46 @@ export default function Game() {
           </div>
         </section>
       </main>
+
+      {/* In-App Custom Resign Confirmation Modal */}
+      <AnimatePresence>
+        {showResignModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowResignModal(false)}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-[#141414] border border-white/10 shadow-2xl rounded-3xl p-6 sm:p-8 space-y-5"
+            >
+              <h3 className="text-lg font-bold text-white">Resign Match</h3>
+              <p className="text-xs text-text-secondary">
+                Are you sure you want to forfeit this match? Your opponent will be awarded the victory.
+              </p>
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  onClick={() => setShowResignModal(false)}
+                  className="px-5 py-2 rounded-full bg-[#202020] text-white text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmResign}
+                  className="px-6 py-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-all shadow-[0_0_15px_rgba(255,0,0,0.4)] cursor-pointer font-mono"
+                >
+                  Confirm Resign
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* End Game Modal */}
       <AnimatePresence>
@@ -378,7 +430,7 @@ export default function Game() {
               initial={{ scale: 0.9, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 15 }}
-              className="rounded-2xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#141414] relative overflow-hidden"
+              className="rounded-3xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#141414] relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
 
@@ -417,7 +469,7 @@ export default function Game() {
                   setShowWinModal(false);
                   handleLeave();
                 }}
-                className="w-full bg-velocity-red text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono"
+                className="w-full bg-velocity-red text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono cursor-pointer"
               >
                 Back to Lobby
               </button>

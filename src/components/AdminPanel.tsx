@@ -18,8 +18,7 @@ import {
   Activity,
   X,
   User as UserIcon,
-  Swords,
-  XCircle
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -34,14 +33,18 @@ export default function AdminPanel() {
   const [filterMode, setFilterMode] = useState<'all' | 'active'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isPurging, setIsPurging] = useState(false);
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
 
   // Floating Inspect Profile State
   const [inspectUser, setInspectUser] = useState<any | null>(null);
   const [inspectHistory, setInspectHistory] = useState<any[]>([]);
   const [isLoadingInspectHistory, setIsLoadingInspectHistory] = useState(false);
 
-  // Check admin authorization
+  // In-App Custom Delete Modal State
+  const [userToDelete, setUserToDelete] = useState<any | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const isAdmin = currentUser?.walletAddress === '11111111111111111111111111111111';
 
   useEffect(() => {
@@ -50,14 +53,12 @@ export default function AdminPanel() {
       return;
     }
 
-    // Fetch users
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const uList = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       setUsers(uList);
       setIsLoading(false);
     });
 
-    // Fetch games for telemetry
     const unsubGames = onSnapshot(collection(db, 'games'), (snapshot) => {
       const gList = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       setGames(gList);
@@ -69,7 +70,6 @@ export default function AdminPanel() {
     };
   }, [isAdmin, currentUser, navigate]);
 
-  // Load match history when an inspect user is selected
   useEffect(() => {
     if (!inspectUser) {
       setInspectHistory([]);
@@ -100,57 +100,49 @@ export default function AdminPanel() {
   };
 
   const handlePurgeOldGames = async () => {
-    if (!confirm('Are you sure you want to delete all finished games? This will reset match histories.')) return;
     setIsPurging(true);
     try {
       const finishedGames = games.filter((g) => g.status === 'finished');
       for (const g of finishedGames) {
         await deleteDoc(doc(db, 'games', g.id));
       }
-      alert(`Successfully purged ${finishedGames.length} finished games.`);
+      setShowPurgeModal(false);
     } catch (e) {
       console.error('Error purging games:', e);
-      alert('Failed to purge games.');
     } finally {
       setIsPurging(false);
     }
   };
 
-  const handleDeleteUserAccount = async (targetUser: any) => {
-    const confirmName = prompt(`Type "${targetUser.username}" to permanently delete this user account:`);
-    if (confirmName !== targetUser.username) {
-      if (confirmName !== null) alert('Username did not match. Deletion cancelled.');
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    if (deleteConfirmInput.trim() !== userToDelete.username) {
       return;
     }
 
-    setDeletingUserId(targetUser.id);
+    setIsDeleting(true);
     try {
-      // 1. Delete user document from /users
-      await deleteDoc(doc(db, 'users', targetUser.id));
-
-      // 2. Delete username claim from /usernames
-      if (targetUser.username) {
-        await deleteDoc(doc(db, 'usernames', targetUser.username.toLowerCase()));
+      await deleteDoc(doc(db, 'users', userToDelete.id));
+      if (userToDelete.username) {
+        await deleteDoc(doc(db, 'usernames', userToDelete.username.toLowerCase()));
       }
 
-      // 3. Delete any open waiting games created by this user
       const userGamesSnap = await getDocs(
-        query(collection(db, 'games'), where('player1', '==', targetUser.id), where('status', '==', 'waiting'))
+        query(collection(db, 'games'), where('player1', '==', userToDelete.id), where('status', '==', 'waiting'))
       );
       for (const gDoc of userGamesSnap.docs) {
         await deleteDoc(gDoc.ref);
       }
 
-      if (inspectUser?.id === targetUser.id) {
+      if (inspectUser?.id === userToDelete.id) {
         setInspectUser(null);
       }
-
-      alert(`Account @${targetUser.username} successfully deleted.`);
+      setUserToDelete(null);
+      setDeleteConfirmInput('');
     } catch (e) {
-      console.error('Failed to delete user account:', e);
-      alert('Failed to delete account from database.');
+      console.error('Failed to delete account:', e);
     } finally {
-      setDeletingUserId(null);
+      setIsDeleting(false);
     }
   };
 
@@ -167,20 +159,29 @@ export default function AdminPanel() {
     );
   }
 
-  // Calculate KPIs
   const totalUsers = users.length;
   const activeGames = games.filter((g) => g.status === 'active');
+  const waitingGames = games.filter((g) => g.status === 'waiting');
   const finishedGames = games.filter((g) => g.status === 'finished');
   const totalVolumeSOL = games.reduce((sum, g) => (g.wagerCurrency === 'SOL' ? sum + (g.wager || 0) : sum), 0);
 
-  // Active user IDs (who played in any game)
+  // Active users: only users in LIVE active/waiting matches or played in the last 15 minutes
   const activeUserIds = new Set<string>();
-  games.forEach((g) => {
+  const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
+
+  [...activeGames, ...waitingGames].forEach((g) => {
     if (g.player1) activeUserIds.add(g.player1);
     if (g.player2) activeUserIds.add(g.player2);
   });
 
-  // Filter users
+  finishedGames.forEach((g) => {
+    const updatedMillis = g.updatedAt?.toMillis ? g.updatedAt.toMillis() : 0;
+    if (updatedMillis > fifteenMinutesAgo) {
+      if (g.player1) activeUserIds.add(g.player1);
+      if (g.player2) activeUserIds.add(g.player2);
+    }
+  });
+
   const filteredUsers = users.filter((u) => {
     const q = searchTerm.toLowerCase();
     const matchesSearch =
@@ -205,7 +206,7 @@ export default function AdminPanel() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate('/')}
-                className="p-2 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red text-text-secondary hover:text-white transition-colors"
+                className="p-2 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red text-text-secondary hover:text-white transition-colors cursor-pointer"
                 title="Back to Lobby"
               >
                 <ArrowLeft size={15} />
@@ -221,11 +222,10 @@ export default function AdminPanel() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={handlePurgeOldGames}
-              disabled={isPurging}
-              className="px-4 py-2 bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 text-xs font-semibold rounded-full transition-all flex items-center gap-2 font-mono"
+              onClick={() => setShowPurgeModal(true)}
+              className="px-4 py-2 bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 text-xs font-semibold rounded-full transition-all flex items-center gap-2 font-mono cursor-pointer"
             >
-              {isPurging ? <Loader2 size={13} className="animate-spin text-velocity-red" /> : <Trash2 size={13} />}
+              <Trash2 size={13} />
               <span>Purge Finished Games</span>
             </button>
           </div>
@@ -305,7 +305,7 @@ export default function AdminPanel() {
               <div className="flex bg-[#0e0e0e] p-1 rounded-full border border-white/10 text-xs font-mono">
                 <button
                   onClick={() => setFilterMode('all')}
-                  className={`px-3 py-1 rounded-full transition-all ${
+                  className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
                     filterMode === 'all'
                       ? 'bg-white/15 text-white font-bold'
                       : 'text-text-muted hover:text-white'
@@ -315,7 +315,7 @@ export default function AdminPanel() {
                 </button>
                 <button
                   onClick={() => setFilterMode('active')}
-                  className={`px-3 py-1 rounded-full transition-all ${
+                  className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
                     filterMode === 'active'
                       ? 'bg-velocity-red/20 text-velocity-red font-bold'
                       : 'text-text-muted hover:text-white'
@@ -356,7 +356,7 @@ export default function AdminPanel() {
                     <th className="py-3.5 px-5 font-semibold">User</th>
                     <th className="py-3.5 px-5 font-semibold">Wallet Address</th>
                     <th className="py-3.5 px-5 font-semibold">Registered</th>
-                    <th className="py-3.5 px-5 font-semibold text-right">Actions</th>
+                    <th className="py-3.5 px-5 font-semibold text-right">Delete</th>
                   </tr>
                 </thead>
                 <tbody className="text-xs divide-y divide-white/5 font-body-md">
@@ -367,14 +367,15 @@ export default function AdminPanel() {
                     const walletStr = u.walletAddress || 'None';
 
                     return (
-                      <tr key={u.id} className="hover:bg-[#1a1a1a] transition-colors group">
-                        
+                      <tr
+                        key={u.id}
+                        onClick={() => setInspectUser(u)}
+                        className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
+                        title="Click to view profile"
+                      >
                         {/* User Identity */}
-                        <td className="py-3 px-5">
-                          <div
-                            onClick={() => setInspectUser(u)}
-                            className="flex items-center gap-3 hover:text-velocity-red transition-colors cursor-pointer"
-                          >
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full border border-white/10 bg-surface-container overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
                               {u.avatarUrl ? (
                                 <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -388,8 +389,8 @@ export default function AdminPanel() {
                           </div>
                         </td>
 
-                        {/* Wallet Address with Copy */}
-                        <td className="py-3 px-5 font-mono text-text-secondary">
+                        {/* Wallet Address */}
+                        <td className="py-3.5 px-5 font-mono text-text-secondary" onClick={(e) => e.stopPropagation()}>
                           {u.walletAddress ? (
                             <div className="flex items-center gap-2">
                               <span>
@@ -397,7 +398,7 @@ export default function AdminPanel() {
                               </span>
                               <button
                                 onClick={() => handleCopyWallet(u.walletAddress, u.id)}
-                                className="text-text-muted hover:text-white transition-colors"
+                                className="text-text-muted hover:text-white transition-colors cursor-pointer"
                                 title="Copy full address"
                               >
                                 {copiedId === u.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -409,32 +410,22 @@ export default function AdminPanel() {
                         </td>
 
                         {/* Registered Date */}
-                        <td className="py-3 px-5 font-mono text-text-muted">
+                        <td className="py-3.5 px-5 font-mono text-text-muted" onClick={(e) => e.stopPropagation()}>
                           {regDate}
                         </td>
 
-                        {/* Actions: Floating Inspect Profile & Delete */}
-                        <td className="py-3 px-5 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => setInspectUser(u)}
-                              className="px-3.5 py-1.5 rounded-full border border-white/10 hover:border-velocity-red text-text-secondary hover:text-white transition-all text-xs font-medium font-mono"
-                            >
-                              Inspect
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUserAccount(u)}
-                              disabled={deletingUserId === u.id}
-                              className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors"
-                              title="Delete Account"
-                            >
-                              {deletingUserId === u.id ? (
-                                <Loader2 size={14} className="animate-spin text-red-500" />
-                              ) : (
-                                <Trash2 size={14} />
-                              )}
-                            </button>
-                          </div>
+                        {/* Delete Action */}
+                        <td className="py-3.5 px-5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => {
+                              setUserToDelete(u);
+                              setDeleteConfirmInput('');
+                            }}
+                            className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors cursor-pointer"
+                            title="Delete Account"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -445,6 +436,109 @@ export default function AdminPanel() {
           )}
         </section>
       </main>
+
+      {/* In-App Custom Delete Account Modal */}
+      <AnimatePresence>
+        {userToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setUserToDelete(null)}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-[#141414] border border-red-900/50 shadow-[0_16px_50px_rgba(255,0,0,0.2)] rounded-3xl p-6 sm:p-8 space-y-6 relative overflow-hidden"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-950/50 border border-red-900/80 flex items-center justify-center text-red-400 shrink-0">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Delete User Account</h3>
+                  <p className="text-xs text-text-muted font-mono">This action is permanent and cannot be undone.</p>
+                </div>
+              </div>
+
+              <div className="bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5 text-xs text-text-secondary space-y-2">
+                <p>Deleting <strong className="text-white">@{userToDelete.username}</strong> will erase their account data, username reservation, and active matches.</p>
+                <p className="text-text-muted">Type <span className="font-mono text-velocity-red font-bold">{userToDelete.username}</span> below to confirm:</p>
+              </div>
+
+              <input
+                type="text"
+                placeholder={userToDelete.username}
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                className="w-full bg-[#0e0e0e] border border-white/10 focus:border-velocity-red rounded-full px-4 py-2.5 text-xs text-white outline-none font-mono text-center"
+              />
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  onClick={() => setUserToDelete(null)}
+                  className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDeleteUser}
+                  disabled={deleteConfirmInput.trim() !== userToDelete.username || isDeleting}
+                  className="px-6 py-2 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-semibold transition-all shadow-[0_0_15px_rgba(255,0,0,0.4)] flex items-center gap-2 cursor-pointer font-mono"
+                >
+                  {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                  <span>Delete Account</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* In-App Custom Purge Modal */}
+      <AnimatePresence>
+        {showPurgeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowPurgeModal(false)}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-[#141414] border border-white/10 shadow-2xl rounded-3xl p-6 sm:p-8 space-y-5"
+            >
+              <h3 className="text-lg font-bold text-white">Purge Finished Games</h3>
+              <p className="text-xs text-text-secondary">
+                Are you sure you want to delete all <strong className="text-white font-mono">{finishedGames.length}</strong> completed games from the database? This will clear historical match records.
+              </p>
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  onClick={() => setShowPurgeModal(false)}
+                  className="px-5 py-2 rounded-full bg-[#202020] text-white text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePurgeOldGames}
+                  disabled={isPurging}
+                  className="px-6 py-2 rounded-full bg-velocity-red hover:bg-red-600 text-white text-xs font-semibold transition-all shadow-[0_0_15px_rgba(255,77,77,0.4)] flex items-center gap-2 cursor-pointer font-mono"
+                >
+                  {isPurging ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                  <span>Confirm Purge</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating Inspect Profile Modal (Click outside or ESC to close) */}
       <AnimatePresence>
@@ -466,18 +560,18 @@ export default function AdminPanel() {
               {/* Header Close Button */}
               <button
                 onClick={() => setInspectUser(null)}
-                className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center border border-white/10 transition-colors"
+                className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center border border-white/10 transition-colors cursor-pointer"
                 title="Close"
               >
                 <X size={15} />
               </button>
 
-              {/* Banner */}
-              <div className="relative w-full h-32 bg-gradient-to-r from-[#1f1f1f] via-[#161616] to-[#0e0e0e] border-b border-white/10 overflow-hidden shrink-0">
+              {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
+              <div className="relative w-full h-32 bg-black border-b border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
                 {inspectUser.bannerUrl ? (
-                  <img src={inspectUser.bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+                  <img src={inspectUser.bannerUrl} alt="Banner" className="w-full h-full object-contain" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#0a0a0a_100%)]">
                     <div className="w-64 h-64 bg-velocity-red/10 rounded-full blur-2xl" />
                   </div>
                 )}
@@ -510,7 +604,7 @@ export default function AdminPanel() {
                     <span className="truncate">{inspectUser.walletAddress}</span>
                     <button
                       onClick={() => handleCopyWallet(inspectUser.walletAddress, inspectUser.id)}
-                      className="ml-2 text-text-muted hover:text-white shrink-0"
+                      className="ml-2 text-text-muted hover:text-white shrink-0 cursor-pointer"
                     >
                       {copiedId === inspectUser.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
                     </button>
@@ -579,19 +673,21 @@ export default function AdminPanel() {
                 )}
               </div>
 
-              {/* Bottom Actions: Delete User Account */}
+              {/* Bottom Actions */}
               <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-between items-center shrink-0">
                 <button
-                  onClick={() => handleDeleteUserAccount(inspectUser)}
-                  disabled={deletingUserId === inspectUser.id}
-                  className="px-4 py-2 rounded-full bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono"
+                  onClick={() => {
+                    setUserToDelete(inspectUser);
+                    setDeleteConfirmInput('');
+                  }}
+                  className="px-4 py-2 rounded-full bg-red-950/40 hover:bg-red-900/60 border border-red-900/60 text-red-400 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all font-mono cursor-pointer"
                 >
                   <Trash2 size={13} />
                   <span>Delete User Account</span>
                 </button>
                 <button
                   onClick={() => setInspectUser(null)}
-                  className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors"
+                  className="px-5 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer"
                 >
                   Close
                 </button>

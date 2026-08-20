@@ -4,7 +4,7 @@ import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'fi
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import { processImageFile, processBannerFile } from '../utils/image';
-import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon } from 'lucide-react';
+import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical } from 'lucide-react';
 
 export default function Profile() {
   const { userId: paramUserId } = useParams<{ userId?: string }>();
@@ -13,6 +13,7 @@ export default function Profile() {
 
   const isOwnProfile = !paramUserId || paramUserId === currentUser?.id;
   const targetUserId = paramUserId || currentUser?.id;
+  const isTestUser = isOwnProfile && currentUser?.isTestUser;
 
   const [profileData, setProfileData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -81,6 +82,7 @@ export default function Profile() {
   }, [targetUserId]);
 
   const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isTestUser) return;
     const file = e.target.files?.[0];
     if (!file || !currentUser?.id || !isOwnProfile) return;
 
@@ -100,6 +102,7 @@ export default function Profile() {
   };
 
   const handleBannerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isTestUser) return;
     const file = e.target.files?.[0];
     if (!file || !currentUser?.id || !isOwnProfile) return;
 
@@ -140,7 +143,7 @@ export default function Profile() {
         <h2 className="text-xl font-bold text-white">User not found</h2>
         <button
           onClick={() => navigate('/')}
-          className="px-4 py-2 bg-surface-container border border-white/10 rounded-md text-sm hover:border-velocity-red transition-colors"
+          className="px-5 py-2 bg-[#141414] border border-white/10 rounded-full text-xs font-semibold hover:border-velocity-red transition-colors cursor-pointer"
         >
           Back to Lobby
         </button>
@@ -160,8 +163,8 @@ export default function Profile() {
 
   return (
     <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
-      {/* Hidden File Inputs */}
-      {isOwnProfile && (
+      {/* Hidden File Inputs (Disabled for Test Users) */}
+      {isOwnProfile && !isTestUser && (
         <>
           <input
             type="file"
@@ -186,7 +189,7 @@ export default function Profile() {
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red"
+            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red cursor-pointer"
           >
             <ArrowLeft size={14} /> Back to Lobby
           </button>
@@ -195,22 +198,26 @@ export default function Profile() {
         {/* Profile Card with Banner */}
         <section className="mb-10 rounded-2xl bg-[#141414] border border-white/10 overflow-hidden shadow-2xl relative">
           
-          {/* Banner Container */}
-          <div className="relative w-full h-40 sm:h-52 md:h-60 bg-gradient-to-r from-surface-elevated via-surface-container to-surface-base border-b border-white/10 overflow-hidden group">
+          {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
+          <div className="relative w-full h-40 sm:h-52 md:h-60 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
             {profileData.bannerUrl ? (
-              <img src={profileData.bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+              <img
+                src={profileData.bannerUrl}
+                alt="Banner"
+                className="w-full h-full object-contain"
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#121212_100%)]">
+              <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#0a0a0a_100%)]">
                 <div className="w-96 h-96 bg-velocity-red/5 rounded-full blur-3xl pointer-events-none" />
               </div>
             )}
 
-            {/* Banner edit button for own profile */}
-            {isOwnProfile && (
+            {/* Banner edit button for own profile (Hidden for test users) */}
+            {isOwnProfile && !isTestUser && (
               <button
                 onClick={() => bannerInputRef.current?.click()}
                 disabled={isUploadingBanner}
-                className="absolute top-3 right-3 bg-black/75 hover:bg-black/95 border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md"
+                className="absolute top-3 right-3 bg-black/80 hover:bg-black border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md cursor-pointer"
               >
                 {isUploadingBanner ? (
                   <Loader2 size={13} className="animate-spin text-velocity-red" />
@@ -222,18 +229,18 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Profile Header Content: Avatar overlapping cleanly without covering text */}
+          {/* Profile Header Content */}
           <div className="px-6 md:px-8 pb-6 md:pb-8 pt-0 relative z-10">
             
             <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
               
-              {/* Avatar */}
+              {/* Avatar (Clickable only for real accounts) */}
               <div
-                onClick={() => isOwnProfile && avatarInputRef.current?.click()}
+                onClick={() => isOwnProfile && !isTestUser && avatarInputRef.current?.click()}
                 className={`-mt-14 sm:-mt-16 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
-                  isOwnProfile ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
+                  isOwnProfile && !isTestUser ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
                 }`}
-                title={isOwnProfile ? 'Click to change profile picture' : ''}
+                title={isOwnProfile && !isTestUser ? 'Click to change profile picture' : ''}
               >
                 {profileData.avatarUrl ? (
                   <img
@@ -242,16 +249,16 @@ export default function Profile() {
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                    <span className="text-3xl sm:text-4xl font-headline-lg font-bold text-text-primary">
+                  <div className="w-full h-full bg-[#1e1e1e] flex items-center justify-center">
+                    <span className="text-3xl sm:text-4xl font-headline-lg font-bold text-white">
                       {profileData.username ? profileData.username.substring(0, 2).toUpperCase() : 'U'}
                     </span>
                   </div>
                 )}
 
-                {/* Avatar hover camera overlay (own profile only) */}
-                {isOwnProfile && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                {/* Avatar hover camera overlay (Only for real own profile) */}
+                {isOwnProfile && !isTestUser && (
+                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] cursor-pointer">
                     {isUploadingAvatar ? (
                       <Loader2 size={20} className="animate-spin text-velocity-red" />
                     ) : (
@@ -264,17 +271,25 @@ export default function Profile() {
                 )}
               </div>
 
-              {/* Names & Wallet — Positioned cleanly below banner */}
-              <div className="space-y-1 pt-2 sm:pt-4">
-                <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
-                  {profileData.username}
-                </h1>
+              {/* Names & Badges */}
+              <div className="space-y-1.5 pt-2 sm:pt-4">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
+                    {profileData.username}
+                  </h1>
+                  {isTestUser && (
+                    <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                      <FlaskConical size={11} />
+                      <span>Guest Mode</span>
+                    </span>
+                  )}
+                </div>
 
                 {profileData.walletAddress && (
                   <div className="flex items-center justify-center sm:justify-start gap-2">
                     <button
                       onClick={handleCopyWallet}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0e0e0e] border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-white font-mono transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0e0e0e] border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-white font-mono transition-colors cursor-pointer"
                       title="Copy wallet address"
                     >
                       <span>{walletDisplay}</span>
@@ -295,7 +310,7 @@ export default function Profile() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           
           {/* Card 1: Matches */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
               <Swords size={16} className="text-text-muted group-hover:text-velocity-red transition-colors" />
@@ -309,7 +324,7 @@ export default function Profile() {
           </div>
 
           {/* Card 2: Wins */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
               <Trophy size={16} className="text-velocity-red transition-colors" />
@@ -323,7 +338,7 @@ export default function Profile() {
           </div>
 
           {/* Card 3: Losses */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
               <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
@@ -337,7 +352,7 @@ export default function Profile() {
           </div>
 
           {/* Card 4: SOL Holdings */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">SOL Balance</span>
               <span className="text-xs font-mono font-bold text-velocity-red">SOL</span>
@@ -351,7 +366,7 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Match History Table (No "Watch" button on finished matches) */}
+        {/* Match History Table */}
         <section>
           <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
             <h2 className="font-headline-lg text-xl text-white font-bold">
@@ -362,7 +377,7 @@ export default function Profile() {
             </span>
           </div>
 
-          <div className="bg-[#141414] border border-white/10 rounded-xl overflow-hidden shadow-xl">
+          <div className="bg-[#141414] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
             {history.length === 0 ? (
               <div className="p-10 text-center text-text-muted text-sm font-mono">
                 No match history recorded yet.

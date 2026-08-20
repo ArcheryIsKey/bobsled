@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate 
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { signOut, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, writeBatch, serverTimestamp, getDocs, query, collection, where, deleteDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { useGameStore } from './store';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -16,6 +16,44 @@ import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
 import { Shield, User, FlaskConical } from 'lucide-react';
 
+// Utility to clean up test user's active/waiting games on logoff
+async function cleanupTestUserGames(testUserId: string) {
+  try {
+    const waitingSnap = await getDocs(
+      query(collection(db, 'games'), where('player1', '==', testUserId), where('status', '==', 'waiting'))
+    );
+    for (const gDoc of waitingSnap.docs) {
+      await deleteDoc(gDoc.ref);
+    }
+
+    const activeSnap1 = await getDocs(
+      query(collection(db, 'games'), where('player1', '==', testUserId), where('status', '==', 'active'))
+    );
+    for (const gDoc of activeSnap1.docs) {
+      const g = gDoc.data();
+      await updateDoc(gDoc.ref, {
+        status: 'finished',
+        winner: g.player2,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    const activeSnap2 = await getDocs(
+      query(collection(db, 'games'), where('player2', '==', testUserId), where('status', '==', 'active'))
+    );
+    for (const gDoc of activeSnap2.docs) {
+      const g = gDoc.data();
+      await updateDoc(gDoc.ref, {
+        status: 'finished',
+        winner: g.player1,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.warn('Test cleanup notice:', err);
+  }
+}
+
 function AppHeader() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -25,6 +63,9 @@ function AppHeader() {
 
   const handleLogout = async () => {
     localStorage.removeItem('bobsled_auth_wallet');
+    if (user?.isTestUser && user.id) {
+      await cleanupTestUserGames(user.id);
+    }
     try {
       await signOut(auth);
     } catch (e) {
@@ -48,7 +89,7 @@ function AppHeader() {
         <div className="flex items-center gap-4 sm:gap-8">
           <Link
             to="/"
-            className="flex items-center gap-2 font-headline-lg text-xl sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 font-headline-lg text-xl sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity cursor-pointer"
           >
             <img src="/logo.jpg" alt="bobsled.gg" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full mix-blend-screen" />
             <span className="text-white">bobsled<span className="text-velocity-red">.</span>gg</span>
@@ -58,7 +99,7 @@ function AppHeader() {
             <nav className="hidden md:flex items-center space-x-1 bg-[#1a1a1a]/80 p-1 rounded-full border border-white/5">
               <Link
                 to="/"
-                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all ${
+                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all cursor-pointer ${
                   isLobby
                     ? 'text-white bg-white/15 shadow-sm'
                     : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -68,7 +109,7 @@ function AppHeader() {
               </Link>
               <Link
                 to="/profile"
-                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all ${
+                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all cursor-pointer ${
                   isProfile
                     ? 'text-white bg-white/15 shadow-sm'
                     : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -79,7 +120,7 @@ function AppHeader() {
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className={`text-xs px-3.5 py-1.5 rounded-full font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+                  className={`text-xs px-3.5 py-1.5 rounded-full font-semibold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer ${
                     isAdminRoute
                       ? 'text-velocity-red bg-velocity-red/15 border border-velocity-red/30'
                       : 'text-text-secondary hover:text-velocity-red hover:bg-white/5'
@@ -100,7 +141,7 @@ function AppHeader() {
           {isAdmin && (
             <Link
               to="/admin"
-              className="md:hidden flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-velocity-red/10 border border-velocity-red/30 text-velocity-red rounded-full font-mono font-bold"
+              className="md:hidden flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-velocity-red/10 border border-velocity-red/30 text-velocity-red rounded-full font-mono font-bold cursor-pointer"
             >
               Admin
             </Link>
@@ -109,7 +150,7 @@ function AppHeader() {
           {!user && !publicKey ? (
             <button
               onClick={() => setVisible(true)}
-              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono"
+              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono cursor-pointer"
             >
               Connect Wallet
             </button>
@@ -137,7 +178,7 @@ function AppHeader() {
               {/* Profile Link Pill */}
               <Link
                 to="/profile"
-                className="flex items-center gap-2 p-1 sm:pr-3 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group"
+                className="flex items-center gap-2 p-1 sm:pr-3 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group cursor-pointer"
                 title="View Profile"
               >
                 <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 group-hover:border-velocity-red bg-surface-container flex items-center justify-center font-bold text-xs text-velocity-red transition-colors shrink-0">
@@ -155,7 +196,7 @@ function AppHeader() {
               {/* Exit Button */}
               <button
                 onClick={handleLogout}
-                className="text-xs px-3.5 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium"
+                className="text-xs px-3.5 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium cursor-pointer"
               >
                 Exit
               </button>
@@ -175,12 +216,13 @@ function MainContent({
   handleSetUsername,
   handleTestLogin,
   disconnect,
+  pendingGame,
 }: any) {
   const { publicKey } = useWallet();
   const { user } = useGameStore();
 
   if (!user && !publicKey) {
-    return <WelcomeScreen onTestLogin={handleTestLogin} />;
+    return <WelcomeScreen onTestLogin={handleTestLogin} pendingGame={pendingGame} />;
   }
 
   if (isAuthenticating) {
@@ -198,6 +240,7 @@ function MainContent({
         onSubmit={handleSetUsername}
         isSubmitting={isAuthenticating}
         error={usernameError}
+        pendingGame={pendingGame}
       />
     );
   }
@@ -210,7 +253,7 @@ function MainContent({
           <p className="text-xs text-text-secondary font-mono">{authError}</p>
           <button
             onClick={() => disconnect()}
-            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-full text-white font-mono"
+            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-full text-white font-mono cursor-pointer"
           >
             Disconnect &amp; Retry
           </button>
@@ -251,6 +294,32 @@ export default function App() {
   const [authInitialized, setAuthInitialized] = useState(false);
   const [needsUsername, setNeedsUsername] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [pendingGame, setPendingGame] = useState<any | null>(null);
+
+  // Check if URL points to an incoming game invitation
+  useEffect(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/(game|watch)\/([a-zA-Z0-9_-]+)$/);
+    if (match && match[2]) {
+      const gId = match[2];
+      getDoc(doc(db, 'games', gId)).then((snap) => {
+        if (snap.exists()) {
+          setPendingGame({ id: snap.id, ...snap.data() });
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  // Cleanup test user games on window unload
+  useEffect(() => {
+    const handleUnload = () => {
+      if (user?.isTestUser && user.id) {
+        cleanupTestUserGames(user.id);
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [user]);
 
   // Live real-time SOL balance directly from user's crypto wallet & multi-RPC backend
   const fetchWalletBalance = useCallback(async () => {
@@ -268,7 +337,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      // Backend request fallback to direct RPC
+      // Ignore
     }
 
     // 2. Try Provider RPC Connection
@@ -314,7 +383,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [publicKey, user?.isTestUser, fetchWalletBalance]);
 
-  // Test user login handler: Signs into Firebase Auth anonymously
+  // Test user login handler
   const handleTestLogin = async (testUsername: string) => {
     setIsAuthenticating(true);
     setAuthError(null);
@@ -391,12 +460,10 @@ export default function App() {
 
       const walletStr = publicKey.toBase58();
 
-      // Check if current Firebase auth session already matches this wallet!
       if (auth.currentUser && !auth.currentUser.isAnonymous && user?.walletAddress === walletStr) {
         return;
       }
 
-      // Check if local token was previously saved and Firebase is still loading
       const lastWallet = localStorage.getItem('bobsled_auth_wallet');
       if (lastWallet === walletStr && auth.currentUser && !auth.currentUser.isAnonymous) {
         return;
@@ -535,6 +602,7 @@ export default function App() {
             handleSetUsername={handleSetUsername}
             handleTestLogin={handleTestLogin}
             disconnect={disconnect}
+            pendingGame={pendingGame}
           />
         </main>
       </div>

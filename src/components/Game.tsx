@@ -37,7 +37,6 @@ export default function Game() {
 
   if (!game) return <div className="flex-1 flex items-center justify-center text-[10px] uppercase tracking-widest text-neutral-500 font-mono">Connecting to Signal...</div>;
 
-  const isSpectator = user?.id !== game.player1 && user?.id !== game.player2;
   const isMyTurn = user?.id === game.turn;
   const opponentId = game.player1 === user?.id ? game.player2 : game.player1;
   const timeSinceLastMove = game.updatedAt ? now - game.updatedAt.toMillis() : 0;

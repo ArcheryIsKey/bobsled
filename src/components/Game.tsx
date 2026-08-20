@@ -1,23 +1,31 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import Chat from './Chat';
 import Connect4 from './games/Connect4';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useGameStore();
 
   const [game, setGame] = useState<any>(null);
   const [now, setNow] = useState(Date.now());
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
+  const [copiedSpectate, setCopiedSpectate] = useState(false);
   const [showWinModal, setShowWinModal] = useState(true);
   const [showResignModal, setShowResignModal] = useState(false);
+  const [isJoiningInvite, setIsJoiningInvite] = useState(false);
+
+  // Check URL query parameters for ?invite=...
+  const searchParams = new URLSearchParams(location.search);
+  const inviteParam = searchParams.get('invite');
+  const isExplicitWatchRoute = location.pathname.startsWith('/watch/');
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -44,6 +52,37 @@ export default function Game() {
 
     return () => unsub();
   }, [gameId, navigate]);
+
+  // Handle joining via one-time invite link
+  const handleJoinViaInvite = async () => {
+    if (!user || !game || game.status !== 'waiting') return;
+    if (user.id === game.player1) return;
+
+    if (user.isTestUser && game.wager > 0) {
+      alert('Test users can only join Free games. Connect a wallet to play with SOL stakes.');
+      return;
+    }
+
+    setIsJoiningInvite(true);
+    try {
+      const updates: any = {
+        player2: user.id,
+        player2Name: user.username,
+        player2Avatar: user.avatarUrl || null,
+        players: [game.player1, user.id],
+        status: 'active',
+        turn: Math.random() > 0.5 ? game.player1 : user.id,
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateDoc(doc(db, 'games', game.id), updates);
+    } catch (e) {
+      console.error('Failed to join match via invite:', e);
+      alert('Failed to join match.');
+    } finally {
+      setIsJoiningInvite(false);
+    }
+  };
 
   const handleLeave = () => {
     navigate('/');
@@ -110,11 +149,27 @@ export default function Game() {
     }
   };
 
-  const handleCopyLink = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+  const getInviteUrl = () => {
+    const origin = window.location.origin;
+    const code = game?.inviteCode || game?.id;
+    return `${origin}/game/${game?.id}?invite=${code}`;
+  };
+
+  const getSpectateUrl = () => {
+    const origin = window.location.origin;
+    return `${origin}/watch/${game?.id}`;
+  };
+
+  const handleCopyInvite = () => {
+    navigator.clipboard.writeText(getInviteUrl());
+    setCopiedInvite(true);
+    setTimeout(() => setCopiedInvite(false), 2000);
+  };
+
+  const handleCopySpectate = () => {
+    navigator.clipboard.writeText(getSpectateUrl());
+    setCopiedSpectate(true);
+    setTimeout(() => setCopiedSpectate(false), 2000);
   };
 
   if (!game) {
@@ -129,7 +184,10 @@ export default function Game() {
   const isPlayer1 = user?.id === game.player1;
   const isPlayer2 = user?.id === game.player2;
   const isParticipant = isPlayer1 || isPlayer2;
-  const isSpectator = !isParticipant;
+  const isSpectator = !isParticipant || isExplicitWatchRoute;
+
+  // Has a valid one-time player invite link and game is waiting for player 2
+  const hasValidPlayerInvite = !!inviteParam && game.status === 'waiting' && !isParticipant;
 
   const isMyTurn = isParticipant && game.turn === user?.id && game.status === 'active';
   const opponentAvatar = isPlayer1 ? game.player2Avatar : game.player1Avatar;
@@ -147,11 +205,37 @@ export default function Game() {
   return (
     <div className="min-h-[calc(100vh-76px)] flex flex-col bg-[#0e0e0e] text-text-primary antialiased w-full overflow-y-auto">
       
+      {/* Player Invite Acceptance Floating Banner */}
+      {hasValidPlayerInvite && (
+        <div className="w-full bg-velocity-red/15 border-b border-velocity-red/40 py-3 px-4 z-40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-3 text-center sm:text-left">
+            <div className="w-8 h-8 rounded-full bg-velocity-red flex items-center justify-center text-white shrink-0 shadow-md">
+              <Swords size={16} />
+            </div>
+            <div>
+              <p className="text-xs text-white font-bold">
+                You have been invited to play Match <strong className="font-mono text-velocity-red">#{game.id.substring(0, 6).toUpperCase()}</strong> vs @{game.player1Name || 'Host'}
+              </p>
+              <p className="text-[11px] text-text-muted">
+                Stakes: {isFreeGame ? 'Free Play' : `${game.wager} SOL`}. Click below to enter as Player 2.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleJoinViaInvite}
+            disabled={isJoiningInvite}
+            className="px-6 py-2 bg-velocity-red hover:bg-red-600 text-white rounded-full text-xs font-semibold uppercase tracking-wider shadow-[0_0_15px_rgba(255,77,77,0.4)] transition-all cursor-pointer font-mono shrink-0"
+          >
+            {isJoiningInvite ? 'Joining Match...' : 'Join as Player 2'}
+          </button>
+        </div>
+      )}
+
       {/* Spectator Mode Banner */}
-      {isSpectator && (
-        <div className="w-full bg-[#141414] border-b border-white/10 py-2.5 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2">
+      {isSpectator && !hasValidPlayerInvite && (
+        <div className="w-full bg-[#141414] border-b border-white/10 py-2.5 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2 font-mono">
           <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
-          <span>Watching Match <strong className="font-mono text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>
+          <span>Watching Match <strong className="text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>
         </div>
       )}
 
@@ -165,13 +249,13 @@ export default function Game() {
           <div className="rounded-2xl p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <div>
-                <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold">Match ID</span>
+                <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold font-mono">Match ID</span>
                 <h2 className="font-headline-lg text-lg text-white font-bold font-mono">
                   #{game.id.substring(0, 8).toUpperCase()}
                 </h2>
               </div>
               <span
-                className={`text-[11px] px-3 py-1 rounded-full font-semibold uppercase tracking-wider ${
+                className={`text-[11px] px-3 py-1 rounded-full font-semibold uppercase tracking-wider font-mono ${
                   game.status === 'active'
                     ? 'bg-velocity-red/10 text-velocity-red border border-velocity-red/30'
                     : game.status === 'waiting'
@@ -186,8 +270,8 @@ export default function Game() {
             {/* Stakes */}
             <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5">
               <div>
-                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5">Stakes</p>
-                <p className="font-headline-lg text-xl text-velocity-red font-bold">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
+                <p className="font-headline-lg text-xl text-velocity-red font-bold font-mono">
                   {isFreeGame ? 'Free' : `${game.wager} SOL`}
                 </p>
               </div>
@@ -213,7 +297,7 @@ export default function Game() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                      <span>{game.player1 === user?.id ? 'You' : game.player1Name || 'Player 1'}</span>
+                      <span>@{game.player1 === user?.id ? (user?.username || 'You') : game.player1Name || 'Player 1'}</span>
                       <span className="text-[11px] text-velocity-red font-medium">(Red)</span>
                     </p>
                     <p className="text-xs text-text-muted">
@@ -229,7 +313,7 @@ export default function Game() {
               {/* Minimal Divider */}
               <div className="relative flex items-center justify-center my-1">
                 <div className="w-full border-t border-white/5" />
-                <span className="absolute bg-[#0e0e0e] px-2 text-[10px] text-text-muted uppercase font-semibold tracking-wider">vs</span>
+                <span className="absolute bg-[#0e0e0e] px-2 text-[10px] text-text-muted uppercase font-semibold tracking-wider font-mono">vs</span>
               </div>
 
               {/* Player 2 (White) */}
@@ -244,11 +328,11 @@ export default function Game() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                      <span>{game.player2 ? (game.player2 === user?.id ? 'You' : game.player2Name || 'Player 2') : 'Waiting...'}</span>
+                      <span>{game.player2 ? `@${game.player2 === user?.id ? (user?.username || 'You') : game.player2Name || 'Player 2'}` : 'Waiting for Player 2...'}</span>
                       <span className="text-[11px] text-text-secondary font-medium">(White)</span>
                     </p>
                     <p className="text-xs text-text-muted">
-                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting for opponent'}
+                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Awaiting opponent'}
                     </p>
                   </div>
                 </div>
@@ -272,28 +356,58 @@ export default function Game() {
             )}
           </div>
 
-          {/* Share Game Link Box */}
-          <div className="rounded-2xl p-4 border border-white/10 bg-[#141414]">
-            <h3 className="text-xs text-white font-bold uppercase tracking-wider mb-1">
-              Share Game Link
+          {/* Share Links Panel (One-time player invite link vs public spectator link) */}
+          <div className="rounded-2xl p-4 border border-white/10 bg-[#141414] space-y-3">
+            <h3 className="text-xs text-white font-bold uppercase tracking-wider font-mono">
+              Share Links
             </h3>
-            <p className="text-xs text-text-muted mb-2.5">
-              Anyone with this link can watch or join this game.
-            </p>
-            <div className="flex gap-2">
-              <input
-                className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3.5 py-1.5 rounded-full focus:border-velocity-red outline-none select-all font-mono"
-                readOnly
-                type="text"
-                value={window.location.href}
-              />
-              <button
-                onClick={handleCopyLink}
-                className="bg-[#1e1e1e] border border-white/10 hover:border-velocity-red text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-colors font-medium cursor-pointer"
-              >
-                {copiedLink ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                <span>{copiedLink ? 'Copied' : 'Copy'}</span>
-              </button>
+
+            {/* One-Time Player Invite Link */}
+            {game.status === 'waiting' && isPlayer1 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 text-[11px] text-velocity-red font-semibold">
+                  <UserPlus size={12} />
+                  <span>Invite Player Link (To Play)</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3 py-1.5 rounded-full focus:border-velocity-red outline-none select-all font-mono"
+                    readOnly
+                    type="text"
+                    value={getInviteUrl()}
+                  />
+                  <button
+                    onClick={handleCopyInvite}
+                    className="bg-velocity-red hover:bg-red-600 text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1 transition-colors font-medium cursor-pointer shadow-md font-mono shrink-0"
+                  >
+                    {copiedInvite ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copiedInvite ? 'Copied' : 'Invite'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Public Spectator Link */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1 text-[11px] text-text-secondary font-semibold">
+                <Eye size={12} />
+                <span>Spectator Link (To Watch)</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3 py-1.5 rounded-full focus:border-velocity-red outline-none select-all font-mono"
+                  readOnly
+                  type="text"
+                  value={getSpectateUrl()}
+                />
+                <button
+                  onClick={handleCopySpectate}
+                  className="bg-[#1e1e1e] border border-white/10 hover:border-velocity-red text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1 transition-colors font-medium cursor-pointer font-mono shrink-0"
+                >
+                  {copiedSpectate ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                  <span>{copiedSpectate ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
             </div>
           </div>
 

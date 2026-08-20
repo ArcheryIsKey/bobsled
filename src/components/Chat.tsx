@@ -36,10 +36,8 @@ export default function Chat({ gameId }: { gameId: string }) {
     const messageToSend = text.trim();
     if (!messageToSend || !user) return;
 
-    // Immediately clear input box for instant feedback
     setText('');
 
-    // Send in the background
     addDoc(collection(db, `games/${gameId}/messages`), {
       senderId: user.id,
       senderName: user.username,
@@ -74,7 +72,7 @@ export default function Chat({ gameId }: { gameId: string }) {
             const time = msg.createdAt?.toDate
               ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : '...';
-            const name = isMe ? 'You' : msg.senderName || msg.senderId.substring(0, 6);
+            const name = isMe ? `@${user?.username || 'You'}` : `@${msg.senderName || msg.senderId.substring(0, 6)}`;
 
             return (
               <div key={msg.id} className="flex flex-col gap-0.5 text-xs">
@@ -109,7 +107,7 @@ export default function Chat({ gameId }: { gameId: string }) {
           <button
             type="submit"
             disabled={!text.trim()}
-            className="bg-velocity-red text-white p-2 rounded-full hover:bg-red-600 disabled:opacity-40 transition-colors shadow-md flex items-center justify-center shrink-0"
+            className="bg-velocity-red text-white p-2 rounded-full hover:bg-red-600 disabled:opacity-40 transition-colors shadow-md flex items-center justify-center shrink-0 cursor-pointer"
           >
             <Send size={13} />
           </button>

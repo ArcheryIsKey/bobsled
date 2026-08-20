@@ -18,7 +18,8 @@ import {
   Activity,
   X,
   User as UserIcon,
-  AlertTriangle
+  AlertTriangle,
+  Wallet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -38,7 +39,9 @@ export default function AdminPanel() {
   // Floating Inspect Profile State
   const [inspectUser, setInspectUser] = useState<any | null>(null);
   const [inspectHistory, setInspectHistory] = useState<any[]>([]);
+  const [inspectSolBalance, setInspectSolBalance] = useState<number | null>(null);
   const [isLoadingInspectHistory, setIsLoadingInspectHistory] = useState(false);
+  const [isLoadingInspectBalance, setIsLoadingInspectBalance] = useState(false);
 
   // In-App Custom Delete Modal State
   const [userToDelete, setUserToDelete] = useState<any | null>(null);
@@ -70,12 +73,15 @@ export default function AdminPanel() {
     };
   }, [isAdmin, currentUser, navigate]);
 
+  // Load match history and SOL balance when an inspect user is selected
   useEffect(() => {
     if (!inspectUser) {
       setInspectHistory([]);
+      setInspectSolBalance(null);
       return;
     }
 
+    // Fetch match history
     setIsLoadingInspectHistory(true);
     const q = query(
       collection(db, 'games'),
@@ -89,6 +95,24 @@ export default function AdminPanel() {
       setInspectHistory(gList);
       setIsLoadingInspectHistory(false);
     });
+
+    // Fetch SOL balance from on-chain RPC endpoint
+    if (inspectUser.walletAddress) {
+      setIsLoadingInspectBalance(true);
+      fetch(`/api/solana/balance?wallet=${inspectUser.walletAddress}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (typeof data.balance === 'number') {
+            setInspectSolBalance(data.balance);
+          } else {
+            setInspectSolBalance(0);
+          }
+        })
+        .catch(() => setInspectSolBalance(0))
+        .finally(() => setIsLoadingInspectBalance(false));
+    } else {
+      setInspectSolBalance(null);
+    }
 
     return () => unsub();
   }, [inspectUser]);
@@ -152,7 +176,7 @@ export default function AdminPanel() {
         <ShieldAlert size={48} className="text-velocity-red" />
         <h1 className="text-xl font-bold">Access Restricted</h1>
         <p className="text-sm text-text-muted">Only the platform administrator can access this terminal.</p>
-        <Link to="/" className="px-5 py-2 bg-[#141414] border border-white/10 rounded-full text-xs font-semibold">
+        <Link to="/" className="px-5 py-2 bg-[#141414] border border-white/10 rounded-full text-xs font-semibold cursor-pointer">
           Return to Lobby
         </Link>
       </div>
@@ -373,7 +397,7 @@ export default function AdminPanel() {
                         className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
                         title="Click to view profile"
                       >
-                        {/* User Identity */}
+                        {/* User Identity with @ prefix */}
                         <td className="py-3.5 px-5">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full border border-white/10 bg-surface-container overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
@@ -540,7 +564,7 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* Floating Inspect Profile Modal (Click outside or ESC to close) */}
+      {/* Floating Inspect Profile Modal with SOL Balance & Game Stakes */}
       <AnimatePresence>
         {inspectUser && (
           <motion.div
@@ -612,31 +636,49 @@ export default function AdminPanel() {
                 )}
               </div>
 
-              {/* Quick Stats Grid */}
-              <div className="grid grid-cols-3 border-b border-white/10 bg-[#0e0e0e] shrink-0 font-mono">
+              {/* Quick Stats Grid: Matches, Wins, Losses, and SOL Balance */}
+              <div className="grid grid-cols-4 border-b border-white/10 bg-[#0e0e0e] shrink-0 font-mono">
                 <div className="p-3 text-center border-r border-white/10">
                   <span className="text-[10px] text-text-muted uppercase block">Matches</span>
-                  <span className="text-base font-bold text-white">{inspectHistory.length}</span>
+                  <span className="text-sm font-bold text-white">{inspectHistory.length}</span>
                 </div>
                 <div className="p-3 text-center border-r border-white/10">
                   <span className="text-[10px] text-text-muted uppercase block">Wins</span>
-                  <span className="text-base font-bold text-velocity-red">
+                  <span className="text-sm font-bold text-velocity-red">
                     {inspectHistory.filter((g) => g.winner === inspectUser.id).length}
                   </span>
                 </div>
-                <div className="p-3 text-center">
+                <div className="p-3 text-center border-r border-white/10">
                   <span className="text-[10px] text-text-muted uppercase block">Losses</span>
-                  <span className="text-base font-bold text-text-secondary">
+                  <span className="text-sm font-bold text-text-secondary">
                     {inspectHistory.filter((g) => g.winner && g.winner !== inspectUser.id && g.winner !== 'draw').length}
+                  </span>
+                </div>
+                <div className="p-3 text-center">
+                  <span className="text-[10px] text-text-muted uppercase block">SOL Balance</span>
+                  <span className="text-sm font-bold text-velocity-red flex items-center justify-center gap-1">
+                    {isLoadingInspectBalance ? (
+                      <Loader2 size={12} className="animate-spin text-velocity-red" />
+                    ) : inspectSolBalance !== null ? (
+                      `${inspectSolBalance.toFixed(3)}`
+                    ) : (
+                      '—'
+                    )}
                   </span>
                 </div>
               </div>
 
-              {/* Inspect Match History */}
+              {/* Inspect Match History with Stakes per game */}
               <div className="flex-1 p-5 overflow-y-auto space-y-3 min-h-0 bg-[#121212]">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                  Match History
-                </h4>
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                    Match History
+                  </h4>
+                  <span className="text-[11px] text-text-muted font-mono">
+                    {inspectHistory.length} Recorded Matches
+                  </span>
+                </div>
+
                 {isLoadingInspectHistory ? (
                   <div className="py-8 flex justify-center">
                     <Loader2 size={20} className="animate-spin text-velocity-red" />
@@ -654,18 +696,23 @@ export default function AdminPanel() {
                       return (
                         <div
                           key={g.id}
-                          className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono"
+                          className="flex items-center justify-between p-3 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono"
                         >
-                          <span className="text-text-muted">#{g.id.substring(0, 6)}</span>
-                          <span className="text-white">vs {oppName || 'Opponent'}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                            isWin ? 'bg-velocity-red/15 text-velocity-red' : isDraw ? 'bg-white/10 text-white' : 'bg-neutral-800 text-text-muted'
-                          }`}>
-                            {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
-                          </span>
-                          <span className="text-text-secondary">
-                            {g.wager > 0 ? `${g.wager} SOL` : 'Free'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
+                            <span className="text-white">vs @{oppName || 'Opponent'}</span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              isWin ? 'bg-velocity-red/15 text-velocity-red' : isDraw ? 'bg-white/10 text-white' : 'bg-neutral-800 text-text-muted'
+                            }`}>
+                              {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
+                            </span>
+                            <span className={`font-bold ${isWin && g.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
+                              {g.wager > 0 ? `${g.wager} ${g.wagerCurrency}` : 'Free'}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}

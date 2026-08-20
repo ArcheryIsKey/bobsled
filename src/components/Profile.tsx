@@ -183,10 +183,10 @@ export default function Profile() {
         </>
       )}
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-8 md:py-10">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-8">
         
         {/* Top Back Link */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red cursor-pointer"
@@ -196,10 +196,10 @@ export default function Profile() {
         </div>
 
         {/* Profile Card with Banner */}
-        <section className="mb-10 rounded-2xl bg-[#141414] border border-white/10 overflow-hidden shadow-2xl relative">
+        <section className="mb-5 rounded-2xl bg-[#141414] border border-white/10 overflow-hidden shadow-2xl relative">
           
           {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
-          <div className="relative w-full h-40 sm:h-52 md:h-60 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
+          <div className="relative w-full h-36 sm:h-44 md:h-48 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
             {profileData.bannerUrl ? (
               <img
                 src={profileData.bannerUrl}
@@ -229,15 +229,15 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Profile Header Content */}
-          <div className="px-6 md:px-8 pb-6 md:pb-8 pt-0 relative z-10">
+          {/* Profile Header Content: Reduced vertical gap */}
+          <div className="px-6 md:px-8 pb-4 pt-0 relative z-10">
             
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 text-center sm:text-left">
               
-              {/* Avatar (Clickable only for real accounts) */}
+              {/* Avatar */}
               <div
                 onClick={() => isOwnProfile && !isTestUser && avatarInputRef.current?.click()}
-                className={`-mt-14 sm:-mt-16 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
+                className={`-mt-12 sm:-mt-14 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
                   isOwnProfile && !isTestUser ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
                 }`}
                 title={isOwnProfile && !isTestUser ? 'Click to change profile picture' : ''}
@@ -256,7 +256,7 @@ export default function Profile() {
                   </div>
                 )}
 
-                {/* Avatar hover camera overlay (Only for real own profile) */}
+                {/* Avatar hover camera overlay */}
                 {isOwnProfile && !isTestUser && (
                   <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] cursor-pointer">
                     {isUploadingAvatar ? (
@@ -271,11 +271,11 @@ export default function Profile() {
                 )}
               </div>
 
-              {/* Names & Badges */}
-              <div className="space-y-1.5 pt-2 sm:pt-4">
+              {/* Names & Badges with @ prefix */}
+              <div className="space-y-1 pt-1 sm:pt-2">
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
-                    {profileData.username}
+                    @{profileData.username}
                   </h1>
                   {isTestUser && (
                     <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
@@ -306,8 +306,8 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Stats Grid (4 Cards) */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        {/* Stats Grid (4 Cards - crisp and immediately beneath the profile header) */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           
           {/* Card 1: Matches */}
           <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
@@ -400,7 +400,7 @@ export default function Profile() {
                       const isDraw = game.winner === 'draw';
                       const opponentId = game.player1 === targetUserId ? game.player2 : game.player1;
                       const opponentName = game.player1 === targetUserId ? game.player2Name : game.player1Name;
-                      const opponentDisplay = opponentName || 'Opponent';
+                      const opponentDisplay = opponentName ? `@${opponentName}` : '@Opponent';
                       const matchDate = game.createdAt?.toDate
                         ? game.createdAt.toDate().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
                         : 'Recent';

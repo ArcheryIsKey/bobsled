@@ -16,7 +16,6 @@ import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
 import { Shield, User, FlaskConical } from 'lucide-react';
 
-// Utility to clean up test user's active/waiting games on logoff
 async function cleanupTestUserGames(testUserId: string) {
   try {
     const waitingSnap = await getDocs(
@@ -175,21 +174,21 @@ function AppHeader() {
                 </div>
               )}
 
-              {/* Profile Link Pill */}
+              {/* Profile Link Pill - Perfectly centered vertically */}
               <Link
                 to="/profile"
-                className="flex items-center gap-2 p-1 sm:pr-3 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group cursor-pointer"
+                className="flex items-center gap-2 py-1 px-1.5 sm:pr-3.5 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group cursor-pointer h-8.5"
                 title="View Profile"
               >
-                <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 group-hover:border-velocity-red bg-surface-container flex items-center justify-center font-bold text-xs text-velocity-red transition-colors shrink-0">
+                <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 group-hover:border-velocity-red bg-[#222] flex items-center justify-center font-bold text-[11px] text-velocity-red transition-colors shrink-0">
                   {user?.avatarUrl ? (
                     <img src={user.avatarUrl} alt={user.username} className="w-full h-full object-cover" />
                   ) : (
-                    user?.username ? user.username.substring(0, 2).toUpperCase() : <User size={13} />
+                    user?.username ? user.username.substring(0, 2).toUpperCase() : <User size={12} />
                   )}
                 </div>
-                <span className="hidden sm:block text-xs font-semibold text-white group-hover:text-velocity-red transition-colors">
-                  {user?.username || 'Player'}
+                <span className="hidden sm:inline-flex items-center text-xs font-semibold text-white group-hover:text-velocity-red transition-colors leading-none">
+                  @{user?.username || 'Player'}
                 </span>
               </Link>
 
@@ -321,12 +320,11 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, [user]);
 
-  // Live real-time SOL balance directly from user's crypto wallet & multi-RPC backend
+  // Live real-time SOL balance
   const fetchWalletBalance = useCallback(async () => {
     if (!publicKey || user?.isTestUser) return;
     const walletStr = publicKey.toBase58();
 
-    // 1. Try Backend Multi-RPC endpoint
     try {
       const res = await fetch(`/api/solana/balance?wallet=${walletStr}`);
       if (res.ok) {
@@ -340,7 +338,6 @@ export default function App() {
       // Ignore
     }
 
-    // 2. Try Provider RPC Connection
     try {
       if (connection) {
         const lamports = await connection.getBalance(publicKey, 'confirmed');
@@ -351,7 +348,6 @@ export default function App() {
       // Ignore
     }
 
-    // 3. Fallback direct JSON-RPC
     try {
       const res = await fetch('https://api.mainnet-beta.solana.com', {
         method: 'POST',
@@ -383,7 +379,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [publicKey, user?.isTestUser, fetchWalletBalance]);
 
-  // Test user login handler
   const handleTestLogin = async (testUsername: string) => {
     setIsAuthenticating(true);
     setAuthError(null);
@@ -405,7 +400,6 @@ export default function App() {
     }
   };
 
-  // Firebase Auth state listener
   useEffect(() => {
     let unsubUser: (() => void) | null = null;
 
@@ -452,7 +446,6 @@ export default function App() {
 
   const authInProgress = useRef(false);
 
-  // Automatic Solana Sign-In without re-signing if already authenticated
   useEffect(() => {
     const authenticate = async () => {
       if (!publicKey || !signMessage || user?.isTestUser || !authInitialized) return;

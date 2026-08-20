@@ -57,6 +57,9 @@ export default function Dashboard() {
         throw new Error('Please enter a valid SOL wager.');
       }
 
+      // Generate unique one-time player invite code
+      const inviteCode = Math.random().toString(36).substring(2, 8);
+
       const docRef = await addDoc(collection(db, 'games'), {
         player1: user.id,
         player1Name: user.username,
@@ -72,6 +75,7 @@ export default function Dashboard() {
         turn: user.id,
         winner: null,
         gameType: 'connect4',
+        inviteCode,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -88,7 +92,6 @@ export default function Dashboard() {
   const handleJoinMatch = async (game: any) => {
     if (!user) return;
     
-    // Disallow test users from joining SOL stake games
     if (user.isTestUser && game.wager > 0) {
       alert('Test users can only join Free games. Connect a wallet to play with SOL stakes.');
       return;
@@ -167,7 +170,7 @@ export default function Dashboard() {
                       <div className="flex gap-1.5 p-1 rounded-full bg-[#0e0e0e] border border-white/10 w-full max-w-xs">
                         <button
                           onClick={() => setWagerType('SOL')}
-                          className={`flex-1 py-2 text-xs rounded-full transition-all font-semibold uppercase tracking-wider font-mono ${
+                          className={`flex-1 py-2 text-xs rounded-full transition-all font-semibold uppercase tracking-wider font-mono cursor-pointer ${
                             wagerType === 'SOL'
                               ? 'bg-velocity-red text-white shadow-[0_0_12px_rgba(255,77,77,0.4)]'
                               : 'text-text-secondary hover:text-white'
@@ -177,7 +180,7 @@ export default function Dashboard() {
                         </button>
                         <button
                           onClick={() => setWagerType('FREE')}
-                          className={`flex-1 py-2 text-xs rounded-full transition-all font-semibold uppercase tracking-wider font-mono ${
+                          className={`flex-1 py-2 text-xs rounded-full transition-all font-semibold uppercase tracking-wider font-mono cursor-pointer ${
                             wagerType === 'FREE'
                               ? 'bg-velocity-red text-white shadow-[0_0_12px_rgba(255,77,77,0.4)]'
                               : 'text-text-secondary hover:text-white'
@@ -188,7 +191,7 @@ export default function Dashboard() {
                       </div>
                     )}
 
-                    {/* SOL Preset Chips (Only for authenticated wallet users) */}
+                    {/* SOL Preset Chips */}
                     {!user?.isTestUser && wagerType === 'SOL' && (
                       <div className="flex flex-col gap-2 mt-1 items-center w-full">
                         <div className="flex gap-2 justify-center w-full flex-wrap">
@@ -199,7 +202,7 @@ export default function Dashboard() {
                                 setWagerAmount(amt);
                                 setCustomWager('');
                               }}
-                              className={`px-3.5 py-1.5 font-mono text-xs rounded-full border transition-all ${
+                              className={`px-3.5 py-1.5 font-mono text-xs rounded-full border transition-all cursor-pointer ${
                                 wagerAmount === amt && customWager === ''
                                   ? 'border-velocity-red text-velocity-red bg-velocity-red/10 font-bold'
                                   : 'border-white/10 text-text-secondary hover:border-white/20 bg-[#0e0e0e]'
@@ -251,13 +254,13 @@ export default function Dashboard() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => navigate(`/game/${myWaitingGame.id}`)}
-                      className="items-center justify-center rounded-full h-10 px-6 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_15px_rgba(255,77,77,0.3)] text-xs flex gap-2 uppercase tracking-wide font-mono"
+                      className="items-center justify-center rounded-full h-10 px-6 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_15px_rgba(255,77,77,0.3)] text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
                     >
                       <Play size={13} /> Open Game
                     </button>
                     <button
                       onClick={() => handleCancelMatch(myWaitingGame.id)}
-                      className="items-center justify-center rounded-full h-10 px-5 bg-[#0e0e0e] hover:bg-[#1a1a1a] transition-colors text-red-400 hover:text-red-300 font-semibold border border-white/10 text-xs flex gap-2 uppercase tracking-wide font-mono"
+                      className="items-center justify-center rounded-full h-10 px-5 bg-[#0e0e0e] hover:bg-[#1a1a1a] transition-colors text-red-400 hover:text-red-300 font-semibold border border-white/10 text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
                     >
                       <X size={13} /> Cancel
                     </button>
@@ -274,7 +277,7 @@ export default function Dashboard() {
                   </div>
                   <button
                     onClick={() => navigate(`/game/${myActiveGame.id}`)}
-                    className="items-center justify-center rounded-full h-11 px-8 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] text-xs sm:text-sm flex items-center gap-2 uppercase tracking-wide font-mono"
+                    className="items-center justify-center rounded-full h-11 px-8 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] text-xs sm:text-sm flex items-center gap-2 uppercase tracking-wide font-mono cursor-pointer"
                   >
                     <Play size={15} /> Resume Game
                   </button>
@@ -316,7 +319,7 @@ export default function Dashboard() {
                     }}
                     className="rounded-2xl p-4 sm:p-5 flex items-center justify-between hover:bg-[#181818] transition-colors group cursor-pointer border border-white/10 bg-[#141414]"
                   >
-                    {/* Players Info */}
+                    {/* Players Info with @ prefix */}
                     <div className="flex items-center gap-4 sm:gap-6">
                       {/* Player 1 */}
                       <div className="flex items-center gap-3">
@@ -328,7 +331,7 @@ export default function Dashboard() {
                           )}
                         </div>
                         <span className="text-sm text-white font-semibold group-hover:text-velocity-red transition-colors">
-                          {game.player1Name || 'Player 1'}
+                          @{game.player1Name || 'Player 1'}
                         </span>
                       </div>
 
@@ -339,7 +342,7 @@ export default function Dashboard() {
                         {game.status === 'active' ? (
                           <>
                             <span className="text-sm text-white font-semibold">
-                              {game.player2Name || 'Player 2'}
+                              @{game.player2Name || 'Player 2'}
                             </span>
                             <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-white shrink-0">
                               {game.player2Avatar ? (

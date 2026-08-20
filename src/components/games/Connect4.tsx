@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ChevronDown } from 'lucide-react';
 
@@ -48,10 +48,29 @@ interface Connect4Props {
 
 export default function Connect4({ game, user, isSpectator, onMove }: Connect4Props) {
   const [hoverColumn, setHoverColumn] = useState<number | null>(null);
+  const [lastPlacedIndex, setLastPlacedIndex] = useState<number | null>(null);
+  const prevBoardRef = useRef<number[]>(game.board);
 
   const isMyTurn = !isSpectator && game.turn === user?.id && game.status === 'active';
   const isPlayer1 = user?.id === game.player1;
   const myPlayerNumber = isPlayer1 ? 1 : 2;
+
+  // Track the most recently dropped piece so only it animates from top
+  useEffect(() => {
+    const prev = prevBoardRef.current;
+    const curr = game.board;
+    let changedIdx: number | null = null;
+    for (let i = 0; i < curr.length; i++) {
+      if (prev[i] === 0 && curr[i] !== 0) {
+        changedIdx = i;
+        break;
+      }
+    }
+    if (changedIdx !== null) {
+      setLastPlacedIndex(changedIdx);
+    }
+    prevBoardRef.current = curr;
+  }, [game.board]);
 
   // Calculate winning cells if match is finished
   const winningIndices = useMemo(() => {
@@ -165,15 +184,15 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                 <AnimatePresence>
                   {isColHovered && (
                     <motion.div
-                      initial={{ y: -10, opacity: 0 }}
-                      animate={{ y: [0, -6, 0], opacity: 1 }}
-                      exit={{ y: -8, opacity: 0 }}
+                      initial={{ y: -8, opacity: 0 }}
+                      animate={{ y: [0, -5, 0], opacity: 1 }}
+                      exit={{ y: -6, opacity: 0 }}
                       transition={{ y: { repeat: Infinity, duration: 0.6, ease: 'easeInOut' } }}
                       className={`absolute -top-7 sm:-top-9 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none ${
                         isPlayer1 ? 'text-velocity-red' : 'text-white'
                       }`}
                     >
-                      <ChevronDown size={20} className="drop-shadow-[0_0_10px_currentColor]" />
+                      <ChevronDown size={20} className="drop-shadow-[0_0_8px_currentColor]" />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -187,9 +206,10 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                   const isDimmed = isFinishedWithWinner && !isWinningCell;
 
                   const isGhostSlot = isColHovered && hoverLandingRow === rowIndex && cellValue === 0;
+                  const isJustDropped = lastPlacedIndex === cellIndex;
 
                   // Dynamic top-of-board drop distance based on row index
-                  const dropDistance = -((rowIndex + 2.5) * 70);
+                  const dropDistance = -((rowIndex + 2.2) * 65);
 
                   return (
                     <div
@@ -199,49 +219,34 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                       {/* Ghost Landing Preview Disc */}
                       {isGhostSlot && (
                         <motion.div
-                          initial={{ opacity: 0, scale: 0.7 }}
-                          animate={{ opacity: 0.55, scale: 1 }}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 0.45, scale: 1 }}
                           exit={{ opacity: 0 }}
                           className={`w-full h-full rounded-full border-2 border-dashed ${
                             isPlayer1
-                              ? 'border-velocity-red bg-velocity-red/20 shadow-[0_0_12px_rgba(255,77,77,0.3)]'
-                              : 'border-white bg-white/20 shadow-[0_0_12px_rgba(255,255,255,0.3)]'
+                              ? 'border-velocity-red bg-velocity-red/20 shadow-[0_0_10px_rgba(255,77,77,0.3)]'
+                              : 'border-white bg-white/20 shadow-[0_0_10px_rgba(255,255,255,0.3)]'
                           }`}
                         />
                       )}
 
-                      {/* Placed Disc with Physics Drop from Above the Board */}
+                      {/* Placed Disc with Clean Circular Physics Drop (No awkward hovering or deformation) */}
                       {cellValue !== 0 && (
                         <motion.div
-                          initial={{
-                            y: dropDistance,
-                            opacity: 1,
-                            scaleY: 1.25,
-                            scaleX: 0.85,
-                          }}
+                          initial={
+                            isJustDropped
+                              ? { y: dropDistance, opacity: 0.9 }
+                              : false
+                          }
                           animate={{
                             y: 0,
                             opacity: 1,
-                            scaleY: [1.25, 0.8, 1.1, 0.95, 1],
-                            scaleX: [0.85, 1.15, 0.95, 1.03, 1],
                           }}
                           transition={{
-                            y: {
-                              type: 'spring',
-                              damping: 13,
-                              stiffness: 180,
-                              mass: 0.8,
-                            },
-                            scaleY: {
-                              duration: 0.55,
-                              times: [0, 0.5, 0.7, 0.85, 1],
-                              ease: 'easeOut',
-                            },
-                            scaleX: {
-                              duration: 0.55,
-                              times: [0, 0.5, 0.7, 0.85, 1],
-                              ease: 'easeOut',
-                            },
+                            type: 'spring',
+                            damping: 16,
+                            stiffness: 220,
+                            mass: 0.85,
                           }}
                           className={`w-full h-full rounded-full flex items-center justify-center relative transition-all duration-300 z-10 ${
                             isDimmed ? 'opacity-35 scale-95 grayscale-[40%]' : 'opacity-100'

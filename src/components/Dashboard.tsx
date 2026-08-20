@@ -125,6 +125,7 @@ export default function Dashboard() {
   };
 
   const myWaitingGame = waitingGames.find(g => g.player1 === user?.id);
+  const myActiveGame = activeGames.find(g => g.player1 === user?.id || g.player2 === user?.id);
 
   return (
     <div className="bg-background text-text-primary antialiased min-h-screen flex flex-col font-body-md selection:bg-velocity-red selection:text-text-primary w-full overflow-y-auto">

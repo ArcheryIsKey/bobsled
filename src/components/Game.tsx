@@ -57,6 +57,41 @@ export default function Game() {
     return () => unsub();
   }, [gameId, navigate]);
 
+  // Dynamic Browser Title: "bobsled vs {user}"
+  useEffect(() => {
+    if (!game) {
+      document.title = 'bobsled';
+      return;
+    }
+
+    const isP1 = user?.id === game.player1;
+    const isP2 = user?.id === game.player2;
+
+    let opponentName: string | null = null;
+    if (isP1) {
+      opponentName = game.player2Name || null;
+    } else if (isP2) {
+      opponentName = game.player1Name || null;
+    } else {
+      // Spectator
+      if (game.player1Name && game.player2Name) {
+        opponentName = `${game.player1Name} vs ${game.player2Name}`;
+      } else if (game.player1Name) {
+        opponentName = game.player1Name;
+      }
+    }
+
+    if (opponentName) {
+      document.title = `bobsled vs ${opponentName}`;
+    } else {
+      document.title = 'bobsled';
+    }
+
+    return () => {
+      document.title = 'bobsled';
+    };
+  }, [game, user]);
+
   // Guest User Auto-Forfeit on Disconnect / Tab Close
   useEffect(() => {
     if (!game || game.status !== 'active' || !user?.id) return;

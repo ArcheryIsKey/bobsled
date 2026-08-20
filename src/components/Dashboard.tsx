@@ -4,7 +4,7 @@ import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, upd
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
 import UserProfileModal from './UserProfileModal';
-import { Loader2, Play, X, FlaskConical, Filter, Sparkles, Swords } from 'lucide-react';
+import { Loader2, Play, X, FlaskConical } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -16,7 +16,6 @@ export default function Dashboard() {
   const [customWager, setCustomWager] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [mobileGameFilter, setMobileGameFilter] = useState<'all' | 'sol' | 'free'>('all');
 
   useEffect(() => {
     if (user?.isTestUser) {
@@ -154,14 +153,8 @@ export default function Dashboard() {
   const myWaitingGame = waitingGames.find((g) => g.player1 === user?.id);
   const myActiveGame = activeGames.find((g) => g.player1 === user?.id || g.player2 === user?.id);
 
-  const allVisibleGames = [...activeGames, ...waitingGames].filter((g) => {
-    if (mobileGameFilter === 'sol') return g.wager > 0 && g.wagerCurrency === 'SOL';
-    if (mobileGameFilter === 'free') return g.wager === 0 || g.wagerCurrency === 'FREE';
-    return true;
-  });
-
   return (
-    <div className="bg-[#0e0e0e] text-text-primary antialiased min-h-[calc(100dvh-76px)] pb-24 md:pb-12 flex flex-col font-body-md w-full overflow-y-auto">
+    <div className="bg-[#0e0e0e] text-text-primary antialiased min-h-[calc(100vh-76px)] flex flex-col font-body-md w-full overflow-y-auto">
       
       {/* Floating User Profile Modal */}
       {selectedProfileId && (
@@ -171,21 +164,21 @@ export default function Dashboard() {
         />
       )}
 
-      <main className="flex-grow w-full max-w-4xl mx-auto px-3.5 sm:px-6 md:px-8 py-4 sm:py-8 md:py-10">
-        <div className="space-y-6 sm:space-y-8">
+      <main className="flex-grow w-full max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
+        <div className="space-y-8">
           
           {/* Main Matchmaking Card */}
-          <div className="rounded-2xl sm:rounded-3xl flex flex-col relative overflow-hidden group shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-white/10 bg-[#141414]">
+          <div className="rounded-2xl flex flex-col relative overflow-hidden group shadow-[0_8px_32px_rgba(0,0,0,0.6)] border border-white/10 bg-[#141414]">
             <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
             <div className="absolute top-0 right-0 w-80 h-80 bg-velocity-red/5 rounded-full blur-3xl pointer-events-none" />
 
-            <div className="relative z-10 flex flex-col items-center justify-center p-6 sm:p-10 md:p-12 gap-5 sm:gap-6 w-full text-center">
+            <div className="relative z-10 flex flex-col items-center justify-center p-8 md:p-12 gap-6 w-full text-center">
               
               <div className="space-y-1.5">
-                <h1 className="text-white font-headline-lg text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight">
+                <h1 className="text-white font-headline-lg text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
                   {myActiveGame ? 'Game In Progress' : myWaitingGame ? 'Waiting For Opponent' : 'Play Connect 4'}
                 </h1>
-                <p className="text-text-secondary text-xs sm:text-sm">
+                <p className="text-text-secondary text-sm">
                   {myActiveGame
                     ? 'You have an active match waiting for your move.'
                     : myWaitingGame
@@ -197,12 +190,12 @@ export default function Dashboard() {
               </div>
 
               {!myWaitingGame && !myActiveGame && (
-                <div className="flex flex-col items-center gap-5 justify-center w-full max-w-md mt-1">
+                <div className="flex flex-col items-center gap-6 justify-center w-full max-w-md mt-2">
                   
                   {/* Mode Selector */}
                   <div className="flex flex-col gap-3 items-center w-full">
                     {user?.isTestUser ? (
-                      <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-velocity-red/10 border border-velocity-red/30 text-velocity-red font-mono text-xs font-bold w-full sm:w-auto">
+                      <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-velocity-red/10 border border-velocity-red/30 text-velocity-red font-mono text-xs font-bold">
                         <FlaskConical size={14} />
                         <span>Free Play Only (Guest Mode)</span>
                       </div>
@@ -233,8 +226,8 @@ export default function Dashboard() {
 
                     {/* SOL Preset Chips */}
                     {!user?.isTestUser && wagerType === 'SOL' && (
-                      <div className="flex flex-col gap-2.5 mt-1 items-center w-full">
-                        <div className="grid grid-cols-5 gap-1.5 sm:flex sm:gap-2 justify-center w-full">
+                      <div className="flex flex-col gap-2 mt-1 items-center w-full">
+                        <div className="flex gap-2 justify-center w-full flex-wrap">
                           {[0.05, 0.1, 0.25, 0.5, 1].map((amt) => (
                             <button
                               key={amt}
@@ -242,13 +235,13 @@ export default function Dashboard() {
                                 setWagerAmount(amt);
                                 setCustomWager('');
                               }}
-                              className={`py-2 sm:px-3.5 sm:py-1.5 font-mono text-xs rounded-full border transition-all cursor-pointer text-center ${
+                              className={`px-3.5 py-1.5 font-mono text-xs rounded-full border transition-all cursor-pointer ${
                                 wagerAmount === amt && customWager === ''
-                                  ? 'border-velocity-red text-velocity-red bg-velocity-red/10 font-bold shadow-sm'
+                                  ? 'border-velocity-red text-velocity-red bg-velocity-red/10 font-bold'
                                   : 'border-white/10 text-text-secondary hover:border-white/20 bg-[#0e0e0e]'
                               }`}
                             >
-                              {amt}
+                              {amt} SOL
                             </button>
                           ))}
                         </div>
@@ -286,21 +279,21 @@ export default function Dashboard() {
 
               {/* Waiting for Opponent */}
               {myWaitingGame && !myActiveGame && (
-                <div className="flex flex-col items-center gap-4 justify-center w-full">
+                <div className="flex flex-col items-center gap-5 justify-center w-full">
                   <div className="text-white text-xs sm:text-sm font-medium bg-[#0e0e0e] px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-velocity-red animate-ping" />
                     <span>Waiting for opponent... ({myWaitingGame.wager > 0 ? `${myWaitingGame.wager} SOL` : 'Free'})</span>
                   </div>
-                  <div className="flex gap-3 w-full sm:w-auto justify-center">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => navigate(`/game/${myWaitingGame.id}`)}
-                      className="flex-1 sm:flex-none items-center justify-center rounded-full h-10 px-6 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_15px_rgba(255,77,77,0.3)] text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
+                      className="items-center justify-center rounded-full h-10 px-6 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_15px_rgba(255,77,77,0.3)] text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
                     >
                       <Play size={13} /> Open Game
                     </button>
                     <button
                       onClick={() => handleCancelMatch(myWaitingGame.id)}
-                      className="flex-1 sm:flex-none items-center justify-center rounded-full h-10 px-5 bg-[#0e0e0e] hover:bg-[#1a1a1a] transition-colors text-red-400 hover:text-red-300 font-semibold border border-white/10 text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
+                      className="items-center justify-center rounded-full h-10 px-5 bg-[#0e0e0e] hover:bg-[#1a1a1a] transition-colors text-red-400 hover:text-red-300 font-semibold border border-white/10 text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
                     >
                       <X size={13} /> Cancel
                     </button>
@@ -310,14 +303,14 @@ export default function Dashboard() {
 
               {/* Active Game */}
               {myActiveGame && (
-                <div className="flex flex-col items-center gap-4 justify-center w-full">
+                <div className="flex flex-col items-center gap-5 justify-center w-full">
                   <div className="text-velocity-red text-xs sm:text-sm font-medium bg-[#0e0e0e] px-5 py-2.5 rounded-full border border-velocity-red/40 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
                     Your match is live!
                   </div>
                   <button
                     onClick={() => navigate(`/game/${myActiveGame.id}`)}
-                    className="w-full sm:w-auto items-center justify-center rounded-full h-11 px-8 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] text-xs sm:text-sm flex items-center gap-2 uppercase tracking-wide font-mono cursor-pointer"
+                    className="items-center justify-center rounded-full h-11 px-8 bg-velocity-red hover:bg-red-600 transition-colors text-white font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] text-xs sm:text-sm flex items-center gap-2 uppercase tracking-wide font-mono cursor-pointer"
                   >
                     <Play size={15} /> Resume Game
                   </button>
@@ -328,50 +321,20 @@ export default function Dashboard() {
 
           {/* Live Games List */}
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-3 gap-2">
-              <div className="flex items-center justify-between sm:justify-start gap-3">
-                <h2 className="font-headline-lg text-white text-lg sm:text-xl font-bold flex items-center gap-2.5">
-                  Live Games
-                  <span className="inline-flex h-2.5 w-2.5 rounded-full bg-velocity-red relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-velocity-red opacity-75" />
-                  </span>
-                </h2>
-                <span className="text-xs text-text-muted font-mono">
-                  {allVisibleGames.length} Open
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h2 className="font-headline-lg text-white text-xl font-bold flex items-center gap-3">
+                Live Games
+                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-velocity-red relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-velocity-red opacity-75" />
                 </span>
-              </div>
-
-              {/* Mobile Filter Chips */}
-              <div className="flex bg-[#141414] p-1 rounded-full border border-white/10 font-mono text-[11px]">
-                <button
-                  onClick={() => setMobileGameFilter('all')}
-                  className={`flex-1 sm:flex-none px-3 py-1 rounded-full transition-all cursor-pointer ${
-                    mobileGameFilter === 'all' ? 'bg-white/15 text-white font-bold' : 'text-text-muted'
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setMobileGameFilter('sol')}
-                  className={`flex-1 sm:flex-none px-3 py-1 rounded-full transition-all cursor-pointer ${
-                    mobileGameFilter === 'sol' ? 'bg-velocity-red/20 text-velocity-red font-bold' : 'text-text-muted'
-                  }`}
-                >
-                  SOL
-                </button>
-                <button
-                  onClick={() => setMobileGameFilter('free')}
-                  className={`flex-1 sm:flex-none px-3 py-1 rounded-full transition-all cursor-pointer ${
-                    mobileGameFilter === 'free' ? 'bg-white/15 text-white font-bold' : 'text-text-muted'
-                  }`}
-                >
-                  Free
-                </button>
-              </div>
+              </h2>
+              <span className="text-xs text-text-muted font-mono">
+                {activeGames.length + waitingGames.length} Open
+              </span>
             </div>
 
             <div className="space-y-3">
-              {allVisibleGames.map((game) => {
+              {[...activeGames, ...waitingGames].map((game) => {
                 const isWaiting = game.status === 'waiting';
                 const isMyGame = game.player1 === user?.id;
 
@@ -384,43 +347,43 @@ export default function Dashboard() {
                 return (
                   <div
                     key={game.id}
-                    className="rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 hover:bg-[#181818] transition-colors group border border-white/10 bg-[#141414]"
+                    className="rounded-2xl p-4 sm:p-5 flex items-center justify-between hover:bg-[#181818] transition-colors group border border-white/10 bg-[#141414]"
                   >
                     {/* Players Info */}
-                    <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-6">
+                    <div className="flex items-center gap-4 sm:gap-6">
                       
                       {/* Player 1 */}
                       <div
                         onClick={() => !isP1Test && game.player1 && setSelectedProfileId(game.player1)}
-                        className={`flex items-center gap-2.5 min-w-0 ${!isP1Test ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                        className={`flex items-center gap-3 ${!isP1Test ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
                         title={!isP1Test ? 'View Profile' : 'Guest Player'}
                       >
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
+                        <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-velocity-red shrink-0">
                           {game.player1Avatar ? (
                             <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
                           ) : (
                             game.player1Name ? game.player1Name.substring(0, 2).toUpperCase() : 'P1'
                           )}
                         </div>
-                        <span className="text-xs sm:text-sm text-white font-semibold group-hover:text-velocity-red transition-colors truncate max-w-[100px] sm:max-w-none">
+                        <span className="text-sm text-white font-semibold group-hover:text-velocity-red transition-colors">
                           {p1Label}
                         </span>
                       </div>
 
-                      <span className="text-[11px] italic font-semibold text-velocity-red/70 font-mono shrink-0">VS</span>
+                      <span className="text-xs italic font-semibold text-velocity-red/70 font-mono">VS</span>
 
                       {/* Player 2 */}
                       <div
                         onClick={() => !isP2Test && game.player2 && setSelectedProfileId(game.player2)}
-                        className={`flex items-center gap-2.5 min-w-0 ${!isP2Test && game.player2 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                        className={`flex items-center gap-3 ${!isP2Test && game.player2 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
                         title={!isP2Test && game.player2 ? 'View Profile' : ''}
                       >
                         {game.status === 'active' ? (
                           <>
-                            <span className="text-xs sm:text-sm text-white font-semibold truncate max-w-[100px] sm:max-w-none">
+                            <span className="text-sm text-white font-semibold">
                               {p2Label}
                             </span>
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-white shrink-0">
+                            <div className="w-10 h-10 rounded-full border border-white/10 bg-[#0e0e0e] overflow-hidden flex items-center justify-center font-bold text-xs text-white shrink-0">
                               {game.player2Avatar ? (
                                 <img src={game.player2Avatar} alt="" className="w-full h-full object-cover" />
                               ) : (
@@ -435,8 +398,8 @@ export default function Dashboard() {
                     </div>
 
                     {/* Stakes & Action Buttons */}
-                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
-                      <div className="text-xs font-mono font-bold text-text-secondary">
+                    <div className="flex items-center gap-4 sm:gap-6">
+                      <div className="hidden sm:block text-xs font-mono text-text-secondary text-right">
                         {game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'Free'}
                       </div>
 
@@ -450,7 +413,7 @@ export default function Dashboard() {
                             navigate(`/game/${game.id}`);
                           }
                         }}
-                        className={`px-5 py-2 sm:px-4 sm:py-1.5 rounded-full text-xs font-semibold font-mono uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        className={`px-4 py-1.5 rounded-full text-xs font-semibold font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
                           game.status === 'active'
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
                             : isMyGame
@@ -466,9 +429,9 @@ export default function Dashboard() {
                 );
               })}
 
-              {allVisibleGames.length === 0 && (
+              {activeGames.length === 0 && waitingGames.length === 0 && (
                 <div className="text-center text-text-muted text-sm py-12 border border-dashed border-white/10 rounded-2xl bg-[#141414]/50 font-mono">
-                  No games matching filter right now. Click Create Game to start one!
+                  No active games right now. Click Create Game to start one!
                 </div>
               )}
             </div>

@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
+import { fetchSolBalanceDirect } from '../utils/solana';
 import { 
   X, 
   Trophy, 
-  Swords, 
+  Gamepad2, 
+  Coins, 
   Copy, 
   Check, 
   Loader2, 
@@ -27,89 +29,85 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
   const [profileData, setProfileData] = useState<any | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
+  const [copiedWallet, setCopiedWallet] = useState(false);
+  const [guestToast, setGuestToast] = useState<{ matchId: string; message: string } | null>(null);
 
   useEffect(() => {
     if (!userId) {
-      setIsLoading(false);
+      onClose();
       return;
     }
 
-    // 1. If viewing own profile and current user is a guest user (or has local session info)
-    if (currentUser && currentUser.id === userId && (currentUser.isTestUser || userId.startsWith('test_'))) {
-      setProfileData({
-        id: currentUser.id,
-        username: currentUser.username || 'Guest',
-        walletAddress: null,
-        avatarUrl: currentUser.avatarUrl || null,
-        bannerUrl: currentUser.bannerUrl || null,
-        isTestUser: true,
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    // 2. If it's a test/guest user ID from someone else
-    if (userId.startsWith('test_')) {
-      setProfileData({
-        id: userId,
-        username: 'Guest Player',
-        walletAddress: null,
-        isTestUser: true,
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    // 3. Fetch from Firestore for registered users
-    const unsubUser = onSnapshot(doc(db, 'users', userId), (snap) => {
-      if (snap.exists()) {
-        setProfileData({ id: snap.id, ...snap.data() });
-      } else {
-        // Fallback to current user if matches
-        if (currentUser && currentUser.id === userId) {
-          setProfileData({
-            id: currentUser.id,
-            username: currentUser.username || 'Player',
-            walletAddress: currentUser.walletAddress || null,
-            avatarUrl: currentUser.avatarUrl || null,
-            bannerUrl: currentUser.bannerUrl || null,
-            isTestUser: !!currentUser.isTestUser,
-          });
-        } else {
-          setProfileData(null);
-        }
+    // Immediately seed with currentUser if inspecting own account
+    if (currentUser && currentUser.id === userId) {
+      setProfileData(currentUser);
+      if (currentUser.isTestUser) {
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    });
+    }
 
-    // Fetch match history for quick stats & match preview
-    const qHistory = query(
+    setIsLoading(true);
+
+    getDoc(doc(db, 'users', userId))
+      .then((snap) => {
+        if (snap.exists()) {
+          const u = { id: snap.id, ...snap.data() } as any;
+          setProfileData(u);
+
+          if (u.walletAddress) {
+            fetchSolBalanceDirect(u.walletAddress)
+              .then((bal) => setSolBalance(bal))
+              .catch(() => {});
+          }
+        } else {
+          // If no doc in Firestore, check if it's the current user session (guest)
+          if (currentUser && currentUser.id === userId) {
+            setProfileData(currentUser);
+          } else {
+            setProfileData({
+              id: userId,
+              username: 'Guest Player',
+              isTestUser: true,
+            });
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching user profile:', err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+
+    // Listen to match history
+    const q = query(
       collection(db, 'games'),
       where('players', 'array-contains', userId),
       where('status', '==', 'finished')
     );
 
-    const unsubHistory = onSnapshot(qHistory, (snap) => {
-      let games = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
-      games.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-      setHistory(games);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        let gList = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        gList.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        setHistory(gList);
+      },
+      (err) => {
+        console.error('Error fetching user match history:', err);
+      }
+    );
 
-    return () => {
-      unsubUser();
-      unsubHistory();
-    };
-  }, [userId, currentUser]);
+    return () => unsub();
+  }, [userId, currentUser, onClose]);
 
   const handleCopyWallet = () => {
-    const wallet = profileData?.walletAddress;
-    if (!wallet) return;
-    navigator.clipboard.writeText(wallet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (!profileData?.walletAddress) return;
+    navigator.clipboard.writeText(profileData.walletAddress);
+    setCopiedWallet(true);
+    setTimeout(() => setCopiedWallet(false), 2000);
   };
 
   const handleOpenFullProfile = () => {
@@ -117,31 +115,31 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
     navigate(`/profile/${userId}`);
   };
 
-  const isTestUser = profileData?.isTestUser || !profileData?.walletAddress;
-  const rawUsername = profileData?.username;
-  const displayName = isTestUser
-    ? (rawUsername || 'Guest')
-    : `@${rawUsername || 'Player'}`;
+  const isTestUser = profileData?.isTestUser || userId.startsWith('test_') || !profileData?.walletAddress;
+  const rawUsername = profileData?.username || (currentUser && currentUser.id === userId ? currentUser.username : 'Player');
+  const displayName = isTestUser ? rawUsername : `@${rawUsername}`;
 
-  const handleOpponentClick = async (e: React.MouseEvent, oppId: string | null, game: any) => {
+  // Strict Guest Interception for Match History Opponents
+  const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, oppName: string | null, matchId: string) => {
     e.stopPropagation();
-    const isOppP1 = game.player1 !== userId;
-    const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || !oppId || oppId.startsWith('test_');
-
+    
+    const isOppTest = !oppId || oppId.startsWith('test_') || oppName?.toLowerCase().includes('guest') || oppName?.toLowerCase().includes('test');
     if (isOppTest) {
-      setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
+      setGuestToast({ matchId, message: '🧪 Guest User (Temporary Account)' });
       setTimeout(() => {
-        setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
+        setGuestToast((prev) => (prev?.matchId === matchId ? null : prev));
       }, 2500);
       return;
     }
 
     try {
-      const oppDoc = await getDoc(doc(db, 'users', oppId));
-      if (!oppDoc.exists() || oppDoc.data()?.isTestUser || !oppDoc.data()?.walletAddress) {
-        setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
+      const matchDoc = history.find((m) => m.id === matchId);
+      const isP1 = matchDoc?.player1 === oppId;
+      const isOppTestFlag = isP1 ? matchDoc?.player1IsTest : matchDoc?.player2IsTest;
+      if (isOppTestFlag) {
+        setGuestToast({ matchId, message: '🧪 Guest User (Temporary Account)' });
         setTimeout(() => {
-          setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
+          setGuestToast((prev) => (prev?.matchId === matchId ? null : prev));
         }, 2500);
         return;
       }
@@ -164,18 +162,15 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4"
+        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
       >
         <motion.div
-          initial={{ scale: 0.95, y: 30 }}
+          initial={{ scale: 0.95, y: 15 }}
           animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 30 }}
+          exit={{ scale: 0.95, y: 15 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-lg bg-[#141414] border-t sm:border border-white/15 shadow-[0_16px_50px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl relative"
+          className="w-full max-w-lg bg-[#141414] border border-white/15 shadow-[0_16px_50px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col max-h-[85vh] rounded-3xl relative"
         >
-          {/* Mobile Drag Indicator */}
-          <div className="sm:hidden w-10 h-1 rounded-full bg-white/20 mx-auto mt-2 mb-1" />
-
           {/* Close Button */}
           <button
             onClick={onClose}
@@ -186,7 +181,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
           </button>
 
           {/* Banner Container */}
-          <div className="relative w-full h-28 sm:h-36 bg-black border-b border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+          <div className="relative w-full h-32 sm:h-36 bg-black border-b border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
             {profileData?.bannerUrl ? (
               <img src={profileData.bannerUrl} alt="Banner" className="w-full h-full object-contain" />
             ) : (
@@ -196,17 +191,17 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             )}
           </div>
 
-          {/* Profile Header Content */}
-          <div className="px-5 sm:px-6 pb-4 pt-0 border-b border-white/10 relative">
+          {/* Profile Header Content - Clean Separation without text overlapping banner */}
+          <div className="px-6 pb-4 pt-0 border-b border-white/10 relative">
             
             {/* Top row: Avatar & Full Profile action */}
-            <div className="flex items-end justify-between gap-3 mb-2">
-              <div className="-mt-10 sm:-mt-12 w-18 h-18 sm:w-20 sm:h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
+            <div className="flex items-end justify-between gap-3 mb-2.5">
+              <div className="-mt-12 w-20 h-20 rounded-full overflow-hidden border-4 border-[#141414] bg-[#222222] shadow-2xl shrink-0">
                 {profileData?.avatarUrl ? (
                   <img src={profileData.avatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center font-bold text-xl sm:text-2xl text-white">
-                    {rawUsername ? rawUsername.substring(0, 2).toUpperCase() : <UserIcon size={22} />}
+                  <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-white">
+                    {rawUsername ? rawUsername.substring(0, 2).toUpperCase() : <UserIcon size={24} />}
                   </div>
                 )}
               </div>
@@ -224,12 +219,12 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               )}
             </div>
 
-            {/* Bottom row: Username and Metadata */}
+            {/* Bottom row: Username and Metadata (sitting comfortably below avatar) */}
             <div className="space-y-0.5 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleOpenFullProfile}
-                  className="text-lg sm:text-xl font-bold text-white font-headline-lg hover:text-velocity-red transition-colors text-left cursor-pointer flex items-center gap-1.5 truncate"
+                  className="text-xl font-bold text-white font-headline-lg hover:text-velocity-red transition-colors text-left cursor-pointer flex items-center gap-1.5 truncate"
                 >
                   <span className="truncate">{displayName}</span>
                 </button>
@@ -254,14 +249,14 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                   className="ml-2 text-text-muted hover:text-white shrink-0 cursor-pointer"
                   title="Copy wallet address"
                 >
-                  {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                  {copiedWallet ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
                 </button>
               </div>
             )}
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-3 border-b border-white/10 bg-[#0e0e0e] shrink-0 font-mono">
+          <div className="grid grid-cols-4 border-b border-white/10 bg-[#0e0e0e] shrink-0 font-mono">
             <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Matches</span>
               <span className="text-sm font-bold text-white">{totalGames}</span>
@@ -270,20 +265,26 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               <span className="text-[10px] text-text-muted uppercase block">Wins</span>
               <span className="text-sm font-bold text-velocity-red">{wins}</span>
             </div>
-            <div className="p-3 text-center">
+            <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Losses</span>
               <span className="text-sm font-bold text-text-secondary">{losses}</span>
             </div>
+            <div className="p-3 text-center">
+              <span className="text-[10px] text-text-muted uppercase block">SOL</span>
+              <span className="text-sm font-bold text-velocity-red">
+                {solBalance !== null ? `${solBalance.toFixed(2)}` : '—'}
+              </span>
+            </div>
           </div>
 
-          {/* Match History Preview List */}
-          <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-3 min-h-0 bg-[#121212]">
+          {/* Match History */}
+          <div className="flex-1 p-5 overflow-y-auto space-y-3 min-h-0 bg-[#121212]">
             <div className="flex justify-between items-center">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
                 Recent Matches
               </h4>
               <span className="text-[11px] text-text-muted font-mono">
-                {history.length} Recorded
+                {history.length} Games
               </span>
             </div>
 
@@ -293,27 +294,26 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               </div>
             ) : history.length === 0 ? (
               <p className="text-xs text-text-muted font-mono py-4 text-center">
-                No completed matches found.
+                No finished games yet.
               </p>
             ) : (
               <div className="space-y-2">
-                {history.slice(0, 5).map((game) => {
-                  const isWin = game.winner === userId;
-                  const isDraw = game.winner === 'draw';
-                  const oppId = game.player1 === userId ? game.player2 : game.player1;
-                  const oppName = game.player1 === userId ? game.player2Name : game.player1Name;
-                  const isOppP1 = game.player1 !== userId;
-                  const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || oppId?.startsWith('test_');
+                {history.map((g) => {
+                  const isWin = g.winner === userId;
+                  const isDraw = g.winner === 'draw';
+                  const oppId = g.player1 === userId ? g.player2 : g.player1;
+                  const oppName = g.player1 === userId ? g.player2Name : g.player1Name;
+                  const isOppTest = !oppId || oppId.startsWith('test_') || g.player1IsTest || g.player2IsTest;
                   const oppDisplay = isOppTest ? (oppName || 'Guest') : `@${oppName || 'Opponent'}`;
 
                   return (
                     <div
-                      key={game.id}
+                      key={g.id}
                       className="flex items-center justify-between p-3 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono relative"
                     >
                       {/* Guest User Toast Popup */}
                       <AnimatePresence>
-                        {testUserToast?.matchId === game.id && (
+                        {guestToast?.matchId === g.id && (
                           <motion.div
                             initial={{ opacity: 0, y: 6, scale: 0.95 }}
                             animate={{ opacity: 1, y: -4, scale: 1 }}
@@ -321,29 +321,29 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                             className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
                           >
                             <FlaskConical size={11} className="shrink-0" />
-                            <span>{testUserToast.message}</span>
+                            <span>{guestToast.message}</span>
                           </motion.div>
                         )}
                       </AnimatePresence>
 
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-text-muted shrink-0">#{game.id.substring(0, 6).toUpperCase()}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
                         <button
-                          onClick={(e) => handleOpponentClick(e, oppId, game)}
-                          className="text-white hover:text-velocity-red transition-colors cursor-pointer text-left font-medium truncate"
+                          onClick={(e) => handleOpponentClick(e, oppId, oppName, g.id)}
+                          className="text-white hover:text-velocity-red transition-colors cursor-pointer text-left font-medium"
                         >
                           vs {oppDisplay}
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      <div className="flex items-center gap-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                           isWin ? 'bg-velocity-red/15 text-velocity-red' : isDraw ? 'bg-white/10 text-white' : 'bg-neutral-800 text-text-muted'
                         }`}>
                           {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
                         </span>
-                        <span className={`font-bold ${isWin && game.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
-                          {game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'Free'}
+                        <span className={`font-bold ${isWin && g.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
+                          {g.wager > 0 ? `${g.wager} ${g.wagerCurrency}` : 'Free'}
                         </span>
                       </div>
                     </div>
@@ -353,11 +353,11 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             )}
           </div>
 
-          {/* Modal Footer */}
-          <div className="p-3.5 sm:p-4 border-t border-white/10 bg-[#141414] flex justify-end items-center shrink-0">
+          {/* Clean Single Footer Action */}
+          <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-end items-center shrink-0">
             <button
               onClick={onClose}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer text-center font-mono"
+              className="px-6 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer"
             >
               Close
             </button>

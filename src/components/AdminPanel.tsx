@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
+import { fetchSolBalanceDirect } from '../utils/solana';
 import { 
   Users, 
   Gamepad2, 
@@ -107,15 +108,8 @@ export default function AdminPanel() {
 
     if (inspectUser.walletAddress) {
       setIsLoadingInspectBalance(true);
-      fetch(`/api/solana/balance?wallet=${inspectUser.walletAddress}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (typeof data.balance === 'number') {
-            setInspectSolBalance(data.balance);
-          } else {
-            setInspectSolBalance(0);
-          }
-        })
+      fetchSolBalanceDirect(inspectUser.walletAddress)
+        .then((bal) => setInspectSolBalance(bal))
         .catch(() => setInspectSolBalance(0))
         .finally(() => setIsLoadingInspectBalance(false));
     } else {

@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { useConnection } from '@solana/wallet-adapter-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { doc, getDoc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { signInWithCustomToken, signInAnonymously, signOut } from 'firebase/auth';
-import { auth, db } from './firebase';
+import { signOut, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { doc, onSnapshot, getDoc, updateDoc, writeBatch, serverTimestamp, getDocs, query, collection, where, deleteDoc, limit } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { useGameStore } from './store';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import nacl from 'tweetnacl';
+import bs58 from 'bs58';
+import { fetchSolBalanceDirect } from './utils/solana';
 import Dashboard from './components/Dashboard';
 import Game from './components/Game';
 import Profile from './components/Profile';
@@ -15,29 +17,52 @@ import AdminPanel from './components/AdminPanel';
 import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
 import UserProfileModal from './components/UserProfileModal';
-import MobileBottomNav from './components/MobileBottomNav';
-import { User, Shield, FlaskConical } from 'lucide-react';
-import bs58 from 'bs58';
+import { Shield, User, FlaskConical } from 'lucide-react';
 
 const OWNER_WALLET = '11111111111111111111111111111111';
 
-function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
-  const { publicKey, disconnect } = useWallet();
-  const { setVisible } = useWalletModal();
-  const { user, clearUser, solBalance } = useGameStore();
-  const location = useLocation();
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      if (publicKey) {
-        await disconnect();
-      }
-      clearUser();
-    } catch (e) {
-      console.error('Logout error:', e);
+async function cleanupGuestUserGames(guestUserId: string) {
+  try {
+    const waitingSnap = await getDocs(
+      query(collection(db, 'games'), where('player1', '==', guestUserId), where('status', '==', 'waiting'))
+    );
+    for (const gDoc of waitingSnap.docs) {
+      await deleteDoc(gDoc.ref);
     }
-  };
+
+    const activeSnap1 = await getDocs(
+      query(collection(db, 'games'), where('player1', '==', guestUserId), where('status', '==', 'active'))
+    );
+    for (const gDoc of activeSnap1.docs) {
+      const g = gDoc.data();
+      await updateDoc(gDoc.ref, {
+        status: 'finished',
+        winner: g.player2,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    const activeSnap2 = await getDocs(
+      query(collection(db, 'games'), where('player2', '==', guestUserId), where('status', '==', 'active'))
+    );
+    for (const gDoc of activeSnap2.docs) {
+      const g = gDoc.data();
+      await updateDoc(gDoc.ref, {
+        status: 'finished',
+        winner: g.player1,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.warn('Guest cleanup notice:', err);
+  }
+}
+
+function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
+  const location = useLocation();
+  const { setVisible } = useWalletModal();
+  const { publicKey } = useWallet();
+  const { user, solBalance } = useGameStore();
 
   const isOwner = user?.walletAddress === OWNER_WALLET;
   const isAdmin = isOwner || user?.isAdmin || user?.role === 'admin';
@@ -51,14 +76,14 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
     : `@${user?.username || 'Player'}`;
 
   return (
-    <header className="sticky top-0 z-50 w-full px-3 sm:px-6 md:px-8 pt-2.5 sm:pt-3 pb-2 pointer-events-none">
-      <div className="max-w-6xl mx-auto pointer-events-auto bg-[#121212]/85 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-full px-3.5 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-3 transition-all">
+    <header className="sticky top-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-3 pb-2 pointer-events-none">
+      <div className="max-w-6xl mx-auto pointer-events-auto bg-[#121212]/85 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4 transition-all">
         
         {/* Left: Logo & Navigation */}
         <div className="flex items-center gap-4 sm:gap-8">
           <Link
             to="/"
-            className="flex items-center gap-2 font-headline-lg text-lg sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-2 font-headline-lg text-xl sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity cursor-pointer"
           >
             <img src="/logo.jpg" alt="bobsled.gg" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full mix-blend-screen" />
             <span className="text-white">bobsled<span className="text-velocity-red">.</span>gg</span>
@@ -105,19 +130,30 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
         {/* Right: Balance & User Actions */}
         <div className="flex items-center space-x-2 sm:space-x-3">
+          
+          {/* Admin Fast Link for mobile */}
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="md:hidden flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-velocity-red/10 border border-velocity-red/30 text-velocity-red rounded-full font-mono font-bold cursor-pointer"
+            >
+              Admin
+            </Link>
+          )}
+
           {!user && !publicKey ? (
             <button
               onClick={() => setVisible(true)}
-              className="text-xs text-white bg-velocity-red rounded-full px-4 sm:px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono cursor-pointer"
+              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono cursor-pointer"
             >
-              Connect
+              Connect Wallet
             </button>
           ) : (
             <div className="flex items-center gap-2 sm:gap-3">
               
               {/* Guest User Badge */}
               {user?.isTestUser && (
-                <div className="text-[10px] sm:text-[11px] font-mono text-velocity-red px-2.5 sm:px-3 py-1 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                <div className="text-[11px] font-mono text-velocity-red px-3 py-1 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
                   <FlaskConical size={12} />
                   <span>GUEST</span>
                 </div>
@@ -125,7 +161,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
               {/* Real SOL Balance */}
               {publicKey && !user?.isTestUser && (
-                <div className="text-xs font-mono font-bold text-white px-3 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-1.5 sm:gap-2 shadow-inner">
+                <div className="text-xs font-mono font-bold text-white px-3.5 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-2 shadow-inner">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   <span className="text-velocity-red">
                     {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : '0.000 SOL'}
@@ -150,14 +186,6 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
                   {userDisplayName}
                 </span>
               </button>
-
-              {/* Exit Button */}
-              <button
-                onClick={handleLogout}
-                className="text-xs px-3 sm:px-3.5 py-1.5 border border-white/10 hover:bg-white/10 text-text-secondary hover:text-white transition-colors rounded-full font-medium cursor-pointer"
-              >
-                Exit
-              </button>
             </div>
           )}
         </div>
@@ -166,224 +194,248 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
   );
 }
 
-function MainContent({
-  isAuthenticating,
-  needsUsername,
-  usernameError,
-  authError,
-  handleSetUsername,
-  handleGuestLogin,
-  disconnect,
-  pendingGame,
-}: any) {
-  const { publicKey } = useWallet();
+// Intercept unauthenticated / unknown paths with game invites
+function InviteGameRoute() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useGameStore();
 
-  if (!user && !publicKey) {
-    return <WelcomeScreen onTestLogin={handleGuestLogin} pendingGame={pendingGame} />;
-  }
+  const searchParams = new URLSearchParams(location.search);
+  const inviteCode = searchParams.get('invite');
 
-  if (isAuthenticating) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh]">
-        <div className="w-8 h-8 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
-        <p className="text-xs uppercase tracking-wider text-text-muted font-mono">Authenticating Wallet...</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (inviteCode && !user) {
+      sessionStorage.setItem('pending_game_invite', location.pathname + location.search);
+    }
+  }, [inviteCode, user, location]);
 
-  if (needsUsername) {
-    return (
-      <SetUsernameScreen
-        onSubmit={handleSetUsername}
-        isSubmitting={isAuthenticating}
-        error={usernameError}
-        pendingGame={pendingGame}
-      />
-    );
-  }
-
-  if (authError) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] px-4">
-        <div className="border border-red-900/50 bg-red-900/10 text-red-400 p-8 max-w-md text-center rounded-2xl shadow-2xl space-y-4">
-          <p className="text-sm font-bold uppercase tracking-wider font-mono">Authentication Notice</p>
-          <p className="text-xs text-text-secondary font-mono">{authError}</p>
-          <button
-            onClick={() => disconnect()}
-            className="px-5 py-2 bg-red-900/30 border border-red-900 text-xs font-semibold uppercase tracking-wider hover:bg-red-900/50 transition-colors rounded-full text-white font-mono cursor-pointer"
-          >
-            Disconnect &amp; Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh]">
-        <div className="w-8 h-8 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
-        <p className="text-xs uppercase tracking-wider text-text-muted font-mono">Loading Account...</p>
-      </div>
-    );
-  }
-
-  return (
-    <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/profile" element={<Profile />} />
-      <Route path="/profile/:userId" element={<Profile />} />
-      <Route path="/admin" element={<AdminPanel />} />
-      <Route path="/game/:gameId" element={<Game />} />
-      <Route path="/watch/:gameId" element={<Game />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+  return <Game />;
 }
 
-export default function App() {
+export function App() {
   const { publicKey, signMessage, disconnect } = useWallet();
   const { connection } = useConnection();
   const { user, setUser, setSolBalance } = useGameStore();
-
+  const [needsUsername, setNeedsUsername] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [authInitialized, setAuthInitialized] = useState(false);
-  const [needsUsername, setNeedsUsername] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
-  const [pendingGame, setPendingGame] = useState<any | null>(null);
   const [showOwnProfileModal, setShowOwnProfileModal] = useState(false);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
-  // Check if URL points to an incoming game invitation
+  // Auto sign-in anonymously on load so Firestore rules always allow reads
   useEffect(() => {
-    const path = window.location.pathname;
-    const match = path.match(/^\/(game|watch)\/([a-zA-Z0-9_-]+)$/);
-    if (match && match[2]) {
-      const gId = match[2];
-      getDoc(doc(db, 'games', gId)).then((snap) => {
-        if (snap.exists()) {
-          setPendingGame({ id: snap.id, ...snap.data() });
-        }
-      }).catch(() => {});
-    }
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) {
+        signInAnonymously(auth).catch(() => {});
+      }
+      setAuthInitialized(true);
+    });
+    return () => unsub();
   }, []);
 
-  // Fetch live SOL balance
+  // Cleanup guest matches when tab closes
+  useEffect(() => {
+    const handleUnload = () => {
+      if (user?.isTestUser && user.id) {
+        cleanupGuestUserGames(user.id);
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [user]);
+
+  // Live real-time SOL balance directly from RPC
+  const fetchWalletBalance = useCallback(async () => {
+    if (!publicKey || user?.isTestUser) return;
+    const walletStr = publicKey.toBase58();
+
+    try {
+      if (connection) {
+        const lamports = await connection.getBalance(publicKey, 'confirmed');
+        setSolBalance(lamports / LAMPORTS_PER_SOL);
+        return;
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    try {
+      const bal = await fetchSolBalanceDirect(walletStr);
+      setSolBalance(bal);
+    } catch (err2) {
+      console.warn('Balance fallback failed:', err2);
+    }
+  }, [publicKey, connection, user?.isTestUser, setSolBalance]);
+
   useEffect(() => {
     if (!publicKey || user?.isTestUser) {
-      setSolBalance(null);
+      if (user?.isTestUser) setSolBalance(null);
       return;
     }
 
-    const fetchBalance = async () => {
-      try {
-        const bal = await connection.getBalance(publicKey);
-        setSolBalance(bal / LAMPORTS_PER_SOL);
-      } catch (err) {
-        console.error('Error fetching SOL balance:', err);
-      }
-    };
-
-    fetchBalance();
-    const interval = setInterval(fetchBalance, 10000);
+    fetchWalletBalance();
+    const interval = setInterval(fetchWalletBalance, 4000);
     return () => clearInterval(interval);
-  }, [publicKey, connection, setSolBalance, user?.isTestUser]);
+  }, [publicKey, user?.isTestUser, fetchWalletBalance]);
 
-  // Handle Guest Login
-  const handleGuestLogin = async (customUsername?: string) => {
+  const handleGuestLogin = async (guestUsername: string) => {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const userCred = await signInAnonymously(auth);
-      const guestId = userCred.user.uid;
-      const guestName = customUsername?.trim() || `Guest_${Math.floor(1000 + Math.random() * 9000)}`;
-
+      let currentAuthUser = auth.currentUser;
+      if (!currentAuthUser) {
+        const userCredential = await signInAnonymously(auth);
+        currentAuthUser = userCredential.user;
+      }
+      const uid = currentAuthUser.uid;
       setUser({
-        id: guestId,
-        username: guestName,
-        isTestUser: true,
+        id: uid,
+        username: guestUsername,
         walletAddress: null,
-        avatarUrl: null,
-        bannerUrl: null,
+        isTestUser: true,
+        createdAt: new Date(),
       });
-    } catch (e: any) {
-      console.error('Guest login error:', e);
-      setAuthError('Failed to initialize guest session.');
+    } catch (err: any) {
+      console.error('Guest login failed:', err);
+      setAuthError('Could not initialize guest session.');
     } finally {
       setIsAuthenticating(false);
-      setAuthInitialized(true);
     }
   };
 
-  // Authenticate Solana Wallet with Backend Custom Token
+  useEffect(() => {
+    let unsubUser: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setAuthInitialized(true);
+
+      if (unsubUser) {
+        unsubUser();
+        unsubUser = null;
+      }
+
+      if (!firebaseUser) {
+        if (!user?.isTestUser) {
+          setUser(null);
+        }
+        return;
+      }
+
+      // Listen to user document in Firestore if it exists
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      unsubUser = onSnapshot(
+        userRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.data() as any;
+            setUser({ id: snapshot.id, ...userData });
+          }
+        },
+        (error) => {
+          if ((error as any).code === 'permission-denied') return;
+          handleFirestoreError(error, OperationType.GET, 'users');
+        }
+      );
+    });
+
+    return () => {
+      unsubscribe();
+      if (unsubUser) unsubUser();
+    };
+  }, [setUser]);
+
+  const authInProgress = useRef(false);
+
+  // Authenticate connected wallet with cryptographic signature verification
   useEffect(() => {
     const authenticate = async () => {
-      if (!publicKey || !signMessage || user?.isTestUser) return;
-      if (user && user.walletAddress === publicKey.toBase58()) return;
+      if (!publicKey || !signMessage || user?.isTestUser || !authInitialized) return;
+      if (authInProgress.current) return;
 
+      const walletStr = publicKey.toBase58();
+
+      if (user?.walletAddress === walletStr && !needsUsername) {
+        return;
+      }
+
+      const lastWallet = localStorage.getItem('bobsled_auth_wallet');
+      if (lastWallet === walletStr && user?.walletAddress === walletStr) {
+        return;
+      }
+
+      authInProgress.current = true;
       setIsAuthenticating(true);
       setAuthError(null);
 
       try {
-        const walletAddress = publicKey.toBase58();
-        const nonceRes = await fetch(`/api/auth/nonce?wallet=${walletAddress}`);
-        if (!nonceRes.ok) throw new Error('Failed to retrieve authentication challenge');
-        const { nonce } = await nonceRes.json();
+        // Generate a challenge nonce
+        const nonce = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+        const message = new TextEncoder().encode(
+          `Sign in to bobsled.gg\n\nWallet: ${walletStr}\nNonce: ${nonce}`
+        );
 
-        const message = `Sign in to bobsled.gg\n\nChallenge Nonce: ${nonce}`;
-        const messageBytes = new TextEncoder().encode(message);
-        const signatureBytes = await signMessage(messageBytes);
-        const signature = bs58.encode(signatureBytes);
-
-        const verifyRes = await fetch('/api/auth/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ wallet: walletAddress, signature, nonce }),
-        });
-
-        if (!verifyRes.ok) {
-          const errData = await verifyRes.json();
-          throw new Error(errData.error || 'Signature verification failed');
+        let signatureBytes: Uint8Array;
+        try {
+          signatureBytes = await signMessage(message);
+        } catch (e: any) {
+          throw new Error('Signature request was cancelled by user.');
         }
 
-        const { token } = await verifyRes.json();
-        const userCred = await signInWithCustomToken(auth, token);
-        const uid = userCred.user.uid;
+        // Verify cryptographic signature directly in browser
+        const isValid = nacl.sign.detached.verify(message, signatureBytes, publicKey.toBytes());
+        if (!isValid) {
+          throw new Error('Cryptographic signature verification failed.');
+        }
 
-        const userDocRef = doc(db, 'users', uid);
-        const userDoc = await getDoc(userDocRef);
+        // Ensure user is signed in to Firebase Auth
+        let currentAuthUser = auth.currentUser;
+        if (!currentAuthUser) {
+          const userCredential = await signInAnonymously(auth);
+          currentAuthUser = userCredential.user;
+        }
 
-        if (!userDoc.exists() || !userDoc.data()?.username) {
-          setNeedsUsername(true);
-        } else {
-          const uData = userDoc.data();
-          setUser({
-            id: uid,
-            username: uData.username,
-            walletAddress: uData.walletAddress,
-            avatarUrl: uData.avatarUrl || null,
-            bannerUrl: uData.bannerUrl || null,
-            isAdmin: uData.isAdmin || uData.role === 'admin' || walletAddress === OWNER_WALLET,
-            isTestUser: false,
-          });
+        // Check if there is an existing user document in Firestore with this wallet
+        const qUser = query(collection(db, 'users'), where('walletAddress', '==', walletStr), limit(1));
+        const userSnap = await getDocs(qUser);
+
+        if (!userSnap.empty) {
+          const existingDoc = userSnap.docs[0];
+          setUser({ id: existingDoc.id, ...(existingDoc.data() as any) });
+          localStorage.setItem('bobsled_auth_wallet', walletStr);
           setNeedsUsername(false);
+        } else {
+          // Check if current user uid already has a profile doc
+          const directSnap = await getDoc(doc(db, 'users', currentAuthUser.uid));
+          if (directSnap.exists()) {
+            const data = directSnap.data() as any;
+            if (!data.walletAddress || data.walletAddress === walletStr) {
+              await updateDoc(doc(db, 'users', currentAuthUser.uid), { walletAddress: walletStr });
+              setUser({ id: directSnap.id, ...data, walletAddress: walletStr });
+              setNeedsUsername(false);
+            } else {
+              setNeedsUsername(true);
+            }
+          } else {
+            setNeedsUsername(true);
+          }
+          localStorage.setItem('bobsled_auth_wallet', walletStr);
         }
       } catch (err: any) {
-        console.error('Wallet authentication error:', err);
+        console.error('Auth error:', err);
         setAuthError(err.message || 'Failed to authenticate wallet');
       } finally {
+        authInProgress.current = false;
         setIsAuthenticating(false);
-        setAuthInitialized(true);
       }
     };
 
-    if (publicKey && !user?.isTestUser) {
+    if (publicKey && !user?.isTestUser && authInitialized) {
       authenticate();
     } else {
       setNeedsUsername(false);
     }
-  }, [publicKey, signMessage, user?.walletAddress, user?.isTestUser]);
+  }, [publicKey, signMessage, user?.walletAddress, user?.isTestUser, authInitialized, needsUsername, setUser]);
 
   const handleSetUsername = async (username: string, avatarUrl?: string) => {
     setIsAuthenticating(true);
@@ -395,15 +447,19 @@ export default function App() {
         throw new Error('This username is already taken. Please choose another.');
       }
 
-      const currentUser = auth.currentUser;
-      if (!currentUser) throw new Error('Not authenticated');
+      let currentUser = auth.currentUser;
+      if (!currentUser) {
+        const cred = await signInAnonymously(auth);
+        currentUser = cred.user;
+      }
       if (!publicKey) throw new Error('Wallet not connected');
 
+      const walletStr = publicKey.toBase58();
       const batch = writeBatch(db);
       batch.set(usernameRef, { uid: currentUser.uid });
 
       const userData: any = {
-        walletAddress: publicKey.toBase58(),
+        walletAddress: walletStr,
         username: username,
         createdAt: serverTimestamp(),
       };
@@ -415,16 +471,8 @@ export default function App() {
       batch.set(doc(db, 'users', currentUser.uid), userData);
       await batch.commit();
 
-      setUser({
-        id: currentUser.uid,
-        username,
-        walletAddress: publicKey.toBase58(),
-        avatarUrl: avatarUrl || null,
-        bannerUrl: null,
-        isAdmin: publicKey.toBase58() === OWNER_WALLET,
-        isTestUser: false,
-      });
-
+      setUser({ id: currentUser.uid, ...userData });
+      localStorage.setItem('bobsled_auth_wallet', walletStr);
       setNeedsUsername(false);
     } catch (e: any) {
       setUsernameError(e.message || 'Failed to set username');
@@ -435,7 +483,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-[100dvh] bg-[#0e0e0e] text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
+      <div className="flex flex-col min-h-screen bg-[#0e0e0e] text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
         <AppHeader onOpenProfileModal={() => user?.id && setShowOwnProfileModal(true)} />
         
         {/* Own Profile Modal triggered from header */}
@@ -446,22 +494,69 @@ export default function App() {
           />
         )}
 
-        <main className="flex flex-1 w-full relative z-10">
-          <MainContent
-            isAuthenticating={isAuthenticating}
-            needsUsername={needsUsername}
-            usernameError={usernameError}
-            authError={authError}
-            handleSetUsername={handleSetUsername}
-            handleGuestLogin={handleGuestLogin}
-            disconnect={disconnect}
-            pendingGame={pendingGame}
-          />
-        </main>
+        {/* Global Loading Overlay */}
+        {isAuthenticating && (
+          <div className="fixed inset-0 z-[150] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="w-10 h-10 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
+            <p className="text-xs uppercase tracking-wider text-white font-mono">Authenticating with Solana...</p>
+          </div>
+        )}
 
-        {/* Sleek Mobile Bottom Navigation Bar */}
-        <MobileBottomNav />
+        {/* Global Error Banner */}
+        {authError && (
+          <div className="bg-red-950/80 border-b border-red-800 text-white text-xs px-4 py-2.5 flex items-center justify-between z-40">
+            <span className="font-mono">{authError}</span>
+            <button
+              onClick={() => setAuthError(null)}
+              className="text-white hover:text-red-300 font-bold ml-4 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Main Routes */}
+        <Routes>
+          {!user ? (
+            <>
+              {needsUsername ? (
+                <Route
+                  path="*"
+                  element={
+                    <SetUsernameScreen
+                      onComplete={handleSetUsername}
+                      error={usernameError}
+                      loading={isAuthenticating}
+                    />
+                  }
+                />
+              ) : (
+                <Route
+                  path="*"
+                  element={
+                    <WelcomeScreen
+                      onGuestLogin={handleGuestLogin}
+                      loading={isAuthenticating}
+                    />
+                  }
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/game/:gameId" element={<InviteGameRoute />} />
+              <Route path="/watch/:gameId" element={<Game />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/profile/:userId" element={<Profile />} />
+              <Route path="/admin" element={<AdminPanel />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
+        </Routes>
       </div>
     </BrowserRouter>
   );
 }
+
+export default App;

@@ -28,7 +28,7 @@ try {
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // In-memory store for nonces (In production, use Redis or Firestore)
 const nonces = new Map<string, string>();

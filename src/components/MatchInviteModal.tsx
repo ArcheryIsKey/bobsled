@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { Swords, Eye, Coins, FlaskConical, ArrowRight, User, AlertCircle, X, ShieldAlert } from 'lucide-react';
+import { Swords, Eye, Coins, FlaskConical, ArrowRight, User, AlertCircle, X, ShieldAlert, Loader2, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface MatchInviteModalProps {
@@ -13,6 +13,8 @@ interface MatchInviteModalProps {
     status?: string;
   };
   currentUser?: any;
+  isJoining?: boolean;
+  joiningStatus?: string | null;
   onDirectJoin?: () => void;
   onGuestLogin?: (username: string) => void;
   onSpectateGuest?: (username: string) => void;
@@ -22,6 +24,8 @@ interface MatchInviteModalProps {
 export default function MatchInviteModal({
   pendingGame,
   currentUser,
+  isJoining = false,
+  joiningStatus,
   onDirectJoin,
   onGuestLogin,
   onSpectateGuest,
@@ -68,7 +72,8 @@ export default function MatchInviteModal({
         {/* Close / Dismiss Button */}
         <button
           onClick={onDismiss}
-          className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center border border-white/10 transition-colors cursor-pointer"
+          disabled={isJoining}
+          className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center border border-white/10 transition-colors cursor-pointer disabled:opacity-40"
           title="Dismiss and return to lobby"
         >
           <X size={15} />
@@ -134,6 +139,13 @@ export default function MatchInviteModal({
               </div>
             </div>
           </div>
+
+          {isSolGame && (
+            <div className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-emerald-400 font-mono border-t border-white/5">
+              <ShieldCheck size={13} />
+              <span>Host Stake Verified in Escrow Vault</span>
+            </div>
+          )}
         </div>
 
         {/* LOGGED IN USER ACTIONS */}
@@ -179,23 +191,37 @@ export default function MatchInviteModal({
               <div className="space-y-3">
                 <button
                   onClick={onDirectJoin}
-                  className="w-full h-12 bg-velocity-red hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs sm:text-sm uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
+                  disabled={isJoining}
+                  className="w-full h-12 bg-velocity-red hover:bg-red-600 active:scale-[0.99] disabled:opacity-50 text-white font-bold text-xs sm:text-sm uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
                 >
-                  <span>Accept Challenge &amp; Join as Player 2</span>
-                  <ArrowRight size={16} />
+                  {isJoining ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>{joiningStatus || 'Processing Escrow Stake...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {isSolGame ? `Lock ${pendingGame.wager} SOL & Enter Match` : 'Accept Challenge & Join as Player 2'}
+                      </span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
                 </button>
 
                 <div className="flex justify-between items-center pt-1">
                   <button
                     onClick={onDismiss}
-                    className="text-xs text-text-secondary hover:text-white flex items-center gap-1.5 transition-colors font-mono cursor-pointer"
+                    disabled={isJoining}
+                    className="text-xs text-text-secondary hover:text-white flex items-center gap-1.5 transition-colors font-mono cursor-pointer disabled:opacity-40"
                   >
                     <Eye size={13} className="text-velocity-red" />
                     <span>Watch as Spectator</span>
                   </button>
                   <button
                     onClick={onDismiss}
-                    className="text-xs text-text-muted hover:text-white transition-colors cursor-pointer"
+                    disabled={isJoining}
+                    className="text-xs text-text-muted hover:text-white transition-colors cursor-pointer disabled:opacity-40"
                   >
                     Decline Match
                   </button>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
@@ -8,7 +9,26 @@ import Chat from './Chat';
 import Connect4 from './games/Connect4';
 import UserProfileModal from './UserProfileModal';
 import MatchInviteModal from './MatchInviteModal';
-import { ArrowLeft, Copy, Check, Trophy, Flag, AlertTriangle, XCircle, ArrowRight, User, MessageSquareOff, UserPlus, Eye, Swords, X } from 'lucide-react';
+import { depositMatchStake, verifyDepositOnServer, settleMatchOnServer, refundCancelOnServer } from '../utils/solanaEscrow';
+import {
+  ArrowLeft,
+  Copy,
+  Check,
+  Trophy,
+  Flag,
+  AlertTriangle,
+  XCircle,
+  ArrowRight,
+  User,
+  MessageSquareOff,
+  UserPlus,
+  Eye,
+  Swords,
+  X,
+  ExternalLink,
+  ShieldCheck,
+  Loader2,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
@@ -16,6 +36,8 @@ export default function Game() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useGameStore();
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
   const { setVisible: setWalletModalVisible } = useWalletModal();
 
   const [game, setGame] = useState<any>(null);
@@ -25,11 +47,14 @@ export default function Game() {
   const [showWinModal, setShowWinModal] = useState(true);
   const [showResignModal, setShowResignModal] = useState(false);
   const [isJoiningInvite, setIsJoiningInvite] = useState(false);
+  const [joiningStatus, setJoiningStatus] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [dismissedInviteModal, setDismissedInviteModal] = useState(false);
+  const [isSettlingPayout, setIsSettlingPayout] = useState(false);
 
   const isExplicitWatchRoute = location.pathname.startsWith('/watch/');
   const heartbeatIntervalRef = useRef<any>(null);
+  const settlementTriggeredRef = useRef(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -57,6 +82,28 @@ export default function Game() {
 
     return () => unsub();
   }, [gameId, navigate]);
+
+  // Automated On-Chain Settlement when Game Finishes
+  useEffect(() => {
+    if (!game || game.status !== 'finished' || settlementTriggeredRef.current) return;
+    if (!game.wager || game.wager <= 0 || game.wagerCurrency === 'FREE') return;
+    if (game.payoutTx) return;
+
+    settlementTriggeredRef.current = true;
+    setIsSettlingPayout(true);
+
+    settleMatchOnServer(game.id)
+      .then((res) => {
+        console.log('Automated match payout settled:', res);
+      })
+      .catch((err) => {
+        console.error('Failed to trigger automatic settlement:', err);
+        settlementTriggeredRef.current = false;
+      })
+      .finally(() => {
+        setIsSettlingPayout(false);
+      });
+  }, [game]);
 
   // Dynamic Browser Title: "bobsled vs {user}"
   useEffect(() => {
@@ -158,7 +205,7 @@ export default function Game() {
     };
   }, [game, user]);
 
-  // Handle joining via match challenge modal with randomized Red vs White and Turn
+  // Handle joining via match challenge modal with Escrow Deposit
   const handleJoinViaInvite = async () => {
     if (!user || !game || game.status !== 'waiting') return;
     if (user.id === game.player1) return;
@@ -169,11 +216,34 @@ export default function Game() {
     }
 
     setIsJoiningInvite(true);
+    setJoiningStatus('Preparing stake...');
+
     try {
-      // Randomly assign who is Red vs White
-      const isHostRed = Math.random() > 0.5;
-      const player1Color = isHostRed ? 'red' : 'white';
-      const player2Color = isHostRed ? 'white' : 'red';
+      // If it's a SOL staked match, deposit into Escrow Vault
+      if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
+        if (!publicKey || !sendTransaction) {
+          setWalletModalVisible(true);
+          return;
+        }
+
+        setJoiningStatus(`Approve ${game.wager} SOL Escrow Deposit in your wallet...`);
+
+        const txSignature = await depositMatchStake({
+          connection,
+          sendTransaction,
+          publicKey,
+          amountSol: game.wager,
+        });
+
+        setJoiningStatus('Verifying deposit on Solana blockchain...');
+
+        await verifyDepositOnServer({
+          gameId: game.id,
+          role: 'player2',
+          txHash: txSignature,
+          senderWallet: publicKey.toBase58(),
+        });
+      }
 
       // Randomly assign who goes first
       const firstTurn = Math.random() > 0.5 ? game.player1 : user.id;
@@ -184,12 +254,14 @@ export default function Game() {
         player2Avatar: user.avatarUrl || null,
         player2IsTest: !!user.isTestUser,
         players: [game.player1, user.id],
-        player1Color,
-        player2Color,
         status: 'active',
         turn: firstTurn,
         updatedAt: serverTimestamp(),
       };
+
+      if (publicKey) {
+        updates.p2Wallet = publicKey.toBase58();
+      }
 
       await updateDoc(doc(db, 'games', game.id), updates);
       setDismissedInviteModal(true);
@@ -198,6 +270,7 @@ export default function Game() {
       alert(e?.message || 'Failed to join match.');
     } finally {
       setIsJoiningInvite(false);
+      setJoiningStatus(null);
     }
   };
 
@@ -209,10 +282,15 @@ export default function Game() {
     if (!user || !game || game.status !== 'waiting') return;
     if (game.player1 !== user.id) return;
     try {
-      await deleteDoc(doc(db, 'games', game.id));
+      await refundCancelOnServer(game.id, user.id);
       navigate('/');
     } catch (e) {
-      console.error('Failed to cancel match:', e);
+      console.error('Failed to cancel match via refund engine:', e);
+      try {
+        await deleteDoc(doc(db, 'games', game.id));
+      } catch (err) {
+        console.error(err);
+      }
       navigate('/');
     }
   };
@@ -353,6 +431,8 @@ export default function Game() {
         <MatchInviteModal
           pendingGame={game}
           currentUser={user}
+          isJoining={isJoiningInvite}
+          joiningStatus={joiningStatus}
           onDirectJoin={handleJoinViaInvite}
           onDismiss={() => setDismissedInviteModal(true)}
         />
@@ -433,7 +513,7 @@ export default function Game() {
                 className="w-full sm:w-auto bg-red-950/40 hover:bg-red-900/60 border border-red-900/70 hover:border-red-500 text-red-400 hover:text-white px-8 py-3 rounded-full text-xs sm:text-sm uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,0,0,0.25)] flex items-center justify-center gap-2 font-bold font-mono cursor-pointer active:scale-[0.99]"
               >
                 <X size={16} />
-                <span>Cancel Game</span>
+                <span>Cancel Game &amp; Refund Escrow</span>
               </button>
             )}
 
@@ -495,7 +575,7 @@ export default function Game() {
               </span>
             </div>
 
-            {/* Stakes */}
+            {/* Stakes & Escrow Status */}
             <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5">
               <div>
                 <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
@@ -504,9 +584,12 @@ export default function Game() {
                 </p>
               </div>
               {!isFreeGame && (
-                <span className="text-xs text-text-secondary bg-[#1a1a1a] px-3 py-1 rounded-full border border-white/10 font-mono font-bold">
-                  SOL
-                </span>
+                <div className="text-right">
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full font-mono font-bold flex items-center gap-1">
+                    <ShieldCheck size={11} />
+                    <span>Escrow Locked</span>
+                  </span>
+                </div>
               )}
             </div>
 
@@ -600,7 +683,7 @@ export default function Game() {
             )}
           </div>
 
-          {/* Share Links Panel */}
+          {/* Share Links & On-Chain Audit Panel */}
           <div className="rounded-2xl p-4 border border-white/10 bg-[#141414] space-y-3">
             <h3 className="text-xs text-white font-bold uppercase tracking-wider font-mono">
               Share Links
@@ -653,6 +736,22 @@ export default function Game() {
                 </button>
               </div>
             </div>
+
+            {/* On-Chain Solscan Proof Link */}
+            {game.p1DepositTx && (
+              <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono">
+                <span className="text-text-muted">Host Escrow Deposit:</span>
+                <a
+                  href={`https://solscan.io/tx/${game.p1DepositTx}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-velocity-red hover:underline flex items-center gap-1"
+                >
+                  <span>Solscan</span>
+                  <ExternalLink size={10} />
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Chat Panel */}
@@ -693,7 +792,7 @@ export default function Game() {
             >
               <h3 className="text-lg font-bold text-white font-headline-lg">Resign Match</h3>
               <p className="text-xs text-text-secondary">
-                Are you sure you want to forfeit this match? Your opponent will be awarded the victory.
+                Are you sure you want to forfeit this match? Your opponent will be awarded the victory and the escrow pot.
               </p>
               <div className="flex gap-3 justify-end pt-2">
                 <button
@@ -745,19 +844,42 @@ export default function Game() {
               </div>
 
               {/* Title & Standard Subtitles */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
                 </h2>
                 <p className="text-sm text-text-secondary font-sans">
                   {isWinner
-                    ? isFreeGame ? 'Free game' : `Stakes: ${game.wager} SOL`
+                    ? isFreeGame ? 'Free game' : `Prize: ${(game.wager * 2 * 0.965).toFixed(3)} SOL (after house rake)`
                     : isDraw
-                    ? 'The match ended in a draw.'
+                    ? 'The match ended in a draw. Stakes have been refunded.'
                     : isSpectator
                     ? `Winner: ${game.winner === game.player1 ? 'Player 1' : 'Player 2'}`
                     : 'Match completed.'}
                 </p>
+
+                {/* On-Chain Payout Status */}
+                {!isFreeGame && (
+                  <div className="pt-2">
+                    {game.payoutTx ? (
+                      <a
+                        href={`https://solscan.io/tx/${game.payoutTx}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-semibold hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <ShieldCheck size={14} />
+                        <span>Payout Confirmed (Solscan)</span>
+                        <ExternalLink size={11} />
+                      </a>
+                    ) : isSettlingPayout ? (
+                      <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 text-velocity-red font-mono text-xs font-semibold">
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>Disbursing On-Chain Payout...</span>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
               {/* Action Button */}

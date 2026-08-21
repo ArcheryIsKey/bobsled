@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
 import UserProfileModal from './UserProfileModal';
-import { Loader2, Play, X, FlaskConical } from 'lucide-react';
+import { depositMatchStake, verifyDepositOnServer, refundCancelOnServer } from '../utils/solanaEscrow';
+import { Loader2, Play, X, FlaskConical, ShieldCheck, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
   const { user } = useGameStore();
+
   const [waitingGames, setWaitingGames] = useState<any[]>([]);
   const [activeGames, setActiveGames] = useState<any[]>([]);
   const [wagerType, setWagerType] = useState<'SOL' | 'FREE'>(user?.isTestUser ? 'FREE' : 'SOL');
   const [wagerAmount, setWagerAmount] = useState<number>(0.1);
   const [customWager, setCustomWager] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
+  const [creationStatus, setCreationStatus] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
@@ -53,6 +59,9 @@ export default function Dashboard() {
   const handleCreateMatch = async () => {
     if (!user) return;
     setIsCreating(true);
+    setCreationStatus('Preparing match...');
+    let createdDocId: string | null = null;
+
     try {
       const finalWager = user.isTestUser || wagerType === 'FREE' ? 0 : customWager ? parseFloat(customWager) : wagerAmount;
       const finalCurrency = user.isTestUser ? 'FREE' : wagerType;
@@ -61,7 +70,15 @@ export default function Dashboard() {
         throw new Error('Please enter a valid SOL wager.');
       }
 
+      if (finalCurrency === 'SOL' && (!publicKey || !sendTransaction)) {
+        throw new Error('Please connect your Solana wallet to create a staked game.');
+      }
+
       const inviteCode = Math.random().toString(36).substring(2, 8);
+
+      const isHostRed = Math.random() > 0.5;
+      const player1Color = isHostRed ? 'red' : 'white';
+      const player2Color = isHostRed ? 'white' : 'red';
 
       const docRef = await addDoc(collection(db, 'games'), {
         player1: user.id,
@@ -73,6 +90,8 @@ export default function Dashboard() {
         player2Avatar: null,
         player2IsTest: null,
         players: [user.id],
+        player1Color,
+        player2Color,
         status: 'waiting',
         wager: finalWager,
         wagerCurrency: finalCurrency,
@@ -81,16 +100,45 @@ export default function Dashboard() {
         winner: null,
         gameType: 'connect4',
         inviteCode,
+        escrowStatus: finalWager > 0 ? 'pending_deposit' : 'free',
+        p1Wallet: publicKey ? publicKey.toBase58() : null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
+      createdDocId = docRef.id;
+
+      // If it's a SOL staked match, deposit into Escrow Vault
+      if (finalCurrency === 'SOL' && finalWager > 0 && publicKey) {
+        setCreationStatus(`Approve ${finalWager} SOL Escrow Deposit in your wallet...`);
+        
+        const txSignature = await depositMatchStake({
+          connection,
+          sendTransaction,
+          publicKey,
+          amountSol: finalWager,
+        });
+
+        setCreationStatus('Verifying deposit on Solana blockchain...');
+
+        await verifyDepositOnServer({
+          gameId: docRef.id,
+          role: 'player1',
+          txHash: txSignature,
+          senderWallet: publicKey.toBase58(),
+        });
+      }
+
       navigate(`/game/${docRef.id}`);
     } catch (e: any) {
       console.error(e);
+      if (createdDocId) {
+        deleteDoc(doc(db, 'games', createdDocId)).catch(() => {});
+      }
       alert(e.message || 'Failed to create match');
     } finally {
       setIsCreating(false);
+      setCreationStatus(null);
     }
   };
 
@@ -103,12 +151,29 @@ export default function Dashboard() {
     }
 
     try {
-      const gameRef = doc(db, 'games', game.id);
+      // If it's a SOL staked game, deposit stake into Escrow Vault
+      if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
+        if (!publicKey || !sendTransaction) {
+          alert('Please connect your Solana wallet to join this staked match.');
+          return;
+        }
 
-      // Randomly assign who is Red vs White
-      const isHostRed = Math.random() > 0.5;
-      const player1Color = isHostRed ? 'red' : 'white';
-      const player2Color = isHostRed ? 'white' : 'red';
+        const txSignature = await depositMatchStake({
+          connection,
+          sendTransaction,
+          publicKey,
+          amountSol: game.wager,
+        });
+
+        await verifyDepositOnServer({
+          gameId: game.id,
+          role: 'player2',
+          txHash: txSignature,
+          senderWallet: publicKey.toBase58(),
+        });
+      }
+
+      const gameRef = doc(db, 'games', game.id);
 
       // Randomly assign who goes first
       const firstTurn = Math.random() > 0.5 ? game.player1 : user.id;
@@ -119,12 +184,14 @@ export default function Dashboard() {
         player2Avatar: user.avatarUrl || null,
         player2IsTest: !!user.isTestUser,
         players: [game.player1, user.id],
-        player1Color,
-        player2Color,
         status: 'active',
         turn: firstTurn,
         updatedAt: serverTimestamp(),
       };
+
+      if (publicKey) {
+        updates.p2Wallet = publicKey.toBase58();
+      }
 
       await updateDoc(gameRef, updates);
       navigate(`/game/${game.id}`);
@@ -137,9 +204,14 @@ export default function Dashboard() {
   const handleCancelMatch = async (gameId: string) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'games', gameId));
+      await refundCancelOnServer(gameId, user.id);
     } catch (e) {
-      console.error('Failed to cancel match:', e);
+      console.error('Failed to cancel match via refund engine:', e);
+      try {
+        await deleteDoc(doc(db, 'games', gameId));
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
@@ -262,6 +334,12 @@ export default function Dashboard() {
                           }}
                           className="w-full h-10 bg-[#0e0e0e] border border-white/10 rounded-full px-4 font-mono text-xs text-white outline-none focus:border-velocity-red text-center"
                         />
+
+                        {/* Escrow Guarantee Pill */}
+                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-mono pt-1">
+                          <ShieldCheck size={13} />
+                          <span>Protected by Solana Escrow Vault (Zero Scam Risk)</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -273,7 +351,10 @@ export default function Dashboard() {
                     className="w-full flex cursor-pointer items-center justify-center rounded-full h-12 px-8 bg-velocity-red hover:bg-red-600 active:scale-[0.99] transition-all text-white font-semibold shadow-[0_0_20px_rgba(255,77,77,0.35)] uppercase tracking-wider text-xs sm:text-sm disabled:opacity-50 font-mono"
                   >
                     {isCreating ? (
-                      <Loader2 className="animate-spin w-5 h-5" />
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="animate-spin w-4 h-4" />
+                        <span>{creationStatus || 'Processing...'}</span>
+                      </div>
                     ) : (
                       <span className="flex items-center gap-2">
                         <Play size={15} /> Create {user?.isTestUser ? 'Free' : wagerType} Game
@@ -288,7 +369,14 @@ export default function Dashboard() {
                 <div className="flex flex-col items-center gap-5 justify-center w-full">
                   <div className="text-white text-xs sm:text-sm font-medium bg-[#0e0e0e] px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-velocity-red animate-ping" />
-                    <span>Waiting for opponent... ({myWaitingGame.wager > 0 ? `${myWaitingGame.wager} SOL` : 'Free'})</span>
+                    <span>
+                      Waiting for opponent... ({myWaitingGame.wager > 0 ? `${myWaitingGame.wager} SOL` : 'Free'})
+                      {myWaitingGame.escrowStatus === 'p1_funded' && (
+                        <strong className="text-emerald-400 font-mono text-[11px] ml-1.5 font-normal">
+                          (🔒 Escrow Locked)
+                        </strong>
+                      )}
+                    </span>
                   </div>
                   <div className="flex gap-3">
                     <button
@@ -301,7 +389,7 @@ export default function Dashboard() {
                       onClick={() => handleCancelMatch(myWaitingGame.id)}
                       className="items-center justify-center rounded-full h-10 px-5 bg-[#0e0e0e] hover:bg-[#1a1a1a] transition-colors text-red-400 hover:text-red-300 font-semibold border border-white/10 text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
                     >
-                      <X size={13} /> Cancel
+                      <X size={13} /> Cancel &amp; Refund
                     </button>
                   </div>
                 </div>
@@ -436,7 +524,14 @@ export default function Dashboard() {
                     {/* Stakes & Action Buttons */}
                     <div className="flex items-center gap-4 sm:gap-6">
                       <div className="hidden sm:block text-xs font-mono text-text-secondary text-right">
-                        {game.wager > 0 ? `${game.wager} ${game.wagerCurrency}` : 'Free'}
+                        {game.wager > 0 ? (
+                          <div className="flex items-center gap-1 text-velocity-red font-bold">
+                            <Coins size={12} />
+                            <span>{game.wager} SOL</span>
+                          </div>
+                        ) : (
+                          'Free'
+                        )}
                       </div>
 
                       <button

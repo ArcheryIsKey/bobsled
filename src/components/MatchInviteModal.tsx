@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import SolAmount from './SolAmount';
 import { Swords, Eye, Coins, FlaskConical, ArrowRight, User, AlertCircle, X, ShieldAlert, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -127,9 +128,10 @@ export default function MatchInviteModal({
                 {isSolGame ? (
                   <>
                     <Coins size={14} className="text-velocity-red" />
-                    <span className="font-headline-lg text-base sm:text-lg font-bold text-velocity-red font-mono">
-                      {pendingGame.wager} SOL
-                    </span>
+                    <SolAmount
+                      amount={pendingGame.wager}
+                      className="font-headline-lg text-base sm:text-lg font-bold text-velocity-red font-mono"
+                    />
                   </>
                 ) : (
                   <span className="font-headline-lg text-sm font-bold text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">

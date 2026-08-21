@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { useGameStore } from '../store';
 import { processImageFile, processBannerFile } from '../utils/image';
 import UserProfileModal from './UserProfileModal';
+import SolAmount from './SolAmount';
 import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical, Crown, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -420,7 +421,13 @@ export default function Profile() {
               <span className="text-xs font-mono font-bold text-velocity-red">SOL</span>
             </div>
             <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 font-mono">
-              {isOwnProfile && solBalance !== null ? `${solBalance.toFixed(3)}` : isTestUser ? '—' : '0.000'}
+              {isOwnProfile && solBalance !== null ? (
+                <SolAmount amount={parseFloat(solBalance.toFixed(3))} suffix="" />
+              ) : isTestUser ? (
+                '—'
+              ) : (
+                '0.000'
+              )}
             </div>
             <div className="text-xs text-text-muted">
               {isOwnProfile ? 'In connected wallet' : 'Solana network'}
@@ -516,7 +523,15 @@ export default function Profile() {
                             )}
                           </td>
                           <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}`}>
-                            {game.wager > 0 ? `${isWin ? '+' : '-'}${game.wager} ${game.wagerCurrency}` : 'Free'}
+                            {game.wager > 0 ? (
+                              <SolAmount
+                                amount={game.wager}
+                                prefix={isWin ? '+' : '-'}
+                                className={isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}
+                              />
+                            ) : (
+                              'Free'
+                            )}
                           </td>
                         </tr>
                       );

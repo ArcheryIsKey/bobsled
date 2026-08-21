@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
+import SolAmount from './SolAmount';
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { X, ExternalLink, Copy, Check, Loader2, FlaskConical, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -46,12 +48,19 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
           setProfileData(u);
 
           if (u.walletAddress) {
-            fetch(`/api/solana/balance?wallet=${u.walletAddress}`)
-              .then((r) => r.json())
-              .then((d) => {
-                if (typeof d.balance === 'number') setSolBalance(d.balance);
-              })
-              .catch(() => {});
+            const rpcList = ['https://rpc.ankr.com/solana', 'https://solana.public-rpc.com', 'https://1rpc.io/sol'];
+            (async () => {
+              for (const rpc of rpcList) {
+                try {
+                  const conn = new Connection(rpc, 'confirmed');
+                  const lamports = await conn.getBalance(new PublicKey(u.walletAddress));
+                  setSolBalance(lamports / LAMPORTS_PER_SOL);
+                  break;
+                } catch (e) {
+                  // try next
+                }
+              }
+            })();
           }
         } else {
           // If no doc in Firestore, check if it's the current user session (guest)
@@ -263,9 +272,23 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             </div>
             <div className="p-3 text-center">
               <span className="text-[10px] text-text-muted uppercase block">SOL</span>
-              <span className="text-sm font-bold text-velocity-red">
-                {solBalance !== null ? `${solBalance.toFixed(3)}` : (storeSolBalance !== null && currentUser?.id === userId ? `${storeSolBalance.toFixed(3)}` : isTestUser ? '—' : '0.000')}
-              </span>
+              <div className="text-sm font-bold text-velocity-red">
+                {isTestUser ? (
+                  '—'
+                ) : (
+                  <SolAmount
+                    amount={
+                      solBalance !== null
+                        ? parseFloat(solBalance.toFixed(3))
+                        : storeSolBalance !== null && currentUser?.id === userId
+                        ? parseFloat(storeSolBalance.toFixed(3))
+                        : 0
+                    }
+                    suffix=""
+                    className="font-bold text-velocity-red hover:text-red-400"
+                  />
+                )}
+              </div>
             </div>
           </div>
 
@@ -335,9 +358,9 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                         }`}>
                           {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
                         </span>
-                        <span className={`font-bold ${isWin && g.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
-                          {g.wager > 0 ? `${g.wager} ${g.wagerCurrency}` : 'Free'}
-                        </span>
+                        <div className={`font-bold ${isWin && g.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
+                          {g.wager > 0 ? <SolAmount amount={g.wager} className={isWin ? 'text-velocity-red' : 'text-text-secondary'} /> : 'Free'}
+                        </div>
                       </div>
                     </div>
                   );

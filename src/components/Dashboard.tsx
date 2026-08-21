@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, upd
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
 import UserProfileModal from './UserProfileModal';
+import SolAmount from './SolAmount';
 import { depositMatchStake } from '../utils/solanaEscrow';
 import { Loader2, Play, X, FlaskConical, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -309,7 +310,7 @@ export default function Dashboard() {
                                   : 'border-white/10 text-text-secondary hover:border-white/20 bg-[#0e0e0e]'
                               }`}
                             >
-                              {amt} SOL
+                              <SolAmount amount={amt} />
                             </button>
                           ))}
                         </div>
@@ -324,6 +325,11 @@ export default function Dashboard() {
                           }}
                           className="w-full h-10 bg-[#0e0e0e] border border-white/10 rounded-full px-4 font-mono text-xs text-white outline-none focus:border-velocity-red text-center"
                         />
+                        {customWager && parseFloat(customWager) > 0 && (
+                          <div className="text-[11px] text-text-secondary font-mono">
+                            <SolAmount amount={parseFloat(customWager)} prefix="USD Value: " />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -354,7 +360,7 @@ export default function Dashboard() {
                   <div className="text-white text-xs sm:text-sm font-medium bg-[#0e0e0e] px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-velocity-red animate-ping" />
                     <span>
-                      Waiting for opponent... ({myWaitingGame.wager > 0 ? `${myWaitingGame.wager} SOL` : 'Free'})
+                      Waiting for opponent... ({myWaitingGame.wager > 0 ? <SolAmount amount={myWaitingGame.wager} /> : 'Free'})
                     </span>
                   </div>
                   <div className="flex gap-3">
@@ -506,7 +512,7 @@ export default function Dashboard() {
                         {game.wager > 0 ? (
                           <div className="flex items-center gap-1 text-velocity-red font-bold">
                             <Coins size={12} />
-                            <span>{game.wager} SOL</span>
+                            <SolAmount amount={game.wager} className="font-bold text-velocity-red" />
                           </div>
                         ) : (
                           'Free'

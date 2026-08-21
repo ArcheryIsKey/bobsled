@@ -9,6 +9,7 @@ import Chat from './Chat';
 import Connect4 from './games/Connect4';
 import UserProfileModal from './UserProfileModal';
 import MatchInviteModal from './MatchInviteModal';
+import SolAmount from './SolAmount';
 import { depositMatchStake } from '../utils/solanaEscrow';
 import {
   ArrowLeft,
@@ -455,7 +456,7 @@ export default function Game() {
             </div>
 
             <div className="px-2.5 py-1 rounded-full bg-[#0e0e0e] border border-white/10 text-[10px] text-text-secondary font-bold shrink-0 mx-2">
-              {isFreeGame ? 'FREE' : `${game.wager} SOL`}
+              {isFreeGame ? 'FREE' : <SolAmount amount={game.wager} />}
             </div>
 
             <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
@@ -548,9 +549,9 @@ export default function Game() {
             <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5">
               <div>
                 <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
-                <p className="font-headline-lg text-xl text-velocity-red font-bold font-mono">
-                  {isFreeGame ? 'Free' : `${game.wager} SOL`}
-                </p>
+                <div className="font-headline-lg text-xl text-velocity-red font-bold font-mono">
+                  {isFreeGame ? 'Free' : <SolAmount amount={game.wager} className="font-bold text-velocity-red" />}
+                </div>
               </div>
               {!isFreeGame && (
                 <span className="text-xs text-text-secondary bg-[#1a1a1a] px-3 py-1 rounded-full border border-white/10 font-mono font-bold">
@@ -828,15 +829,23 @@ export default function Game() {
                 <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
                 </h2>
-                <p className="text-sm text-text-secondary font-sans">
-                  {isWinner
-                    ? isFreeGame ? 'Free game' : `Prize: ${(game.wager * 2).toFixed(3)} SOL`
-                    : isDraw
-                    ? 'The match ended in a draw.'
-                    : isSpectator
-                    ? `Winner: ${game.winner === game.player1 ? 'Player 1' : 'Player 2'}`
-                    : 'Match completed.'}
-                </p>
+                <div className="text-sm text-text-secondary font-sans">
+                  {isWinner ? (
+                    isFreeGame ? (
+                      'Free game'
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        Prize: <SolAmount amount={game.wager * 2} className="font-bold text-velocity-red" />
+                      </span>
+                    )
+                  ) : isDraw ? (
+                    'The match ended in a draw.'
+                  ) : isSpectator ? (
+                    `Winner: ${game.winner === game.player1 ? 'Player 1' : 'Player 2'}`
+                  ) : (
+                    'Match completed.'
+                  )}
+                </div>
               </div>
 
               {/* Action Button */}

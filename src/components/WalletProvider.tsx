@@ -9,9 +9,12 @@ interface Props {
 }
 
 export const SolanaWalletProvider: FC<Props> = ({ children }) => {
-  // Use Solana Mainnet-Beta RPC by default with high-speed endpoint
+  // Use high-speed CORS-friendly Ankr/Public Solana RPC by default to prevent 403 Access Forbidden
   const endpoint = useMemo(() => {
-    return 'https://api.mainnet-beta.solana.com';
+    return (
+      (import.meta as any).env?.VITE_SOLANA_RPC_URL ||
+      'https://rpc.ankr.com/solana'
+    );
   }, []);
 
   const wallets = useMemo(

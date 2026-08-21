@@ -15,6 +15,7 @@ import AdminPanel from './components/AdminPanel';
 import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
 import UserProfileModal from './components/UserProfileModal';
+import SolAmount from './components/SolAmount';
 import { Shield, User, FlaskConical } from 'lucide-react';
 
 const OWNER_WALLET = '11111111111111111111111111111111';
@@ -177,9 +178,11 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               {publicKey && !user?.isTestUser && (
                 <div className="text-xs font-mono font-bold text-white px-3.5 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-2 shadow-inner">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                  <span className="text-velocity-red">
-                    {solBalance !== null ? `${solBalance.toFixed(3)} SOL` : '0.000 SOL'}
-                  </span>
+                  <SolAmount
+                    amount={solBalance !== null ? parseFloat(solBalance.toFixed(3)) : 0}
+                    tooltipPosition="bottom"
+                    className="text-velocity-red hover:text-red-400"
+                  />
                 </div>
               )}
 
@@ -348,51 +351,36 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, [user]);
 
-  // Live real-time SOL balance
+  // Live real-time SOL balance with multi-RPC fallback
   const fetchWalletBalance = useCallback(async () => {
     if (!publicKey || user?.isTestUser) return;
     const walletStr = publicKey.toBase58();
 
-    try {
-      const res = await fetch(`/api/solana/balance?wallet=${walletStr}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data.balance === 'number') {
-          setSolBalance(data.balance);
-          return;
-        }
-      }
-    } catch (err) {
-      // Ignore
-    }
-
-    try {
-      if (connection) {
+    if (connection) {
+      try {
         const lamports = await connection.getBalance(publicKey, 'confirmed');
         setSolBalance(lamports / LAMPORTS_PER_SOL);
         return;
+      } catch (e) {
+        // Fallback
       }
-    } catch (e) {
-      // Ignore
     }
 
-    try {
-      const res = await fetch('https://api.mainnet-beta.solana.com', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getBalance',
-          params: [walletStr],
-        }),
-      });
-      const data = await res.json();
-      if (data?.result?.value !== undefined) {
-        setSolBalance(data.result.value / LAMPORTS_PER_SOL);
+    const rpcList = [
+      'https://rpc.ankr.com/solana',
+      'https://solana.public-rpc.com',
+      'https://1rpc.io/sol',
+    ];
+
+    for (const rpc of rpcList) {
+      try {
+        const conn = new Connection(rpc, 'confirmed');
+        const lamports = await conn.getBalance(new PublicKey(walletStr));
+        setSolBalance(lamports / LAMPORTS_PER_SOL);
+        return;
+      } catch (e) {
+        // try next
       }
-    } catch (e) {
-      // Fallback
     }
   }, [publicKey, user?.isTestUser, connection, setSolBalance]);
 

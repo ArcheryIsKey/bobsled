@@ -6,6 +6,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
 import UserProfileModal from './UserProfileModal';
 import SolAmount from './SolAmount';
+import { useSolPrice } from '../utils/solPrice';
 import { depositMatchStake } from '../utils/solanaEscrow';
 import { Loader2, Play, X, FlaskConical, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
   const { user } = useGameStore();
+  const { formatUsd } = useSolPrice();
 
   const [waitingGames, setWaitingGames] = useState<any[]>([]);
   const [activeGames, setActiveGames] = useState<any[]>([]);
@@ -327,7 +329,7 @@ export default function Dashboard() {
                         />
                         {customWager && parseFloat(customWager) > 0 && (
                           <div className="text-[11px] text-text-secondary font-mono">
-                            <SolAmount amount={parseFloat(customWager)} prefix="USD Value: " />
+                            USD Price: <span className="text-emerald-400 font-semibold">{formatUsd(parseFloat(customWager))}</span>
                           </div>
                         )}
                       </div>

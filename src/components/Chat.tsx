@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
+import { logError } from '../utils/logger';
 import { Send, MessageSquare } from 'lucide-react';
 
 export default function Chat({ gameId }: { gameId: string }) {
@@ -48,7 +49,7 @@ export default function Chat({ gameId }: { gameId: string }) {
       text: messageToSend,
       createdAt: serverTimestamp(),
     }).catch((err) => {
-      console.error('Failed to send message:', err);
+      logError('Failed to send message:', err);
     });
   };
 

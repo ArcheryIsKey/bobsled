@@ -8,14 +8,15 @@ import UserProfileModal from './UserProfileModal';
 import SolAmount from './SolAmount';
 import { useSolPrice } from '../utils/solPrice';
 import { depositMatchStake } from '../utils/solanaEscrow';
+import { logError } from '../utils/logger';
 import { Loader2, Play, X, FlaskConical, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
-  const { user } = useGameStore();
+  const { publicKey, signTransaction } = useWallet();
+  const { user, addToast } = useGameStore();
   const { formatUsd } = useSolPrice();
 
   const [waitingGames, setWaitingGames] = useState<any[]>([]);
@@ -73,7 +74,7 @@ export default function Dashboard() {
         throw new Error('Please enter a valid SOL wager.');
       }
 
-      if (finalCurrency === 'SOL' && (!publicKey || !sendTransaction)) {
+      if (finalCurrency === 'SOL' && (!publicKey || !signTransaction)) {
         throw new Error('Please connect your Solana wallet to create a staked game.');
       }
 
@@ -85,7 +86,7 @@ export default function Dashboard() {
         
         depositTx = await depositMatchStake({
           connection,
-          sendTransaction,
+          signTransaction,
           publicKey,
           amountSol: finalWager,
         });
@@ -129,11 +130,11 @@ export default function Dashboard() {
       createdDocId = docRef.id;
       navigate(`/game/${docRef.id}`);
     } catch (e: any) {
-      console.error(e);
+      logError('Match creation failed:', e);
       if (createdDocId) {
         deleteDoc(doc(db, 'games', createdDocId)).catch(() => {});
       }
-      alert(e.message || 'Failed to create match');
+      addToast('error', e.message || 'Failed to create match');
     } finally {
       setIsCreating(false);
       setCreationStatus(null);
@@ -144,7 +145,7 @@ export default function Dashboard() {
     if (!user) return;
     
     if (user.isTestUser && game.wager > 0) {
-      alert('Guest users can only join Free games. Connect a wallet to play with SOL stakes.');
+      addToast('warning', 'Guest users can only join Free games. Connect a wallet to play with SOL stakes.');
       return;
     }
 
@@ -153,14 +154,14 @@ export default function Dashboard() {
 
       // If it's a SOL staked game, deposit stake
       if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
-        if (!publicKey || !sendTransaction) {
-          alert('Please connect your Solana wallet to join this staked match.');
+        if (!publicKey || !signTransaction) {
+          addToast('warning', 'Please connect your Solana wallet to join this staked match.');
           return;
         }
 
         p2DepositTx = await depositMatchStake({
           connection,
-          sendTransaction,
+          signTransaction,
           publicKey,
           amountSol: game.wager,
         });
@@ -194,8 +195,8 @@ export default function Dashboard() {
       await updateDoc(gameRef, updates);
       navigate(`/game/${game.id}`);
     } catch (e: any) {
-      console.error('Failed to join match:', e);
-      alert(e?.message || 'Failed to join match');
+      logError('Failed to join match:', e);
+      addToast('error', e?.message || 'Failed to join match');
     }
   };
 
@@ -204,7 +205,8 @@ export default function Dashboard() {
     try {
       await deleteDoc(doc(db, 'games', gameId));
     } catch (e) {
-      console.error('Failed to cancel match:', e);
+      logError('Failed to cancel match:', e);
+      addToast('error', 'Failed to cancel match');
     }
   };
 
@@ -327,9 +329,9 @@ export default function Dashboard() {
                           }}
                           className="w-full h-10 bg-[#0e0e0e] border border-white/10 rounded-full px-4 font-mono text-xs text-white outline-none focus:border-velocity-red text-center"
                         />
-                        {customWager && parseFloat(customWager) > 0 && (
-                          <div className="text-[11px] text-text-secondary font-mono">
-                            USD Price: <span className="text-emerald-400 font-semibold">{formatUsd(parseFloat(customWager))}</span>
+                        {customWager && !isNaN(parseFloat(customWager)) && parseFloat(customWager) > 0 && (
+                          <div className="text-[11px] text-text-secondary font-mono text-center">
+                            USD Price: <span className="text-emerald-400 font-bold">{formatUsd(parseFloat(customWager)) || '---'}</span>
                           </div>
                         )}
                       </div>

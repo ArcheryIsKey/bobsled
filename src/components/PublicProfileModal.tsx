@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { logError } from '../utils/logger';
 import { X, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function PublicProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
   const [profile, setProfile] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [stats, setStats] = useState({ totalGames: 0, wins: 0, losses: 0, winRate: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -23,11 +24,14 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
           where('status', '==', 'finished')
         );
         const querySnapshot = await getDocs(q);
-        let games = querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() } as any));
-        games.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-        setHistory(games.slice(0, 10));
+        const games = querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        const total = games.length;
+        const wins = games.filter((g) => g.winner === userId).length;
+        const losses = games.filter((g) => g.winner && g.winner !== userId && g.winner !== 'draw').length;
+        const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+        setStats({ totalGames: total, wins, losses, winRate });
       } catch (e) {
-        console.error('Error fetching profile', e);
+        logError('Error fetching profile', e);
       } finally {
         setIsLoading(false);
       }
@@ -45,10 +49,6 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
 
   if (!profile) return null;
 
-  const totalGames = history.length;
-  const wins = history.filter((g) => g.winner === userId).length;
-  const losses = history.filter((g) => g.winner && g.winner !== userId && g.winner !== 'draw').length;
-  const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
   const walletAddress = profile.walletAddress || userId;
 
   return (
@@ -83,51 +83,22 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
           </p>
         </div>
 
-        <div className="grid grid-cols-3 border-b border-white/10 bg-surface-elevated/20">
+        <div className="grid grid-cols-3 border-b border-white/10 bg-surface-elevated/20 font-mono">
           <div className="p-3.5 flex flex-col items-center border-r border-white/10">
             <span className="text-[10px] text-text-secondary uppercase tracking-wider mb-0.5">Matches</span>
-            <span className="text-lg font-headline-lg text-text-primary font-bold">{totalGames}</span>
+            <span className="text-lg font-headline-lg text-text-primary font-bold">{stats.totalGames}</span>
           </div>
           <div className="p-3.5 flex flex-col items-center border-r border-white/10">
             <span className="text-[10px] text-text-secondary uppercase tracking-wider mb-0.5">Wins</span>
-            <span className="text-lg font-headline-lg text-velocity-red font-bold">{wins}</span>
+            <span className="text-lg font-headline-lg text-velocity-red font-bold">{stats.wins}</span>
           </div>
           <div className="p-3.5 flex flex-col items-center">
             <span className="text-[10px] text-text-secondary uppercase tracking-wider mb-0.5">Win Rate</span>
-            <span className="text-lg font-headline-lg text-text-primary font-bold">{winRate}%</span>
+            <span className="text-lg font-headline-lg text-text-primary font-bold">{stats.winRate}%</span>
           </div>
-        </div>
-
-        <div className="p-4 sm:p-5 overflow-y-auto bg-background flex-1">
-          <h4 className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">
-            Recent Matches
-          </h4>
-          {history.length === 0 ? (
-            <p className="text-xs text-text-muted text-center py-4">No recent matches found.</p>
-          ) : (
-            <div className="space-y-2">
-              {history.map((game) => {
-                const isWin = game.winner === userId;
-                const isDraw = game.winner === 'draw';
-                const opponent = game.player1 === userId ? game.player2Name : game.player1Name;
-                return (
-                  <div key={game.id} className="flex gap-3 text-xs p-2.5 rounded-md bg-surface-container border border-white/5 items-center justify-between">
-                    <span className="text-text-muted font-mono text-[11px]">
-                      {game.createdAt ? new Date(game.createdAt.toMillis()).toLocaleDateString() : 'Recent'}
-                    </span>
-                    <p className="text-text-secondary flex-1 px-2 truncate">
-                      vs <span className="text-text-primary font-medium">{opponent || 'Opponent'}</span>
-                    </p>
-                    <span className={`text-[10px] uppercase px-2 py-0.5 rounded font-semibold ${isWin ? 'bg-velocity-red/10 text-velocity-red border border-velocity-red/30' : isDraw ? 'bg-surface-variant text-text-muted border border-white/10' : 'bg-surface-elevated text-text-muted border border-white/5'}`}>
-                      {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       </motion.div>
     </div>
   );
 }
+

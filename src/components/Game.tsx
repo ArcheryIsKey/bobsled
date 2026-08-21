@@ -11,6 +11,7 @@ import UserProfileModal from './UserProfileModal';
 import MatchInviteModal from './MatchInviteModal';
 import SolAmount from './SolAmount';
 import { depositMatchStake } from '../utils/solanaEscrow';
+import { logError } from '../utils/logger';
 import {
   ArrowLeft,
   Copy,
@@ -34,9 +35,9 @@ export default function Game() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useGameStore();
+  const { user, addToast } = useGameStore();
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const { setVisible: setWalletModalVisible } = useWalletModal();
 
   const [game, setGame] = useState<any>(null);
@@ -198,7 +199,7 @@ export default function Game() {
 
       // If it's a SOL staked match, deposit into Escrow
       if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
-        if (!publicKey || !sendTransaction) {
+        if (!publicKey || !signTransaction) {
           setWalletModalVisible(true);
           return;
         }
@@ -207,7 +208,7 @@ export default function Game() {
 
         p2DepositTx = await depositMatchStake({
           connection,
-          sendTransaction,
+          signTransaction,
           publicKey,
           amountSol: game.wager,
         });
@@ -241,8 +242,8 @@ export default function Game() {
       await updateDoc(doc(db, 'games', game.id), updates);
       setDismissedInviteModal(true);
     } catch (e: any) {
-      console.error('Failed to join match via invite:', e);
-      alert(e?.message || 'Failed to join match.');
+      logError('Failed to join match via invite:', e);
+      addToast('error', e?.message || 'Failed to join match.');
     } finally {
       setIsJoiningInvite(false);
       setJoiningStatus(null);
@@ -260,7 +261,7 @@ export default function Game() {
       await deleteDoc(doc(db, 'games', game.id));
       navigate('/');
     } catch (e) {
-      console.error('Failed to cancel match:', e);
+      logError('Failed to cancel match:', e);
       navigate('/');
     }
   };
@@ -276,7 +277,7 @@ export default function Game() {
       });
       setShowResignModal(false);
     } catch (e) {
-      console.error(e);
+      logError('Resign failed:', e);
     }
   };
 
@@ -289,7 +290,7 @@ export default function Game() {
         updatedAt: serverTimestamp(),
       });
     } catch (e) {
-      console.error(e);
+      logError('AFK claim failed:', e);
     }
   };
 
@@ -310,7 +311,7 @@ export default function Game() {
     try {
       await updateDoc(doc(db, 'games', game.id), updates);
     } catch (err) {
-      console.error(err);
+      logError('Move failed:', err);
     }
   };
 

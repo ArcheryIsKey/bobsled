@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Loader2, CheckCircle, ArrowRight, Plus, X, Gamepad2 } from 'lucide-react';
 import { processImageFile } from '../utils/image';
+import { logError } from '../utils/logger';
 
 interface SetUsernameScreenProps {
   onSubmit: (username: string, avatarUrl?: string) => void;
@@ -29,7 +30,7 @@ export default function SetUsernameScreen({ onSubmit, isSubmitting, error, pendi
       const dataUrl = await processImageFile(file, 256, 0.8);
       setAvatarUrl(dataUrl);
     } catch (err) {
-      console.error('Failed to process avatar:', err);
+      logError('Failed to process avatar:', err);
       alert('Could not process this image. Please select a standard image file.');
     } finally {
       setIsProcessingAvatar(false);

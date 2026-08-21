@@ -51,12 +51,7 @@ export default function SolAmount({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={(e) => {
-        // Toggle on touch devices
-        e.stopPropagation();
-        setIsHovered((prev) => !prev);
-      }}
-      className="relative inline-flex items-center cursor-help group/sol"
+      className="relative inline-flex items-center group/sol"
     >
       <span className={`inline-flex items-center gap-1 transition-colors ${className}`}>
         {showIcon && <Coins size={13} className="text-velocity-red shrink-0" />}

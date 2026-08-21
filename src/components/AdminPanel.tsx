@@ -3,6 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
+import { OWNER_WALLET } from '../constants';
+import { logError } from '../utils/logger';
+import SolAmount from './SolAmount';
 import { 
   Users, 
   Gamepad2, 
@@ -26,8 +29,6 @@ import {
   FlaskConical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const OWNER_WALLET = '11111111111111111111111111111111';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -166,7 +167,7 @@ export default function AdminPanel() {
         setInspectUser({ ...inspectUser, isAdmin: !currentlyAdmin, role: !currentlyAdmin ? 'admin' : 'user' });
       }
     } catch (e) {
-      console.error('Failed to update admin role:', e);
+      logError('Failed to update admin role:', e);
       alert('Failed to update admin permissions.');
     } finally {
       setRoleUpdatingId(null);
@@ -182,7 +183,7 @@ export default function AdminPanel() {
       }
       setShowPurgeModal(false);
     } catch (e) {
-      console.error('Error purging games:', e);
+      logError('Error purging games:', e);
     } finally {
       setIsPurging(false);
     }
@@ -219,7 +220,7 @@ export default function AdminPanel() {
       setUserToDelete(null);
       setDeleteConfirmInput('');
     } catch (e) {
-      console.error('Failed to delete account:', e);
+      logError('Failed to delete account:', e);
     } finally {
       setIsDeleting(false);
     }
@@ -803,7 +804,12 @@ export default function AdminPanel() {
                     {isLoadingInspectBalance ? (
                       <Loader2 size={12} className="animate-spin text-velocity-red" />
                     ) : inspectSolBalance !== null ? (
-                      `${inspectSolBalance.toFixed(3)}`
+                      <SolAmount
+                        amount={parseFloat(inspectSolBalance.toFixed(3))}
+                        suffix=""
+                        tooltipPosition="bottom"
+                        className="text-velocity-red hover:text-red-400 font-bold"
+                      />
                     ) : (
                       '—'
                     )}
@@ -877,7 +883,11 @@ export default function AdminPanel() {
                               {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
                             </span>
                             <span className={`font-bold ${isWin && g.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
-                              {g.wager > 0 ? `${g.wager} ${g.wagerCurrency}` : 'Free'}
+                              {g.wager > 0 ? (
+                                <SolAmount amount={g.wager} suffix={` ${g.wagerCurrency}`} />
+                              ) : (
+                                'Free'
+                              )}
                             </span>
                           </div>
                         </div>

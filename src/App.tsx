@@ -6,7 +6,7 @@ import { signOut, onAuthStateChanged, signInWithCustomToken, signInAnonymously }
 import { doc, onSnapshot, getDoc, updateDoc, writeBatch, serverTimestamp, getDocs, query, collection, where, deleteDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { useGameStore } from './store';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, Connection, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import Dashboard from './components/Dashboard';
 import Game from './components/Game';
@@ -16,9 +16,11 @@ import WelcomeScreen from './components/WelcomeScreen';
 import SetUsernameScreen from './components/SetUsernameScreen';
 import UserProfileModal from './components/UserProfileModal';
 import SolAmount from './components/SolAmount';
+import ToastContainer from './components/Toast';
+import { useSolPrice } from './utils/solPrice';
+import { OWNER_WALLET } from './constants';
+import { logError, logWarn } from './utils/logger';
 import { Shield, User, FlaskConical } from 'lucide-react';
-
-const OWNER_WALLET = '11111111111111111111111111111111';
 
 async function cleanupGuestUserGames(guestUserId: string) {
   try {
@@ -53,7 +55,7 @@ async function cleanupGuestUserGames(guestUserId: string) {
       });
     }
   } catch (err) {
-    console.warn('Guest cleanup notice:', err);
+    logWarn('Guest cleanup notice:', err);
   }
 }
 
@@ -63,6 +65,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
   const { publicKey, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
   const { user, setUser, solBalance } = useGameStore();
+  const { price: currentSolPrice } = useSolPrice();
 
   const handleLogout = async () => {
     localStorage.removeItem('bobsled_auth_wallet');
@@ -72,7 +75,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
     try {
       await signOut(auth);
     } catch (e) {
-      console.error(e);
+      logError('Logout error:', e);
     }
     disconnect();
     setUser(null);
@@ -116,16 +119,6 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               >
                 Lobby
               </Link>
-              <Link
-                to="/profile"
-                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all cursor-pointer ${
-                  isProfile
-                    ? 'text-white bg-white/15 shadow-sm'
-                    : 'text-text-secondary hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Profile
-              </Link>
               {isAdmin && (
                 <Link
                   to="/admin"
@@ -155,6 +148,12 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               Admin
             </Link>
           )}
+
+          {/* SOL Price Pill */}
+          <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 px-3 py-1.5 rounded-full bg-emerald-400/10 border border-emerald-400/20" title="Live SOL Price">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span>1 SOL = ${currentSolPrice ? currentSolPrice.toFixed(2) : '---'}</span>
+          </div>
 
           {!user && !publicKey ? (
             <button
@@ -409,7 +408,7 @@ export default function App() {
         createdAt: new Date(),
       });
     } catch (err: any) {
-      console.error('Guest login failed:', err);
+      logError('Guest login failed:', err);
       setAuthError('Could not initialize guest session.');
     } finally {
       setIsAuthenticating(false);
@@ -554,7 +553,7 @@ export default function App() {
           setNeedsUsername(false);
         }
       } catch (err: any) {
-        console.error('Auth error:', err);
+        logError('Auth error:', err);
         setAuthError(err.message || 'Failed to authenticate');
       } finally {
         authInProgress.current = false;
@@ -633,6 +632,8 @@ export default function App() {
             pendingGame={pendingGame}
           />
         </main>
+        
+        <ToastContainer />
       </div>
     </BrowserRouter>
   );

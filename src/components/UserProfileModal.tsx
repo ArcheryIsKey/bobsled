@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import SolAmount from './SolAmount';
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { logError } from '../utils/logger';
 import { X, ExternalLink, Copy, Check, Loader2, FlaskConical, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -18,7 +18,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
   const { user: currentUser, solBalance: storeSolBalance } = useGameStore();
 
   const [profileData, setProfileData] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [stats, setStats] = useState({ totalGames: 0, wins: 0, losses: 0 });
   const [solBalance, setSolBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -27,7 +27,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
   useEffect(() => {
     if (!userId) {
       setProfileData(null);
-      setHistory([]);
+      setStats({ totalGames: 0, wins: 0, losses: 0 });
       return;
     }
 
@@ -48,19 +48,13 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
           setProfileData(u);
 
           if (u.walletAddress) {
-            const rpcList = ['https://rpc.ankr.com/solana', 'https://solana.public-rpc.com', 'https://1rpc.io/sol'];
-            (async () => {
-              for (const rpc of rpcList) {
-                try {
-                  const conn = new Connection(rpc, 'confirmed');
-                  const lamports = await conn.getBalance(new PublicKey(u.walletAddress));
-                  setSolBalance(lamports / LAMPORTS_PER_SOL);
-                  break;
-                } catch (e) {
-                  // try next
-                }
-              }
-            })();
+            // Fetch balance via server-side proxy (no CORS issues)
+            fetch(`/api/solana/balance?wallet=${u.walletAddress}`)
+              .then((r) => r.json())
+              .then((d) => {
+                if (typeof d.balance === 'number') setSolBalance(d.balance);
+              })
+              .catch(() => {});
           }
         } else {
           // If no doc in Firestore, check if it's the current user session (guest)
@@ -76,7 +70,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
         }
       })
       .catch((err) => {
-        console.error('Error fetching user profile:', err);
+        logError('Error fetching user profile:', err);
         if (currentUser && currentUser.id === userId) {
           setProfileData(currentUser);
         }
@@ -85,17 +79,25 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
         setIsLoading(false);
       });
 
+    // Real-time stats calculation from finished matches
     const q = query(
       collection(db, 'games'),
       where('players', 'array-contains', userId),
       where('status', '==', 'finished')
     );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      let gList = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      gList.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-      setHistory(gList);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const games = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        const total = games.length;
+        const w = games.filter((g) => g.winner === userId).length;
+        const l = games.filter((g) => g.winner && g.winner !== userId && g.winner !== 'draw').length;
+        setStats({ totalGames: total, wins: w, losses: l });
+      },
+      (err) => {
+        logError('Error fetching user match stats:', err);
+      }
+    );
 
     return () => unsub();
   }, [userId, currentUser]);
@@ -152,10 +154,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
     navigate(`/profile/${oppId}`);
   };
 
-  const totalGames = history.length;
-  const wins = history.filter((g) => g.winner === userId).length;
-  const losses = history.filter((g) => g.winner && g.winner !== userId && g.winner !== 'draw').length;
-
+  
   return (
     <AnimatePresence>
       <motion.div
@@ -260,19 +259,19 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
           <div className="grid grid-cols-4 border-b border-white/10 bg-[#0e0e0e] shrink-0 font-mono">
             <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Matches</span>
-              <span className="text-sm font-bold text-white">{totalGames}</span>
+              <span className="text-sm font-bold text-white">{stats.totalGames}</span>
             </div>
             <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Wins</span>
-              <span className="text-sm font-bold text-velocity-red">{wins}</span>
+              <span className="text-sm font-bold text-velocity-red">{stats.wins}</span>
             </div>
             <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Losses</span>
-              <span className="text-sm font-bold text-text-secondary">{losses}</span>
+              <span className="text-sm font-bold text-text-secondary">{stats.losses}</span>
             </div>
             <div className="p-3 text-center">
               <span className="text-[10px] text-text-muted uppercase block">SOL</span>
-              <div className="text-sm font-bold text-velocity-red">
+              <div className="text-sm font-bold text-velocity-red flex items-center justify-center">
                 {isTestUser ? (
                   '—'
                 ) : (
@@ -290,83 +289,6 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Match History List */}
-          <div className="flex-1 p-5 overflow-y-auto space-y-2.5 min-h-0 bg-[#121212]">
-            <div className="flex justify-between items-center">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                Recent Matches
-              </h4>
-              <span className="text-[11px] text-text-muted font-mono">
-                {history.length} Recorded
-              </span>
-            </div>
-
-            {isLoading ? (
-              <div className="py-8 flex justify-center">
-                <Loader2 size={20} className="animate-spin text-velocity-red" />
-              </div>
-            ) : history.length === 0 ? (
-              <p className="text-xs text-text-muted font-mono py-4 text-center">
-                No completed matches recorded.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {history.slice(0, 6).map((g) => {
-                  const isWin = g.winner === userId;
-                  const isDraw = g.winner === 'draw';
-                  const oppId = g.player1 === userId ? g.player2 : g.player1;
-                  const oppName = g.player1 === userId ? g.player2Name : g.player1Name;
-                  const isOppP1 = g.player1 !== userId;
-                  const isOppTest = (isOppP1 ? g.player1IsTest : g.player2IsTest) || oppId?.startsWith('test_');
-                  const oppDisplay = isOppTest ? (oppName || 'Guest') : `@${oppName || 'Opponent'}`;
-
-                  return (
-                    <div
-                      key={g.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-white/5 text-xs font-mono relative"
-                    >
-                      {/* Test user toast */}
-                      <AnimatePresence>
-                        {testUserToast?.matchId === g.id && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 6, scale: 0.95 }}
-                            animate={{ opacity: 1, y: -4, scale: 1 }}
-                            exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                            className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
-                          >
-                            <FlaskConical size={11} className="shrink-0" />
-                            <span>{testUserToast.message}</span>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
-                        <button
-                          onClick={(e) => handleOpponentClick(e, oppId, g.id, g)}
-                          className="text-white hover:text-velocity-red transition-colors cursor-pointer text-left"
-                        >
-                          vs {oppDisplay}
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          isWin ? 'bg-velocity-red/15 text-velocity-red' : isDraw ? 'bg-white/10 text-white' : 'bg-neutral-800 text-text-muted'
-                        }`}>
-                          {isWin ? 'Win' : isDraw ? 'Draw' : 'Loss'}
-                        </span>
-                        <div className={`font-bold ${isWin && g.wager > 0 ? 'text-velocity-red' : 'text-text-secondary'}`}>
-                          {g.wager > 0 ? <SolAmount amount={g.wager} className={isWin ? 'text-velocity-red' : 'text-text-secondary'} /> : 'Free'}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* Bottom Actions */}

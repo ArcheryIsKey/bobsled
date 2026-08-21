@@ -6,10 +6,11 @@ import { useGameStore } from '../store';
 import { processImageFile, processBannerFile } from '../utils/image';
 import UserProfileModal from './UserProfileModal';
 import SolAmount from './SolAmount';
+import { OWNER_WALLET } from '../constants';
+import { logError } from '../utils/logger';
 import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical, Crown, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const OWNER_WALLET = '11111111111111111111111111111111';
 
 export default function Profile() {
   const { userId: paramUserId } = useParams<{ userId?: string }>();
@@ -53,7 +54,7 @@ export default function Profile() {
             setProfileData(null);
           }
         } catch (e) {
-          console.error('Error fetching profile:', e);
+          logError('Error fetching profile:', e);
         } finally {
           setIsLoading(false);
         }
@@ -98,7 +99,7 @@ export default function Profile() {
         avatarUrl: dataUrl,
       });
     } catch (err) {
-      console.error('Failed to upload avatar:', err);
+      logError('Failed to upload avatar:', err);
       alert('Failed to process image. Please try a standard image file.');
     } finally {
       setIsUploadingAvatar(false);

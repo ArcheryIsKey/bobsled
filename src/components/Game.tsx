@@ -9,7 +9,7 @@ import Chat from './Chat';
 import Connect4 from './games/Connect4';
 import UserProfileModal from './UserProfileModal';
 import MatchInviteModal from './MatchInviteModal';
-import { depositMatchStake, verifyDepositOnServer, settleMatchOnServer, refundCancelOnServer } from '../utils/solanaEscrow';
+import { depositMatchStake } from '../utils/solanaEscrow';
 import {
   ArrowLeft,
   Copy,
@@ -26,8 +26,6 @@ import {
   Swords,
   X,
   ExternalLink,
-  ShieldCheck,
-  Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -50,11 +48,9 @@ export default function Game() {
   const [joiningStatus, setJoiningStatus] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [dismissedInviteModal, setDismissedInviteModal] = useState(false);
-  const [isSettlingPayout, setIsSettlingPayout] = useState(false);
 
   const isExplicitWatchRoute = location.pathname.startsWith('/watch/');
   const heartbeatIntervalRef = useRef<any>(null);
-  const settlementTriggeredRef = useRef(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -82,28 +78,6 @@ export default function Game() {
 
     return () => unsub();
   }, [gameId, navigate]);
-
-  // Automated On-Chain Settlement when Game Finishes
-  useEffect(() => {
-    if (!game || game.status !== 'finished' || settlementTriggeredRef.current) return;
-    if (!game.wager || game.wager <= 0 || game.wagerCurrency === 'FREE') return;
-    if (game.payoutTx) return;
-
-    settlementTriggeredRef.current = true;
-    setIsSettlingPayout(true);
-
-    settleMatchOnServer(game.id)
-      .then((res) => {
-        console.log('Automated match payout settled:', res);
-      })
-      .catch((err) => {
-        console.error('Failed to trigger automatic settlement:', err);
-        settlementTriggeredRef.current = false;
-      })
-      .finally(() => {
-        setIsSettlingPayout(false);
-      });
-  }, [game]);
 
   // Dynamic Browser Title: "bobsled vs {user}"
   useEffect(() => {
@@ -205,7 +179,7 @@ export default function Game() {
     };
   }, [game, user]);
 
-  // Handle joining via match challenge modal with Escrow Deposit
+  // Handle joining via match challenge modal
   const handleJoinViaInvite = async () => {
     if (!user || !game || game.status !== 'waiting') return;
     if (user.id === game.player1) return;
@@ -219,30 +193,25 @@ export default function Game() {
     setJoiningStatus('Preparing stake...');
 
     try {
-      // If it's a SOL staked match, deposit into Escrow Vault
+      let p2DepositTx: string | null = null;
+
+      // If it's a SOL staked match, deposit into Escrow
       if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
         if (!publicKey || !sendTransaction) {
           setWalletModalVisible(true);
           return;
         }
 
-        setJoiningStatus(`Approve ${game.wager} SOL Escrow Deposit in your wallet...`);
+        setJoiningStatus(`Approve ${game.wager} SOL deposit in your wallet...`);
 
-        const txSignature = await depositMatchStake({
+        p2DepositTx = await depositMatchStake({
           connection,
           sendTransaction,
           publicKey,
           amountSol: game.wager,
         });
 
-        setJoiningStatus('Verifying deposit on Solana blockchain...');
-
-        await verifyDepositOnServer({
-          gameId: game.id,
-          role: 'player2',
-          txHash: txSignature,
-          senderWallet: publicKey.toBase58(),
-        });
+        setJoiningStatus('Entering match...');
       }
 
       // Randomly assign who goes first
@@ -258,6 +227,11 @@ export default function Game() {
         turn: firstTurn,
         updatedAt: serverTimestamp(),
       };
+
+      if (p2DepositTx) {
+        updates.p2DepositTx = p2DepositTx;
+        updates.escrowStatus = 'fully_funded';
+      }
 
       if (publicKey) {
         updates.p2Wallet = publicKey.toBase58();
@@ -282,15 +256,10 @@ export default function Game() {
     if (!user || !game || game.status !== 'waiting') return;
     if (game.player1 !== user.id) return;
     try {
-      await refundCancelOnServer(game.id, user.id);
+      await deleteDoc(doc(db, 'games', game.id));
       navigate('/');
     } catch (e) {
-      console.error('Failed to cancel match via refund engine:', e);
-      try {
-        await deleteDoc(doc(db, 'games', game.id));
-      } catch (err) {
-        console.error(err);
-      }
+      console.error('Failed to cancel match:', e);
       navigate('/');
     }
   };
@@ -513,7 +482,7 @@ export default function Game() {
                 className="w-full sm:w-auto bg-red-950/40 hover:bg-red-900/60 border border-red-900/70 hover:border-red-500 text-red-400 hover:text-white px-8 py-3 rounded-full text-xs sm:text-sm uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(255,0,0,0.25)] flex items-center justify-center gap-2 font-bold font-mono cursor-pointer active:scale-[0.99]"
               >
                 <X size={16} />
-                <span>Cancel Game &amp; Refund Escrow</span>
+                <span>Cancel Game</span>
               </button>
             )}
 
@@ -575,7 +544,7 @@ export default function Game() {
               </span>
             </div>
 
-            {/* Stakes & Escrow Status */}
+            {/* Stakes */}
             <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5">
               <div>
                 <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
@@ -584,12 +553,9 @@ export default function Game() {
                 </p>
               </div>
               {!isFreeGame && (
-                <div className="text-right">
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full font-mono font-bold flex items-center gap-1">
-                    <ShieldCheck size={11} />
-                    <span>Escrow Locked</span>
-                  </span>
-                </div>
+                <span className="text-xs text-text-secondary bg-[#1a1a1a] px-3 py-1 rounded-full border border-white/10 font-mono font-bold">
+                  SOL
+                </span>
               )}
             </div>
 
@@ -740,9 +706,23 @@ export default function Game() {
             {/* On-Chain Solscan Proof Link */}
             {game.p1DepositTx && (
               <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono">
-                <span className="text-text-muted">Host Escrow Deposit:</span>
+                <span className="text-text-muted">Host Deposit Proof:</span>
                 <a
                   href={`https://solscan.io/tx/${game.p1DepositTx}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-velocity-red hover:underline flex items-center gap-1"
+                >
+                  <span>Solscan</span>
+                  <ExternalLink size={10} />
+                </a>
+              </div>
+            )}
+            {game.p2DepositTx && (
+              <div className="pt-1 flex items-center justify-between text-[11px] font-mono">
+                <span className="text-text-muted">Player 2 Deposit:</span>
+                <a
+                  href={`https://solscan.io/tx/${game.p2DepositTx}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-velocity-red hover:underline flex items-center gap-1"
@@ -792,7 +772,7 @@ export default function Game() {
             >
               <h3 className="text-lg font-bold text-white font-headline-lg">Resign Match</h3>
               <p className="text-xs text-text-secondary">
-                Are you sure you want to forfeit this match? Your opponent will be awarded the victory and the escrow pot.
+                Are you sure you want to forfeit this match? Your opponent will be awarded the victory.
               </p>
               <div className="flex gap-3 justify-end pt-2">
                 <button
@@ -850,36 +830,13 @@ export default function Game() {
                 </h2>
                 <p className="text-sm text-text-secondary font-sans">
                   {isWinner
-                    ? isFreeGame ? 'Free game' : `Prize: ${(game.wager * 2 * 0.965).toFixed(3)} SOL (after house rake)`
+                    ? isFreeGame ? 'Free game' : `Prize: ${(game.wager * 2).toFixed(3)} SOL`
                     : isDraw
-                    ? 'The match ended in a draw. Stakes have been refunded.'
+                    ? 'The match ended in a draw.'
                     : isSpectator
                     ? `Winner: ${game.winner === game.player1 ? 'Player 1' : 'Player 2'}`
                     : 'Match completed.'}
                 </p>
-
-                {/* On-Chain Payout Status */}
-                {!isFreeGame && (
-                  <div className="pt-2">
-                    {game.payoutTx ? (
-                      <a
-                        href={`https://solscan.io/tx/${game.payoutTx}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-semibold hover:bg-emerald-500/20 transition-colors"
-                      >
-                        <ShieldCheck size={14} />
-                        <span>Payout Confirmed (Solscan)</span>
-                        <ExternalLink size={11} />
-                      </a>
-                    ) : isSettlingPayout ? (
-                      <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 text-velocity-red font-mono text-xs font-semibold">
-                        <Loader2 size={13} className="animate-spin" />
-                        <span>Disbursing On-Chain Payout...</span>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
               </div>
 
               {/* Action Button */}

@@ -5,8 +5,8 @@ import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, upd
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
 import UserProfileModal from './UserProfileModal';
-import { depositMatchStake, verifyDepositOnServer, refundCancelOnServer } from '../utils/solanaEscrow';
-import { Loader2, Play, X, FlaskConical, ShieldCheck, Coins } from 'lucide-react';
+import { depositMatchStake } from '../utils/solanaEscrow';
+import { Loader2, Play, X, FlaskConical, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
@@ -74,6 +74,22 @@ export default function Dashboard() {
         throw new Error('Please connect your Solana wallet to create a staked game.');
       }
 
+      let depositTx: string | null = null;
+
+      // If it's a SOL staked match, deposit into Escrow
+      if (finalCurrency === 'SOL' && finalWager > 0 && publicKey) {
+        setCreationStatus(`Approve ${finalWager} SOL deposit in your wallet...`);
+        
+        depositTx = await depositMatchStake({
+          connection,
+          sendTransaction,
+          publicKey,
+          amountSol: finalWager,
+        });
+
+        setCreationStatus('Creating match on-chain...');
+      }
+
       const inviteCode = Math.random().toString(36).substring(2, 8);
 
       const isHostRed = Math.random() > 0.5;
@@ -100,35 +116,14 @@ export default function Dashboard() {
         winner: null,
         gameType: 'connect4',
         inviteCode,
-        escrowStatus: finalWager > 0 ? 'pending_deposit' : 'free',
+        escrowStatus: finalWager > 0 ? 'p1_funded' : 'free',
+        p1DepositTx: depositTx,
         p1Wallet: publicKey ? publicKey.toBase58() : null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
       createdDocId = docRef.id;
-
-      // If it's a SOL staked match, deposit into Escrow Vault
-      if (finalCurrency === 'SOL' && finalWager > 0 && publicKey) {
-        setCreationStatus(`Approve ${finalWager} SOL Escrow Deposit in your wallet...`);
-        
-        const txSignature = await depositMatchStake({
-          connection,
-          sendTransaction,
-          publicKey,
-          amountSol: finalWager,
-        });
-
-        setCreationStatus('Verifying deposit on Solana blockchain...');
-
-        await verifyDepositOnServer({
-          gameId: docRef.id,
-          role: 'player1',
-          txHash: txSignature,
-          senderWallet: publicKey.toBase58(),
-        });
-      }
-
       navigate(`/game/${docRef.id}`);
     } catch (e: any) {
       console.error(e);
@@ -151,25 +146,20 @@ export default function Dashboard() {
     }
 
     try {
-      // If it's a SOL staked game, deposit stake into Escrow Vault
+      let p2DepositTx: string | null = null;
+
+      // If it's a SOL staked game, deposit stake
       if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
         if (!publicKey || !sendTransaction) {
           alert('Please connect your Solana wallet to join this staked match.');
           return;
         }
 
-        const txSignature = await depositMatchStake({
+        p2DepositTx = await depositMatchStake({
           connection,
           sendTransaction,
           publicKey,
           amountSol: game.wager,
-        });
-
-        await verifyDepositOnServer({
-          gameId: game.id,
-          role: 'player2',
-          txHash: txSignature,
-          senderWallet: publicKey.toBase58(),
         });
       }
 
@@ -189,6 +179,11 @@ export default function Dashboard() {
         updatedAt: serverTimestamp(),
       };
 
+      if (p2DepositTx) {
+        updates.p2DepositTx = p2DepositTx;
+        updates.escrowStatus = 'fully_funded';
+      }
+
       if (publicKey) {
         updates.p2Wallet = publicKey.toBase58();
       }
@@ -204,14 +199,9 @@ export default function Dashboard() {
   const handleCancelMatch = async (gameId: string) => {
     if (!user) return;
     try {
-      await refundCancelOnServer(gameId, user.id);
+      await deleteDoc(doc(db, 'games', gameId));
     } catch (e) {
-      console.error('Failed to cancel match via refund engine:', e);
-      try {
-        await deleteDoc(doc(db, 'games', gameId));
-      } catch (err) {
-        console.error(err);
-      }
+      console.error('Failed to cancel match:', e);
     }
   };
 
@@ -334,12 +324,6 @@ export default function Dashboard() {
                           }}
                           className="w-full h-10 bg-[#0e0e0e] border border-white/10 rounded-full px-4 font-mono text-xs text-white outline-none focus:border-velocity-red text-center"
                         />
-
-                        {/* Escrow Guarantee Pill */}
-                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-mono pt-1">
-                          <ShieldCheck size={13} />
-                          <span>Protected by Solana Escrow Vault (Zero Scam Risk)</span>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -371,11 +355,6 @@ export default function Dashboard() {
                     <span className="w-2 h-2 rounded-full bg-velocity-red animate-ping" />
                     <span>
                       Waiting for opponent... ({myWaitingGame.wager > 0 ? `${myWaitingGame.wager} SOL` : 'Free'})
-                      {myWaitingGame.escrowStatus === 'p1_funded' && (
-                        <strong className="text-emerald-400 font-mono text-[11px] ml-1.5 font-normal">
-                          (🔒 Escrow Locked)
-                        </strong>
-                      )}
                     </span>
                   </div>
                   <div className="flex gap-3">
@@ -389,7 +368,7 @@ export default function Dashboard() {
                       onClick={() => handleCancelMatch(myWaitingGame.id)}
                       className="items-center justify-center rounded-full h-10 px-5 bg-[#0e0e0e] hover:bg-[#1a1a1a] transition-colors text-red-400 hover:text-red-300 font-semibold border border-white/10 text-xs flex gap-2 uppercase tracking-wide font-mono cursor-pointer"
                     >
-                      <X size={13} /> Cancel &amp; Refund
+                      <X size={13} /> Cancel
                     </button>
                   </div>
                 </div>

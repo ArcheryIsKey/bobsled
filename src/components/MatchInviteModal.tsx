@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { Swords, Eye, Coins, FlaskConical, ArrowRight, User, AlertCircle, X, ShieldAlert, Loader2, ShieldCheck } from 'lucide-react';
+import { Swords, Eye, Coins, FlaskConical, ArrowRight, User, AlertCircle, X, ShieldAlert, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface MatchInviteModalProps {
@@ -139,13 +139,6 @@ export default function MatchInviteModal({
               </div>
             </div>
           </div>
-
-          {isSolGame && (
-            <div className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-emerald-400 font-mono border-t border-white/5">
-              <ShieldCheck size={13} />
-              <span>Host Stake Verified in Escrow Vault</span>
-            </div>
-          )}
         </div>
 
         {/* LOGGED IN USER ACTIONS */}
@@ -197,12 +190,12 @@ export default function MatchInviteModal({
                   {isJoining ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      <span>{joiningStatus || 'Processing Escrow Stake...'}</span>
+                      <span>{joiningStatus || 'Processing Stake...'}</span>
                     </>
                   ) : (
                     <>
                       <span>
-                        {isSolGame ? `Lock ${pendingGame.wager} SOL & Enter Match` : 'Accept Challenge & Join as Player 2'}
+                        {isSolGame ? `Stake ${pendingGame.wager} SOL & Enter Match` : 'Accept Challenge & Join as Player 2'}
                       </span>
                       <ArrowRight size={16} />
                     </>

@@ -213,10 +213,18 @@ export default function Dashboard() {
   const handleCancelMatch = async (gameId: string) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'games', gameId));
-    } catch (e) {
+      const response = await fetch('/api/escrow/refund-cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId, userId: user.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel match');
+      }
+    } catch (e: any) {
       logError('Failed to cancel match:', e);
-      addToast('error', 'Failed to cancel match');
+      addToast('error', e.message || 'Failed to cancel match');
     }
   };
 

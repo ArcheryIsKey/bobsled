@@ -263,11 +263,19 @@ export default function Game() {
     if (!user || !game || game.status !== 'waiting') return;
     if (game.player1 !== user.id) return;
     try {
-      await deleteDoc(doc(db, 'games', game.id));
+      const response = await fetch('/api/escrow/refund-cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: game.id, userId: user.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel match');
+      }
       navigate('/');
-    } catch (e) {
+    } catch (e: any) {
       logError('Failed to cancel match:', e);
-      navigate('/');
+      addToast('error', e.message || 'Failed to cancel match');
     }
   };
 

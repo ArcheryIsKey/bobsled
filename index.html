@@ -15,7 +15,6 @@
   <body>
     <script>
       // Fix for "Cannot set property fetch of #<Window> which has only a getter"
-      // Some web3 libraries try to polyfill fetch by assignment.
       if (typeof window !== 'undefined' && window.fetch) {
         try {
           Object.defineProperty(window, 'fetch', {
@@ -27,6 +26,20 @@
           console.warn('Could not redefine window.fetch', e);
         }
       }
+
+      // Automatically refresh page if a stale chunk fails to load after a new deployment
+      window.addEventListener('error', function(e) {
+        var msg = (e && e.message) || '';
+        var isScriptError = e && e.target && e.target.tagName === 'SCRIPT';
+        if (isScriptError || msg.indexOf('dynamically imported module') !== -1 || msg.indexOf('MIME type') !== -1) {
+          var key = 'bobsled_chunk_reload';
+          var lastReload = sessionStorage.getItem(key);
+          if (!lastReload || Date.now() - parseInt(lastReload, 10) > 10000) {
+            sessionStorage.setItem(key, Date.now().toString());
+            window.location.reload();
+          }
+        }
+      }, true);
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

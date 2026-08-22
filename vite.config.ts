@@ -17,7 +17,7 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
-      allowedHosts: ['bobsled-521890864339.us-east1.run.app'],
+      allowedHosts: ['bobsled-318633623775.us-east1.run.app', 'bobsled-gg-app.web.app'],
     },
     optimizeDeps: {
       exclude: ['lucide-react']

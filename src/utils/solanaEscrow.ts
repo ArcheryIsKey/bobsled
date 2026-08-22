@@ -39,12 +39,12 @@ export async function getReliableBlockhash(primaryConnection?: Connection): Prom
 
 export async function depositMatchStake({
   connection,
-  sendTransaction,
+  signTransaction,
   publicKey,
   amountSol,
 }: {
   connection: Connection;
-  sendTransaction: (transaction: Transaction, connection: Connection) => Promise<string>;
+  signTransaction: (transaction: Transaction) => Promise<Transaction>;
   publicKey: PublicKey;
   amountSol: number;
 }): Promise<string> {
@@ -67,7 +67,14 @@ export async function depositMatchStake({
   transaction.recentBlockhash = blockhash;
   transaction.feePayer = publicKey;
 
-  const signature = await sendTransaction(transaction, activeConn);
+  // Sign the transaction via wallet adapter
+  const signedTx = await signTransaction(transaction);
+
+  // Send the signed raw transaction
+  const signature = await activeConn.sendRawTransaction(signedTx.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: 'confirmed',
+  });
 
   // Wait for confirmation on Solana network
   try {
@@ -80,8 +87,9 @@ export async function depositMatchStake({
       'confirmed'
     );
   } catch (confirmErr: any) {
-    console.warn('First confirmation check had notice, validating status:', confirmErr?.message);
+    logWarn('Confirmation check notice, validating status:', confirmErr?.message);
   }
 
   return signature;
 }
+

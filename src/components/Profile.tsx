@@ -119,7 +119,7 @@ export default function Profile() {
         bannerUrl: dataUrl,
       });
     } catch (err) {
-      console.error('Failed to upload banner:', err);
+      logError('Failed to upload banner:', err);
       alert('Failed to process banner image. Please try a standard image file.');
     } finally {
       setIsUploadingBanner(false);

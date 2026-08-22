@@ -87,7 +87,7 @@ export function useSolPrice() {
       fetchLiveSolPrice().then((p) => {
         if (p !== null) setPrice(p);
       });
-    }, CACHE_TTL_MS);
+    }, 4000);
 
     return () => {
       listeners.delete(setPrice);
@@ -103,8 +103,10 @@ export function useSolPrice() {
   };
 
   return {
+    price,
     solPrice: price,
     formatUsd,
     getUsdValue: (solAmount: number) => (price ? solAmount * price : null),
   };
 }
+

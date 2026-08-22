@@ -1,7 +1,7 @@
 import { FC, ReactNode, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { SOLANA_RPC_URL, SOLANA_WS_URL } from '../constants';
+import { SOLANA_RPC_URL } from '../constants';
 import '@solana/wallet-adapter-react-ui/styles.css';
 
 interface Props {
@@ -23,7 +23,6 @@ export const SolanaWalletProvider: FC<Props> = ({ children }) => {
       endpoint={endpoint}
       config={{
         commitment: 'confirmed',
-        wsEndpoint: SOLANA_WS_URL,
       }}
     >
       <WalletProvider wallets={wallets} autoConnect>

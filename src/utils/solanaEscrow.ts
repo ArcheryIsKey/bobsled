@@ -1,5 +1,5 @@
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { ESCROW_HOUSE_WALLET, SOLANA_RPC_URL, SOLANA_WS_URL } from '../constants';
+import { ESCROW_HOUSE_WALLET, SOLANA_RPC_URL } from '../constants';
 import { logWarn } from './logger';
 
 export const SOLANA_RPC_FALLBACKS = [
@@ -26,7 +26,7 @@ export async function getReliableBlockhash(primaryConnection?: Connection): Prom
   // Fallback to pool of public RPCs
   for (const rpc of SOLANA_RPC_FALLBACKS) {
     try {
-      const conn = new Connection(rpc, { commitment: 'confirmed', wsEndpoint: SOLANA_WS_URL });
+      const conn = new Connection(rpc, 'confirmed');
       const bh = await conn.getLatestBlockhash('confirmed');
       return { ...bh, connection: conn };
     } catch (e: any) {
@@ -35,6 +35,39 @@ export async function getReliableBlockhash(primaryConnection?: Connection): Prom
   }
 
   throw new Error('Failed to retrieve recent blockhash from Solana network. Please try again.');
+}
+
+export async function waitForConfirmation(
+  connection: Connection,
+  signature: string,
+  maxWaitMs = 15000
+): Promise<string> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      const response = await connection.getSignatureStatuses([signature]);
+      const status = response?.value?.[0];
+      if (status) {
+        if (status.err) {
+          throw new Error(`Transaction failed on Solana: ${JSON.stringify(status.err)}`);
+        }
+        if (
+          status.confirmationStatus === 'confirmed' ||
+          status.confirmationStatus === 'finalized' ||
+          status.confirmationStatus === 'processed'
+        ) {
+          return signature;
+        }
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('Transaction failed on Solana')) {
+        throw err;
+      }
+      logWarn('Polling signature status notice:', err?.message);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+  return signature;
 }
 
 export async function depositMatchStake({
@@ -70,26 +103,21 @@ export async function depositMatchStake({
   // Sign the transaction via wallet adapter
   const signedTx = await signTransaction(transaction);
 
-  // Send the signed raw transaction
-  const signature = await activeConn.sendRawTransaction(signedTx.serialize(), {
+  // Send the signed raw transaction to Solana network
+  const rawTx = signedTx.serialize();
+  const signature = await activeConn.sendRawTransaction(rawTx, {
     skipPreflight: false,
     preflightCommitment: 'confirmed',
   });
 
-  // Wait for confirmation on Solana network
+  // Confirm via HTTP polling without WebSocket dependency
   try {
-    await activeConn.confirmTransaction(
-      {
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      },
-      'confirmed'
-    );
-  } catch (confirmErr: any) {
-    logWarn('Confirmation check notice, validating status:', confirmErr?.message);
+    await waitForConfirmation(activeConn, signature);
+  } catch (err: any) {
+    logWarn('Confirmation notice:', err?.message);
   }
 
   return signature;
 }
+
 

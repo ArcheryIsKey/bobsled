@@ -5,5 +5,4 @@ export const SOLANA_RPC_URL =
   typeof window !== 'undefined'
     ? `${window.location.origin}/api/solana/rpc`
     : 'https://api.mainnet-beta.solana.com';
-export const SOLANA_WS_URL = 'wss://api.mainnet-beta.solana.com';
 

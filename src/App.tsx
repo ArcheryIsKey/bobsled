@@ -18,7 +18,7 @@ import UserProfileModal from './components/UserProfileModal';
 import SolAmount from './components/SolAmount';
 import ToastContainer from './components/Toast';
 import { useSolPrice } from './utils/solPrice';
-import { OWNER_WALLET } from './constants';
+import { OWNER_WALLET, SOLANA_WS_URL } from './constants';
 import { logError, logWarn } from './utils/logger';
 import { Shield, User, FlaskConical } from 'lucide-react';
 
@@ -379,7 +379,10 @@ export default function App() {
     }
 
     try {
-      const conn = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+      const conn = new Connection('https://api.mainnet-beta.solana.com', {
+        commitment: 'confirmed',
+        wsEndpoint: SOLANA_WS_URL,
+      });
       const lamports = await conn.getBalance(new PublicKey(walletStr));
       setSolBalance(lamports / LAMPORTS_PER_SOL);
     } catch (e) {

@@ -243,7 +243,12 @@ export default function Game() {
       setDismissedInviteModal(true);
     } catch (e: any) {
       logError('Failed to join match via invite:', e);
-      addToast('error', e?.message || 'Failed to join match.');
+      const msg = e?.message || '';
+      if (msg.includes('rejected') || msg.includes('cancelled') || msg.includes('canceled')) {
+        addToast('info', 'Transaction cancelled in wallet');
+      } else {
+        addToast('error', msg || 'Failed to join match.');
+      }
     } finally {
       setIsJoiningInvite(false);
       setJoiningStatus(null);

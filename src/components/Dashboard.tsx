@@ -134,7 +134,12 @@ export default function Dashboard() {
       if (createdDocId) {
         deleteDoc(doc(db, 'games', createdDocId)).catch(() => {});
       }
-      addToast('error', e.message || 'Failed to create match');
+      const msg = e?.message || '';
+      if (msg.includes('rejected') || msg.includes('cancelled') || msg.includes('canceled')) {
+        addToast('info', 'Transaction cancelled in wallet');
+      } else {
+        addToast('error', msg || 'Failed to create match');
+      }
     } finally {
       setIsCreating(false);
       setCreationStatus(null);
@@ -196,7 +201,12 @@ export default function Dashboard() {
       navigate(`/game/${game.id}`);
     } catch (e: any) {
       logError('Failed to join match:', e);
-      addToast('error', e?.message || 'Failed to join match');
+      const msg = e?.message || '';
+      if (msg.includes('rejected') || msg.includes('cancelled') || msg.includes('canceled')) {
+        addToast('info', 'Transaction cancelled in wallet');
+      } else {
+        addToast('error', msg || 'Failed to join match');
+      }
     }
   };
 

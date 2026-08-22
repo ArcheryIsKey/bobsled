@@ -1,5 +1,5 @@
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { ESCROW_HOUSE_WALLET, SOLANA_RPC_URL } from '../constants';
+import { ESCROW_HOUSE_WALLET, SOLANA_RPC_URL, SOLANA_WS_URL } from '../constants';
 import { logWarn } from './logger';
 
 export const SOLANA_RPC_FALLBACKS = [
@@ -26,7 +26,7 @@ export async function getReliableBlockhash(primaryConnection?: Connection): Prom
   // Fallback to pool of public RPCs
   for (const rpc of SOLANA_RPC_FALLBACKS) {
     try {
-      const conn = new Connection(rpc, 'confirmed');
+      const conn = new Connection(rpc, { commitment: 'confirmed', wsEndpoint: SOLANA_WS_URL });
       const bh = await conn.getLatestBlockhash('confirmed');
       return { ...bh, connection: conn };
     } catch (e: any) {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 let cachedSolPrice: number | null = null;
 let lastFetchTime = 0;
-const CACHE_TTL_MS = 45000; // 45 seconds cache
+const CACHE_TTL_MS = 5000; // 5 seconds cache
 
 const listeners = new Set<(price: number | null) => void>();
 
@@ -12,24 +12,7 @@ async function fetchLiveSolPrice(): Promise<number | null> {
     return cachedSolPrice;
   }
 
-  // 1. Try Binance API (fastest, high-uptime, free, zero CORS issues)
-  try {
-    const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
-    if (res.ok) {
-      const data = await res.json();
-      const price = parseFloat(data.price);
-      if (!isNaN(price) && price > 0) {
-        cachedSolPrice = price;
-        lastFetchTime = now;
-        notifyListeners(price);
-        return price;
-      }
-    }
-  } catch (e) {
-    // try fallback
-  }
-
-  // 2. Try Coinbase API
+  // 1. Try Coinbase API (100% CORS-friendly, zero rate limits)
   try {
     const res = await fetch('https://api.coinbase.com/v2/prices/SOL-USD/spot');
     if (res.ok) {
@@ -46,7 +29,7 @@ async function fetchLiveSolPrice(): Promise<number | null> {
     // try fallback
   }
 
-  // 3. Try CoinGecko API
+  // 2. Try CoinGecko API
   try {
     const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
     if (res.ok) {
@@ -61,6 +44,23 @@ async function fetchLiveSolPrice(): Promise<number | null> {
     }
   } catch (e) {
     // fallback
+  }
+
+  // 3. Try Binance API
+  try {
+    const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
+    if (res.ok) {
+      const data = await res.json();
+      const price = parseFloat(data.price);
+      if (!isNaN(price) && price > 0) {
+        cachedSolPrice = price;
+        lastFetchTime = now;
+        notifyListeners(price);
+        return price;
+      }
+    }
+  } catch (e) {
+    // try fallback
   }
 
   return cachedSolPrice;

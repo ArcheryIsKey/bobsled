@@ -168,8 +168,6 @@ app.get('/api/solana/balance', async (req, res) => {
   const rpcEndpoints = [
     process.env.SOLANA_RPC_URL,
     'https://api.mainnet-beta.solana.com',
-    'https://rpc.ankr.com/solana',
-    'https://solana.public-rpc.com',
   ].filter(Boolean) as string[];
 
   for (const rpc of rpcEndpoints) {
@@ -184,6 +182,30 @@ app.get('/api/solana/balance', async (req, res) => {
   }
 
   res.status(500).json({ error: 'Failed to query balance from Solana network' });
+});
+
+// JSON-RPC Proxy for Solana Web3 client requests (CORS-free, high-reliability)
+app.post('/api/solana/rpc', async (req, res) => {
+  const rpcEndpoints = [
+    process.env.SOLANA_RPC_URL,
+    'https://api.mainnet-beta.solana.com',
+  ].filter(Boolean) as string[];
+
+  for (const rpc of rpcEndpoints) {
+    try {
+      const response = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body),
+      });
+      const data = await response.json();
+      return res.json(data);
+    } catch (e: any) {
+      console.warn(`RPC proxy to ${rpc} failed:`, e?.message);
+    }
+  }
+
+  res.status(502).json({ jsonrpc: '2.0', error: { code: -32603, message: 'All RPC endpoints failed' }, id: req.body?.id });
 });
 
 // -------------------------------------------------------------

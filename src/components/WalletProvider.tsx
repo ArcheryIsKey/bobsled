@@ -1,7 +1,7 @@
 import { FC, ReactNode, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { SOLANA_RPC_URL } from '../constants';
 import '@solana/wallet-adapter-react-ui/styles.css';
 
 interface Props {
@@ -9,21 +9,14 @@ interface Props {
 }
 
 export const SolanaWalletProvider: FC<Props> = ({ children }) => {
-  // Use high-speed CORS-friendly Ankr/Public Solana RPC by default to prevent 403 Access Forbidden
   const endpoint = useMemo(() => {
     return (
       (import.meta as any).env?.VITE_SOLANA_RPC_URL ||
-      'https://rpc.ankr.com/solana'
+      SOLANA_RPC_URL
     );
   }, []);
 
-  const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ],
-    []
-  );
+  const wallets = useMemo(() => [], []);
 
   return (
     <ConnectionProvider endpoint={endpoint} config={{ commitment: 'confirmed' }}>

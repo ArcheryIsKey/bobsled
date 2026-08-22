@@ -350,7 +350,7 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, [user]);
 
-  // Live real-time SOL balance with multi-RPC fallback
+  // Live real-time SOL balance with server proxy and connection fallback
   const fetchWalletBalance = useCallback(async () => {
     if (!publicKey || user?.isTestUser) return;
     const walletStr = publicKey.toBase58();
@@ -361,25 +361,29 @@ export default function App() {
         setSolBalance(lamports / LAMPORTS_PER_SOL);
         return;
       } catch (e) {
-        // Fallback
+        // Fallback to server proxy
       }
     }
 
-    const rpcList = [
-      'https://rpc.ankr.com/solana',
-      'https://solana.public-rpc.com',
-      'https://1rpc.io/sol',
-    ];
-
-    for (const rpc of rpcList) {
-      try {
-        const conn = new Connection(rpc, 'confirmed');
-        const lamports = await conn.getBalance(new PublicKey(walletStr));
-        setSolBalance(lamports / LAMPORTS_PER_SOL);
-        return;
-      } catch (e) {
-        // try next
+    try {
+      const res = await fetch(`/api/solana/balance?wallet=${walletStr}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.balance === 'number') {
+          setSolBalance(data.balance);
+          return;
+        }
       }
+    } catch (e) {
+      // Fallback to public RPC
+    }
+
+    try {
+      const conn = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+      const lamports = await conn.getBalance(new PublicKey(walletStr));
+      setSolBalance(lamports / LAMPORTS_PER_SOL);
+    } catch (e) {
+      // ignore
     }
   }, [publicKey, user?.isTestUser, connection, setSolBalance]);
 

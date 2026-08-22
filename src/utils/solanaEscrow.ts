@@ -1,13 +1,10 @@
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-
-export const ESCROW_HOUSE_WALLET = '11111111111111111111111111111111';
+import { ESCROW_HOUSE_WALLET, SOLANA_RPC_URL } from '../constants';
+import { logWarn } from './logger';
 
 export const SOLANA_RPC_FALLBACKS = [
   (import.meta as any).env?.VITE_SOLANA_RPC_URL,
-  'https://rpc.ankr.com/solana',
-  'https://solana.public-rpc.com',
-  'https://1rpc.io/sol',
-  'https://solana-mainnet.rpc.extrnode.com',
+  SOLANA_RPC_URL,
   'https://api.mainnet-beta.solana.com',
 ].filter(Boolean) as string[];
 
@@ -22,7 +19,7 @@ export async function getReliableBlockhash(primaryConnection?: Connection): Prom
       const bh = await primaryConnection.getLatestBlockhash('confirmed');
       return { ...bh, connection: primaryConnection };
     } catch (e: any) {
-      console.warn('Primary connection getLatestBlockhash failed, falling back:', e?.message);
+      logWarn('Primary connection getLatestBlockhash failed, falling back:', e?.message);
     }
   }
 
@@ -33,7 +30,7 @@ export async function getReliableBlockhash(primaryConnection?: Connection): Prom
       const bh = await conn.getLatestBlockhash('confirmed');
       return { ...bh, connection: conn };
     } catch (e: any) {
-      console.warn(`RPC ${rpc} failed for blockhash:`, e?.message);
+      logWarn(`RPC ${rpc} failed for blockhash:`, e?.message);
     }
   }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logError } from '../utils/logger';
-import { X, Loader2 } from 'lucide-react';
+import { X, CircleNotch } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
 
 export default function PublicProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
@@ -42,7 +42,7 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
   if (isLoading) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <Loader2 className="animate-spin text-velocity-red" size={32} />
+        <CircleNotch className="animate-spin text-primary" size={32} />
       </div>
     );
   }
@@ -90,7 +90,7 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
           </div>
           <div className="p-3.5 flex flex-col items-center border-r border-white/10">
             <span className="text-[10px] text-text-secondary uppercase tracking-wider mb-0.5">Wins</span>
-            <span className="text-lg font-headline-lg text-velocity-red font-bold">{stats.wins}</span>
+            <span className="text-lg font-headline-lg text-primary font-bold">{stats.wins}</span>
           </div>
           <div className="p-3.5 flex flex-col items-center">
             <span className="text-[10px] text-text-secondary uppercase tracking-wider mb-0.5">Win Rate</span>

@@ -1,102 +1,148 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
-
 @import "tailwindcss";
 
 @theme {
-  --color-surface-base: #121212;
-  --color-velocity-red: #ff4d4d;
-  --color-text-muted: #737373;
-  --color-on-tertiary-fixed: #1c1b1b;
-  --color-surface-tint: #ffb3ae;
-  --color-on-secondary-container: #b4b5b5;
-  --color-outline: #ab8986;
-  --color-on-primary-fixed: #410004;
-  --color-on-secondary-fixed-variant: #454747;
-  --color-on-primary: #68000b;
-  --color-on-tertiary-fixed-variant: #474746;
-  --color-inverse-primary: #ba1724;
-  --color-error: #ffb4ab;
-  --color-on-surface: #e5e2e1;
-  --color-background: #0e0e0e;
-  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-surface-base: #050505;
+  --color-surface-elevated: #0a0a0a;
+  --color-background: #000000;
+  
   --color-text-primary: #ffffff;
-  --color-error-container: #93000a;
-  --color-secondary-fixed-dim: #c6c6c7;
-  --color-on-surface-variant: #e4beba;
-  --color-surface-dim: #101010;
-  --color-text-secondary: #a3a3a3;
-  --color-on-secondary-fixed: #1a1c1c;
-  --color-surface-variant: #262626;
-  --color-tertiary-fixed-dim: #c8c6c5;
-  --color-surface-elevated: #181818;
-  --color-inverse-on-surface: #313030;
-  --color-on-error: #690005;
+  --color-text-secondary: #888888;
+  --color-text-muted: #555555;
+  
   --color-primary: #ff4d4d;
-  --color-surface: #141414;
-  --color-tertiary-fixed: #e5e2e1;
-  --color-on-primary-fixed-variant: #930014;
-  --color-outline-variant: #5b403e;
-  --color-secondary: #c6c6c7;
-  --color-surface-container-low: #141414;
-  --color-secondary-container: #454747;
-  --color-secondary-fixed: #e2e2e2;
-  --color-on-secondary: #2f3131;
-  --color-tertiary-container: #929090;
-  --color-primary-container: #ff4d4d;
-  --color-on-tertiary-container: #2a2a2a;
-  --color-surface-container-highest: #2e2e2e;
-  --color-primary-fixed: #ffdad7;
-  --color-surface-container-high: #242424;
-  --color-surface-container-lowest: #0a0a0a;
-  --color-surface-bright: #333333;
-  --color-on-primary-container: #5c0008;
-  --color-on-error-container: #ffdad6;
-  --color-tertiary: #c8c6c5;
-  --color-primary-fixed-dim: #ffb3ae;
-  --color-on-background: #ffffff;
-  --color-inverse-surface: #e5e2e1;
-  --color-on-tertiary: #313030;
-  --color-surface-container: #1e1e1e;
+  --color-primary-dim: rgba(255, 77, 77, 0.2);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
   
   --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 2rem;
   --radius-full: 9999px;
 
-  --spacing-margin-mobile: 16px;
-  --spacing-max-width: 1280px;
-  --spacing-gutter: 24px;
-  --spacing-base: 4px;
-  --spacing-margin-desktop: 40px;
-
-  --font-body-md: 'Inter', sans-serif;
-  --font-headline-lg: 'Hanken Grotesk', sans-serif;
-  --font-headline-lg-mobile: 'Hanken Grotesk', sans-serif;
-  --font-display-lg: 'Hanken Grotesk', sans-serif;
-  --font-body-sm: 'Inter', sans-serif;
-  --font-label-caps: 'JetBrains Mono', monospace;
+  --font-sans: 'Outfit', -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #0e0e0e;
+  font-family: 'Outfit', -apple-system, sans-serif;
+  background-color: #050505;
   color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6, .font-display-lg, .font-headline-lg {
-  font-family: 'Hanken Grotesk', sans-serif;
+h1, h2, h3, h4, h5, h6, .font-display, .font-headline-lg {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-code, pre, .font-mono, .font-label-caps {
+code, pre, .font-mono {
   font-family: 'JetBrains Mono', monospace;
 }
 
-.glass-panel {
-  background: rgba(20, 20, 20, 0.85);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Double-Bezel Architectural Core */
+.double-bezel-outer {
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.375rem;
+  border-radius: 2rem;
 }
+
+.double-bezel-inner {
+  background-color: #0a0a0a;
+  border-radius: calc(2rem - 0.375rem);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.08);
+}
+
+/* Fluid Dynamics & Custom Easing */
+.ease-premium {
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.hover-magnetic {
+  transition: transform 700ms cubic-bezier(0.32, 0.72, 0, 1), background-color 300ms ease;
+}
+.hover-magnetic:active {
+  transform: scale(0.98);
+}
+
+.glass-panel {
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.radial-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(255,77,77,0.15) 0%, rgba(0,0,0,0) 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  ) #161616;
+  background-size: 200% 100%;
+  animation: shimmer 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-radius: 0.5rem;
+}
+
+/* Hide number input spinners / up-down arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Minimal Custom Scrollbar Matching Theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 77, 77, 0.45);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+

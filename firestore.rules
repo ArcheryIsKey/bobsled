@@ -69,8 +69,7 @@ service cloud.firestore {
     function isValidMessage(data) {
       return data.keys().hasAll(['senderId', 'text', 'createdAt'])
         && data.senderId is string && data.senderId.size() <= 100
-        && data.text is string && data.text.size() <= 500
-        && data.createdAt == request.time;
+        && data.text is string && data.text.size() <= 500;
     }
 
     // Owner is permanently 11111111111111111111111111111111
@@ -125,12 +124,22 @@ service cloud.firestore {
           // Action: Join game
           (
             existing().status == 'waiting'
-            && incoming().status == 'active'
+            && incoming().status in ['waiting', 'active']
             && (
               ownsWallet(incoming().player2) ||
               ownsWallet(incoming().player1)
             )
-            && incoming().turn in [existing().player1, request.auth.uid]
+            && (!('turn' in incoming()) || incoming().turn in [existing().player1, request.auth.uid])
+          ) ||
+          // Action: Deposit & Escrow tracking
+          (
+            (ownsWallet(existing().player1) || ownsWallet(incoming().player1) || ownsWallet(existing().player2) || ownsWallet(incoming().player2))
+            && (
+              incoming().diff(existing()).affectedKeys().hasOnly(['p1DepositTx', 'escrowStatus', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['p2DepositTx', 'escrowStatus', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['p1DepositTx', 'p1Wallet', 'escrowStatus', 'updatedAt']) ||
+              incoming().diff(existing()).affectedKeys().hasOnly(['p2DepositTx', 'p2Wallet', 'escrowStatus', 'updatedAt'])
+            )
           ) ||
           // Action: Make move, finish, resign, or heartbeat
           (
@@ -164,6 +173,7 @@ service cloud.firestore {
       allow create: if ownsWallet(incoming().senderId)
         && isValidId(gameId)
         && isValidId(messageId)
+        && isValidMessage(incoming())
         && exists(/databases/$(database)/documents/games/$(gameId))
         && (
           get(/databases/$(database)/documents/games/$(gameId)).data.player1 == request.auth.uid

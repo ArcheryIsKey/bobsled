@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import SolAmount from './SolAmount';
-import { Swords, Eye, Coins, FlaskConical, ArrowRight, User, AlertCircle, X, ShieldAlert, Loader2 } from 'lucide-react';
+import { Sword as Swords, Eye, Coins, Flask, ArrowRight, User, Warning as AlertCircle, X, ShieldWarning as ShieldAlert, CircleNotch as CircleNotch } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
 
 interface MatchInviteModalProps {
@@ -64,11 +64,11 @@ export default function MatchInviteModal({
         initial={{ scale: 0.92, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 20 }}
-        className="w-full max-w-lg bg-[#141414] border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.95)] rounded-3xl p-6 sm:p-8 space-y-6 relative overflow-hidden my-auto"
+        className="w-full max-w-lg bg-background border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.9)] double-bezel-inner p-8 space-y-6 relative overflow-hidden my-auto"
       >
         {/* Top Accent Line */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
-        <div className="absolute top-0 right-0 w-72 h-72 bg-velocity-red/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
+        <div className="absolute top-0 right-0 w-72 h-72 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close / Dismiss Button */}
         <button
@@ -82,11 +82,11 @@ export default function MatchInviteModal({
 
         {/* Header Badge & Title */}
         <div className="text-center space-y-2 relative z-10 pt-1">
-          <div className="w-14 h-14 mx-auto rounded-full bg-velocity-red flex items-center justify-center text-white shadow-[0_0_25px_rgba(255,77,77,0.6)] mb-2">
+          <div className="w-14 h-14 mx-auto rounded-full bg-primary flex items-center justify-center text-white shadow-[0_0_25px_rgba(255,77,77,0.3)] mb-2">
             <Swords size={28} />
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-velocity-red/15 border border-velocity-red/40 text-velocity-red font-mono text-[11px] font-bold uppercase tracking-wider">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 border border-primary/40 text-primary font-mono text-[11px] font-bold uppercase tracking-wider">
             <span>Direct Match Invitation</span>
           </div>
 
@@ -99,10 +99,10 @@ export default function MatchInviteModal({
         </div>
 
         {/* Match Details Card */}
-        <div className="bg-[#0e0e0e] rounded-2xl p-4 sm:p-5 border border-white/10 space-y-3 relative z-10">
+        <div className="bg-black rounded-2xl p-4 sm:p-5 border border-white/10 space-y-3 relative z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#1e1e1e] border-2 border-velocity-red flex items-center justify-center text-white font-bold text-xs shrink-0 overflow-hidden shadow-md">
+              <div className="w-10 h-10 rounded-full bg-black border-2 border-primary flex items-center justify-center text-white font-bold text-xs shrink-0 overflow-hidden shadow-md">
                 {pendingGame.player1Avatar ? (
                   <img src={pendingGame.player1Avatar} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -127,10 +127,10 @@ export default function MatchInviteModal({
               <div className="flex items-center gap-1.5 justify-end">
                 {isSolGame ? (
                   <>
-                    <Coins size={14} className="text-velocity-red" />
+                    <Coins size={14} className="text-primary" />
                     <SolAmount
                       amount={pendingGame.wager}
-                      className="font-headline-lg text-base sm:text-lg font-bold text-velocity-red font-mono"
+                      className="font-headline-lg text-base sm:text-lg font-bold text-primary font-mono"
                     />
                   </>
                 ) : (
@@ -159,7 +159,7 @@ export default function MatchInviteModal({
 
                 <button
                   onClick={() => setVisible(true)}
-                  className="w-full h-12 bg-velocity-red hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
+                  className="w-full h-12 bg-primary hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.3)] flex items-center justify-center gap-2 font-mono cursor-pointer"
                 >
                   <User size={16} />
                   <span>Connect Wallet to Play ({pendingGame.wager} SOL)</span>
@@ -170,7 +170,7 @@ export default function MatchInviteModal({
                     onClick={onDismiss}
                     className="text-xs text-text-secondary hover:text-white flex items-center gap-1.5 transition-colors font-mono cursor-pointer"
                   >
-                    <Eye size={13} className="text-velocity-red" />
+                    <Eye size={13} className="text-primary" />
                     <span>Watch Match as Spectator</span>
                   </button>
                   <button
@@ -187,11 +187,11 @@ export default function MatchInviteModal({
                 <button
                   onClick={onDirectJoin}
                   disabled={isJoining}
-                  className="w-full h-12 bg-velocity-red hover:bg-red-600 active:scale-[0.99] disabled:opacity-50 text-white font-bold text-xs sm:text-sm uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
+                  className="w-full h-12 bg-primary hover:bg-red-600 active:scale-[0.99] disabled:opacity-50 text-white font-bold text-xs sm:text-sm uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.3)] flex items-center justify-center gap-2 font-mono cursor-pointer"
                 >
                   {isJoining ? (
                     <>
-                      <Loader2 size={16} className="animate-spin" />
+                      <CircleNotch size={16} className="animate-spin" />
                       <span>{joiningStatus || 'Processing Stake...'}</span>
                     </>
                   ) : (
@@ -210,7 +210,7 @@ export default function MatchInviteModal({
                     disabled={isJoining}
                     className="text-xs text-text-secondary hover:text-white flex items-center gap-1.5 transition-colors font-mono cursor-pointer disabled:opacity-40"
                   >
-                    <Eye size={13} className="text-velocity-red" />
+                    <Eye size={13} className="text-primary" />
                     <span>Watch as Spectator</span>
                   </button>
                   <button
@@ -239,7 +239,7 @@ export default function MatchInviteModal({
               {/* Primary Action: Connect Wallet */}
               <button
                 onClick={() => setVisible(true)}
-                className="w-full h-12 bg-velocity-red hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
+                className="w-full h-12 bg-primary hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.3)] flex items-center justify-center gap-2 font-mono cursor-pointer"
               >
                 <User size={16} />
                 <span>Connect Wallet to Accept ({pendingGame.wager} SOL)</span>
@@ -252,7 +252,7 @@ export default function MatchInviteModal({
                     onClick={() => setShowSpectateInput(true)}
                     className="text-xs text-text-secondary hover:text-white flex items-center gap-1.5 transition-colors font-mono cursor-pointer"
                   >
-                    <Eye size={14} className="text-velocity-red" />
+                    <Eye size={14} className="text-primary" />
                     <span>Don't have SOL? Spectate as Guest</span>
                   </button>
                   <button
@@ -269,19 +269,22 @@ export default function MatchInviteModal({
                   </p>
                   <div className="flex gap-2">
                     <input
+                      id="spectateGuestInput"
+                      name="spectateGuestUsername"
+                      autoComplete="username"
                       type="text"
                       maxLength={20}
                       placeholder="Guest spectator name..."
                       value={spectateUsername}
                       onChange={(e) => setSpectateUsername(e.target.value)}
-                      className="flex-1 bg-[#0e0e0e] border border-white/10 focus:border-velocity-red rounded-full px-4 text-xs text-white outline-none font-mono"
+                      className="flex-1 bg-black border border-white/10 focus:border-primary rounded-full px-4 text-xs text-white outline-none font-mono"
                     />
                     <button
                       type="submit"
                       disabled={!spectateUsername.trim()}
-                      className="px-5 py-2.5 bg-[#202020] hover:bg-[#282828] disabled:opacity-40 text-white rounded-full text-xs font-semibold uppercase tracking-wider font-mono flex items-center gap-1.5 cursor-pointer shrink-0"
+                      className="px-5 py-2.5 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-white rounded-full text-xs font-semibold uppercase tracking-wider font-mono flex items-center gap-1.5 cursor-pointer shrink-0"
                     >
-                      <Eye size={13} className="text-velocity-red" />
+                      <Eye size={13} className="text-primary" />
                       <span>Watch Match</span>
                     </button>
                   </div>
@@ -296,25 +299,28 @@ export default function MatchInviteModal({
               </p>
 
               {/* Instant Guest Join Form */}
-              <form onSubmit={handleGuestSubmit} className="space-y-2.5 bg-[#0e0e0e] p-4 rounded-2xl border border-white/5">
+              <form onSubmit={handleGuestSubmit} className="space-y-2.5 bg-black p-4 rounded-2xl border border-white/5">
                 <div className="flex items-center gap-1.5 text-xs text-white font-semibold font-mono">
-                  <FlaskConical size={14} className="text-velocity-red" />
+                  <Flask size={14} className="text-primary" />
                   <span>Instant Guest Play (No Wallet Needed)</span>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
+                    id="inviteGuestInput"
+                    name="inviteGuestUsername"
+                    autoComplete="username"
                     type="text"
                     maxLength={20}
                     placeholder="Enter your guest username..."
                     value={guestUsername}
                     onChange={(e) => setGuestUsername(e.target.value)}
-                    className="flex-1 h-11 bg-[#141414] border border-white/10 focus:border-velocity-red rounded-full px-4 text-xs text-white outline-none font-mono"
+                    className="flex-1 h-11 bg-background border border-white/10 focus:border-primary rounded-full px-4 text-xs text-white outline-none font-mono"
                   />
                   <button
                     type="submit"
                     disabled={!guestUsername.trim()}
-                    className="h-11 px-6 bg-velocity-red hover:bg-red-600 disabled:opacity-40 text-white rounded-full text-xs font-bold uppercase tracking-wider font-mono shadow-[0_0_15px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 cursor-pointer shrink-0 active:scale-[0.98]"
+                    className="h-11 px-6 bg-primary hover:bg-red-600 disabled:opacity-40 text-white rounded-full text-xs font-bold uppercase tracking-wider font-mono shadow-[0_0_15px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 cursor-pointer shrink-0 active:scale-[0.98]"
                   >
                     <span>Accept &amp; Play</span>
                     <ArrowRight size={14} />
@@ -324,13 +330,13 @@ export default function MatchInviteModal({
 
               <div className="relative flex items-center justify-center my-1">
                 <div className="w-full border-t border-white/10" />
-                <span className="absolute bg-[#141414] px-3 text-[10px] text-text-muted font-mono uppercase">OR</span>
+                <span className="absolute bg-background px-3 text-[10px] text-text-muted font-mono uppercase">OR</span>
               </div>
 
               {/* Wallet Option for Free Games */}
               <button
                 onClick={() => setVisible(true)}
-                className="w-full h-11 bg-[#202020] hover:bg-[#282828] border border-white/10 text-white font-semibold text-xs uppercase tracking-wider rounded-full transition-all font-mono flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full h-11 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-xs uppercase tracking-wider rounded-full transition-all font-mono flex items-center justify-center gap-2 cursor-pointer"
               >
                 <User size={15} />
                 <span>Connect Solana Wallet Instead</span>

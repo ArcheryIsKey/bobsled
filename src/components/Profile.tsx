@@ -8,7 +8,7 @@ import UserProfileModal from './UserProfileModal';
 import SolAmount from './SolAmount';
 import { OWNER_WALLET } from '../constants';
 import { logError } from '../utils/logger';
-import { Camera, Check, Copy, ArrowLeft, Loader2, Trophy, Swords, XCircle, Image as ImageIcon, FlaskConical, Crown, ShieldCheck } from 'lucide-react';
+import { Camera, Check, Copy, ArrowLeft, CircleNotch as CircleNotch, Trophy, Sword as Swords, XCircle, Image as ImageIcon, Flask, Crown, ShieldCheck } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
@@ -68,6 +68,20 @@ export default function Profile() {
       setProfileData(currentUser);
     }
   }, [currentUser, isOwnProfile]);
+
+  useEffect(() => {
+    if (profileData) {
+      document.title = isOwnProfile
+        ? 'bobsled.gg - Profile'
+        : `bobsled.gg - @${profileData.username || 'Player'}`;
+    } else {
+      document.title = 'bobsled.gg - Profile';
+    }
+
+    return () => {
+      document.title = 'bobsled.gg - Connect 4';
+    };
+  }, [profileData, isOwnProfile]);
 
   useEffect(() => {
     if (!targetUserId) return;
@@ -166,8 +180,45 @@ export default function Profile() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
-        <Loader2 className="animate-spin text-velocity-red" size={32} />
+      <div className="bg-black text-text-primary min-h-screen flex flex-col font-body-md antialiased w-full overflow-y-auto">
+        <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-12 space-y-6">
+          <div className="mb-4">
+            <div className="h-9 w-32 rounded-full skeleton-shimmer" />
+          </div>
+
+          {/* Banner & Avatar Skeleton */}
+          <div className="rounded-2xl bg-[#0e0e0e] border border-white/10 overflow-hidden space-y-4">
+            <div className="w-full h-40 skeleton-shimmer rounded-none" />
+            <div className="px-8 pb-6 flex items-end gap-6">
+              <div className="-mt-14 w-24 h-24 rounded-full border-4 border-black skeleton-shimmer shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="h-6 w-44 rounded skeleton-shimmer" />
+                <div className="h-4 w-32 rounded skeleton-shimmer" />
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-[#0e0e0e] border border-white/10 p-5 rounded-2xl space-y-3">
+                <div className="h-3 w-16 rounded skeleton-shimmer" />
+                <div className="h-8 w-20 rounded skeleton-shimmer" />
+                <div className="h-3 w-24 rounded skeleton-shimmer" />
+              </div>
+            ))}
+          </div>
+
+          {/* History Table Skeleton */}
+          <div className="rounded-2xl bg-[#0e0e0e] border border-white/10 p-6 space-y-4">
+            <div className="h-5 w-32 rounded skeleton-shimmer" />
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-12 rounded-xl border border-white/5 skeleton-shimmer" />
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -179,7 +230,7 @@ export default function Profile() {
         <p className="text-xs text-text-muted">This profile does not exist or was a temporary guest session.</p>
         <button
           onClick={() => navigate('/')}
-          className="px-5 py-2 bg-[#141414] border border-white/10 rounded-full text-xs font-semibold hover:border-velocity-red transition-colors cursor-pointer"
+          className="px-5 py-2 bg-background border border-white/10 rounded-full text-xs font-semibold hover:border-primary transition-colors cursor-pointer"
         >
           Back to Lobby
         </button>
@@ -205,7 +256,7 @@ export default function Profile() {
     : 'No Wallet Connected';
 
   return (
-    <div className="bg-[#0e0e0e] text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
+    <div className="bg-black text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
       
       {/* Floating User Profile Modal for inspected opponents */}
       {selectedProfileId && (
@@ -219,6 +270,8 @@ export default function Profile() {
       {isOwnProfile && !isTestUser && (
         <>
           <input
+            id="profileAvatarFileInput"
+            name="profileAvatar"
             type="file"
             ref={avatarInputRef}
             onChange={handleAvatarSelect}
@@ -226,6 +279,8 @@ export default function Profile() {
             className="hidden"
           />
           <input
+            id="profileBannerFileInput"
+            name="profileBanner"
             type="file"
             ref={bannerInputRef}
             onChange={handleBannerSelect}
@@ -235,20 +290,20 @@ export default function Profile() {
         </>
       )}
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-8">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-12">
         
         {/* Top Back Link */}
         <div className="mb-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-[#141414] border border-white/10 hover:border-velocity-red cursor-pointer"
+            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-background border border-white/10 hover:border-primary cursor-pointer"
           >
             <ArrowLeft size={14} /> Back to Lobby
           </button>
         </div>
 
         {/* Profile Card with Banner */}
-        <section className="mb-5 rounded-2xl bg-[#141414] border border-white/10 overflow-hidden shadow-2xl relative">
+        <section className="mb-5 rounded-2xl bg-background border border-white/10 overflow-hidden shadow-2xl relative">
           
           {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
           <div className="relative w-full h-36 sm:h-44 md:h-48 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
@@ -260,7 +315,7 @@ export default function Profile() {
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#0a0a0a_100%)]">
-                <div className="w-96 h-96 bg-velocity-red/5 rounded-full blur-3xl pointer-events-none" />
+                <div className="w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
               </div>
             )}
 
@@ -272,7 +327,7 @@ export default function Profile() {
                 className="absolute top-3 right-3 bg-black/80 hover:bg-black border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md cursor-pointer"
               >
                 {isUploadingBanner ? (
-                  <Loader2 size={13} className="animate-spin text-velocity-red" />
+                  <CircleNotch size={13} className="animate-spin text-primary" />
                 ) : (
                   <ImageIcon size={13} />
                 )}
@@ -290,7 +345,7 @@ export default function Profile() {
               <div
                 onClick={() => isOwnProfile && !isTestUser && avatarInputRef.current?.click()}
                 className={`-mt-12 sm:-mt-14 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
-                  isOwnProfile && !isTestUser ? 'cursor-pointer hover:border-velocity-red transition-all' : ''
+                  isOwnProfile && !isTestUser ? 'cursor-pointer hover:border-primary transition-all' : ''
                 }`}
                 title={isOwnProfile && !isTestUser ? 'Click to change profile picture' : ''}
               >
@@ -301,7 +356,7 @@ export default function Profile() {
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-full h-full bg-[#1e1e1e] flex items-center justify-center">
+                  <div className="w-full h-full bg-black flex items-center justify-center">
                     <span className="text-3xl sm:text-4xl font-headline-lg font-bold text-white">
                       {profileData.username ? profileData.username.substring(0, 2).toUpperCase() : 'U'}
                     </span>
@@ -312,7 +367,7 @@ export default function Profile() {
                 {isOwnProfile && !isTestUser && (
                   <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] cursor-pointer">
                     {isUploadingAvatar ? (
-                      <Loader2 size={20} className="animate-spin text-velocity-red" />
+                      <CircleNotch size={20} className="animate-spin text-primary" />
                     ) : (
                       <>
                         <Camera size={18} className="text-white mb-0.5" />
@@ -336,14 +391,14 @@ export default function Profile() {
                     </span>
                   )}
                   {isAdmin && !isOwner && (
-                    <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
+                    <span className="text-[11px] font-mono text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold">
                       <ShieldCheck size={12} />
                       <span>Admin</span>
                     </span>
                   )}
                   {isTestUser && (
-                    <span className="text-[11px] font-mono text-velocity-red px-2.5 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
-                      <FlaskConical size={11} />
+                    <span className="text-[11px] font-mono text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold">
+                      <Flask size={11} />
                       <span>Guest Mode</span>
                     </span>
                   )}
@@ -353,7 +408,7 @@ export default function Profile() {
                   <div className="flex items-center justify-center sm:justify-start gap-2">
                     <button
                       onClick={handleCopyWallet}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0e0e0e] border border-white/10 hover:border-velocity-red text-xs text-text-secondary hover:text-white font-mono transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black border border-white/10 hover:border-primary text-xs text-text-secondary hover:text-white font-mono transition-colors cursor-pointer"
                       title="Copy wallet address"
                     >
                       <span>{walletDisplay}</span>
@@ -374,10 +429,10 @@ export default function Profile() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           
           {/* Card 1: Matches */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
-              <Swords size={16} className="text-text-muted group-hover:text-velocity-red transition-colors" />
+              <Swords size={16} className="text-text-muted group-hover:text-primary transition-colors" />
             </div>
             <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5">
               {totalGames}
@@ -388,21 +443,21 @@ export default function Profile() {
           </div>
 
           {/* Card 2: Wins */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
-              <Trophy size={16} className="text-velocity-red transition-colors" />
+              <Trophy size={16} className="text-primary transition-colors" />
             </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-velocity-red font-bold mb-0.5">
+            <div className="font-headline-lg text-2xl md:text-3xl text-primary font-bold mb-0.5">
               {wins}
             </div>
-            <div className="text-xs text-velocity-red font-medium">
+            <div className="text-xs text-primary font-medium">
               {winRate}% win rate
             </div>
           </div>
 
           {/* Card 3: Losses */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
               <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
@@ -416,10 +471,10 @@ export default function Profile() {
           </div>
 
           {/* Card 4: SOL Holdings */}
-          <div className="bg-[#141414] border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">SOL Balance</span>
-              <span className="text-xs font-mono font-bold text-velocity-red">SOL</span>
+              <span className="text-xs font-mono font-bold text-primary">SOL</span>
             </div>
             <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 font-mono">
               {isOwnProfile && solBalance !== null ? (
@@ -447,7 +502,7 @@ export default function Profile() {
             </span>
           </div>
 
-          <div className="bg-[#141414] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-xl">
             {history.length === 0 ? (
               <div className="p-10 text-center text-text-muted text-sm font-mono">
                 No match history recorded yet.
@@ -490,9 +545,9 @@ export default function Profile() {
                                   initial={{ opacity: 0, y: 6, scale: 0.95 }}
                                   animate={{ opacity: 1, y: -4, scale: 1 }}
                                   exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                                  className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-velocity-red border border-velocity-red/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+                                  className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-primary border border-primary/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
                                 >
-                                  <FlaskConical size={11} className="shrink-0" />
+                                  <Flask size={11} className="shrink-0" />
                                   <span>{testUserToast.message}</span>
                                 </motion.div>
                               )}
@@ -500,7 +555,7 @@ export default function Profile() {
 
                             <button
                               onClick={(e) => handleOpponentClick(e, opponentId, game)}
-                              className="text-white hover:text-velocity-red font-medium transition-colors cursor-pointer text-left flex items-center gap-1.5"
+                              className="text-white hover:text-primary font-medium transition-colors cursor-pointer text-left flex items-center gap-1.5"
                             >
                               <span>{opponentDisplay}</span>
                             </button>
@@ -510,7 +565,7 @@ export default function Profile() {
                           </td>
                           <td className="py-3.5 px-5">
                             {isWin ? (
-                              <span className="bg-velocity-red/10 text-velocity-red border border-velocity-red/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
+                              <span className="bg-primary/10 text-primary border border-primary/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
                                 Win
                               </span>
                             ) : isDraw ? (
@@ -518,17 +573,17 @@ export default function Profile() {
                                 Draw
                               </span>
                             ) : (
-                              <span className="bg-[#1e1e1e] text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
+                              <span className="bg-black text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
                                 Loss
                               </span>
                             )}
                           </td>
-                          <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}`}>
+                          <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-primary font-bold' : 'text-text-muted'}`}>
                             {game.wager > 0 ? (
                               <SolAmount
                                 amount={game.wager}
                                 prefix={isWin ? '+' : '-'}
-                                className={isWin ? 'text-velocity-red font-bold' : 'text-text-muted'}
+                                className={isWin ? 'text-primary font-bold' : 'text-text-muted'}
                               />
                             ) : (
                               'Free'

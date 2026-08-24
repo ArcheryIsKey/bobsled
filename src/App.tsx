@@ -18,9 +18,10 @@ import UserProfileModal from './components/UserProfileModal';
 import SolAmount from './components/SolAmount';
 import ToastContainer from './components/Toast';
 import { useSolPrice } from './utils/solPrice';
-import { OWNER_WALLET } from './constants';
+import { OWNER_WALLET, SOLANA_FAUCET_URL } from './constants';
 import { logError, logWarn } from './utils/logger';
-import { Shield, User, FlaskConical } from 'lucide-react';
+import { Shield, User, Flask, Drop, ArrowSquareOut } from '@phosphor-icons/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 async function cleanupGuestUserGames(guestUserId: string) {
   try {
@@ -59,6 +60,7 @@ async function cleanupGuestUserGames(guestUserId: string) {
   }
 }
 
+
 function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -84,36 +86,35 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
   const isOwner = user?.walletAddress === OWNER_WALLET;
   const isAdmin = isOwner || user?.isAdmin || user?.role === 'admin';
-
   const isLobby = location.pathname === '/';
-  const isProfile = location.pathname.startsWith('/profile');
   const isAdminRoute = location.pathname === '/admin';
-
-  const userDisplayName = user?.isTestUser
-    ? (user?.username || 'Guest')
-    : `@${user?.username || 'Player'}`;
+  const userDisplayName = user?.isTestUser ? (user?.username || 'Guest') : `@${user?.username || 'Player'}`;
 
   return (
-    <header className="sticky top-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-3 pb-2 pointer-events-none">
-      <div className="max-w-6xl mx-auto pointer-events-auto bg-[#121212]/85 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4 transition-all">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-4 pb-2 pointer-events-none transition-all">
+      <div className="max-w-6xl mx-auto pointer-events-auto bg-black/60 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4">
         
         {/* Left: Logo & Navigation */}
         <div className="flex items-center gap-4 sm:gap-8">
           <Link
             to="/"
-            className="flex items-center gap-2 font-headline-lg text-xl sm:text-2xl font-bold text-velocity-red tracking-tight hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-2.5 font-display text-xl sm:text-2xl font-bold text-white tracking-tight hover:opacity-80 transition-opacity cursor-pointer group"
           >
-            <img src="/logo.jpg" alt="bobsled.gg" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full mix-blend-screen" />
-            <span className="text-white">bobsled<span className="text-velocity-red">.</span>gg</span>
+            <img
+              src="/logo.jpg"
+              alt="bobsled.gg"
+              className="w-8 h-8 rounded-full object-cover group-hover:scale-105 transition-transform border border-white/10"
+            />
+            <span>bobsled<span className="text-primary">.gg</span></span>
           </Link>
 
           {user && (
-            <nav className="hidden md:flex items-center space-x-1 bg-[#1a1a1a]/80 p-1 rounded-full border border-white/5">
+            <nav className="hidden md:flex items-center space-x-2 bg-white/5 p-1 rounded-full border border-white/10">
               <Link
                 to="/"
-                className={`text-xs px-4 py-1.5 rounded-full font-semibold tracking-wide transition-all cursor-pointer ${
+                className={`text-xs px-4 py-1.5 rounded-full font-bold uppercase tracking-widest transition-all cursor-pointer ${
                   isLobby
-                    ? 'text-white bg-white/15 shadow-sm'
+                    ? 'text-white bg-white/10 shadow-sm'
                     : 'text-text-secondary hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -122,13 +123,13 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className={`text-xs px-3.5 py-1.5 rounded-full font-semibold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`text-xs px-4 py-1.5 rounded-full font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer ${
                     isAdminRoute
-                      ? 'text-velocity-red bg-velocity-red/15 border border-velocity-red/30'
-                      : 'text-text-secondary hover:text-velocity-red hover:bg-white/5'
+                      ? 'text-primary bg-primary/10 border border-primary/20'
+                      : 'text-text-secondary hover:text-primary hover:bg-white/5'
                   }`}
                 >
-                  <Shield size={12} />
+                  <Shield size={14} weight="fill" />
                   <span>Admin</span>
                 </Link>
               )}
@@ -138,75 +139,82 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
         {/* Right: Balance & User Actions */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          
-          {/* Admin Fast Link for mobile */}
           {isAdmin && (
             <Link
               to="/admin"
-              className="md:hidden flex items-center gap-1 text-[11px] uppercase tracking-wider px-2.5 py-1 bg-velocity-red/10 border border-velocity-red/30 text-velocity-red rounded-full font-mono font-bold cursor-pointer"
+              className="md:hidden flex items-center gap-1 text-[10px] uppercase tracking-widest px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-sans font-bold cursor-pointer"
             >
               Admin
             </Link>
           )}
 
-          {/* SOL Price Pill */}
-          <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 px-3 py-1.5 rounded-full bg-emerald-400/10 border border-emerald-400/20" title="Live SOL Price">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span>1 SOL = ${currentSolPrice ? currentSolPrice.toFixed(2) : '---'}</span>
+          <div className="hidden sm:flex items-center gap-2">
+            <div className="flex items-center gap-2 text-[10px] font-sans uppercase tracking-widest font-bold text-white/70 px-4 py-2 rounded-full bg-white/5 border border-white/10" title="Live SOL Price">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span>1 SOL = <span className="text-white">${currentSolPrice ? currentSolPrice.toFixed(2) : '---'}</span></span>
+            </div>
+
+            <a
+              href={SOLANA_FAUCET_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[10px] font-sans uppercase tracking-widest font-bold text-primary hover:text-white bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3.5 py-2 rounded-full transition-all cursor-pointer shadow-sm hover:shadow-[0_0_12px_rgba(255,77,77,0.25)] active:scale-[0.98] group"
+              title="Get Devnet SOL Faucet"
+              aria-label="Solana Devnet Faucet"
+            >
+              <Drop size={13} weight="fill" className="text-primary group-hover:text-white transition-colors" />
+              <span>Faucet</span>
+              <ArrowSquareOut size={11} className="opacity-70 group-hover:opacity-100 transition-opacity" />
+            </a>
           </div>
 
           {!user && !publicKey ? (
             <button
               onClick={() => setVisible(true)}
-              className="text-xs text-white bg-velocity-red rounded-full px-5 py-2 hover:bg-red-600 transition-all font-semibold shadow-[0_0_20px_rgba(255,77,77,0.4)] tracking-wide uppercase active:scale-[0.98] font-mono cursor-pointer"
+              className="text-[10px] text-white bg-primary rounded-full px-6 py-2.5 hover:bg-red-500 transition-all font-bold shadow-[0_0_20px_rgba(255,77,77,0.3)] tracking-widest uppercase active:scale-[0.98] font-sans cursor-pointer hover-magnetic"
             >
-              Connect Wallet
+              Connect
             </button>
           ) : (
             <div className="flex items-center gap-2 sm:gap-3">
-              
-              {/* Guest User Badge */}
               {user?.isTestUser && (
-                <div className="text-[11px] font-mono text-velocity-red px-3 py-1 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold">
-                  <FlaskConical size={12} />
-                  <span>GUEST</span>
+                <div className="text-[10px] font-sans text-primary px-3 py-1 rounded-full bg-primary/10 border border-primary/20 flex items-center gap-1 font-bold uppercase tracking-widest">
+                  <Flask size={12} weight="fill" />
+                  <span>Guest</span>
                 </div>
               )}
 
-              {/* Real SOL Balance */}
               {publicKey && !user?.isTestUser && (
-                <div className="text-xs font-mono font-bold text-white px-3.5 py-1.5 rounded-full bg-[#181818] border border-white/10 flex items-center gap-2 shadow-inner">
+                <div className="text-xs font-mono font-bold text-white px-4 py-2 rounded-full bg-white/5 border border-white/10 flex items-center gap-2 shadow-inner">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   <SolAmount
                     amount={solBalance !== null ? parseFloat(solBalance.toFixed(3)) : 0}
                     tooltipPosition="bottom"
-                    className="text-velocity-red hover:text-red-400"
+                    className="text-primary hover:text-red-400"
                   />
                 </div>
               )}
 
-              {/* Profile Link Pill */}
               <button
                 onClick={onOpenProfileModal}
-                className="flex items-center gap-2 py-1 px-1.5 sm:pr-3.5 rounded-full bg-[#181818] hover:bg-[#222222] border border-white/10 hover:border-velocity-red/60 transition-all group cursor-pointer h-8.5"
+                className="flex items-center gap-2 py-1 px-1 sm:pr-4 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/50 transition-all group cursor-pointer ease-premium"
                 title="View Profile"
               >
-                <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 group-hover:border-velocity-red bg-[#222] flex items-center justify-center font-bold text-[11px] text-velocity-red transition-colors shrink-0">
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 group-hover:border-primary bg-black flex items-center justify-center font-bold text-[10px] text-primary transition-colors shrink-0">
                   {user?.avatarUrl ? (
                     <img src={user.avatarUrl} alt={user.username} className="w-full h-full object-cover" />
                   ) : (
-                    user?.username ? user.username.substring(0, 2).toUpperCase() : <User size={12} />
+                    user?.username ? user.username.substring(0, 2).toUpperCase() : <User size={12} weight="fill" />
                   )}
                 </div>
-                <span className="hidden sm:inline-flex items-center text-xs font-semibold text-white group-hover:text-velocity-red transition-colors leading-none">
+                <span className="hidden sm:inline-flex items-center text-xs font-semibold text-white tracking-normal group-hover:text-primary transition-colors leading-none">
                   {userDisplayName}
                 </span>
               </button>
 
-              {/* Disconnect / Logout Button */}
               <button
                 onClick={handleLogout}
-                className="text-xs text-text-secondary hover:text-white bg-[#1a1a1a] hover:bg-[#222] border border-white/5 hover:border-white/10 px-3.5 py-1.5 rounded-full transition-all font-medium font-mono cursor-pointer"
+                className="text-[10px] text-text-secondary hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full transition-all font-bold uppercase tracking-widest cursor-pointer"
                 title="Disconnect Account"
               >
                 Logout
@@ -214,7 +222,6 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
             </div>
           )}
         </div>
-
       </div>
     </header>
   );
@@ -300,15 +307,26 @@ function MainContent({
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/profile" element={<Profile />} />
-      <Route path="/profile/:userId" element={<Profile />} />
-      <Route path="/admin" element={<AdminPanel />} />
-      <Route path="/game/:gameId" element={<Game />} />
-      <Route path="/watch/:gameId" element={<Game />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+        className="w-full flex-1 flex flex-col"
+      >
+        <Routes location={location}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:userId" element={<Profile />} />
+          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/game/:gameId" element={<Game />} />
+          <Route path="/watch/:gameId" element={<Game />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -339,32 +357,12 @@ export default function App() {
     }
   }, []);
 
-  // Cleanup guest user games on window unload
-  useEffect(() => {
-    const handleUnload = () => {
-      if (user?.isTestUser && user.id) {
-        cleanupGuestUserGames(user.id);
-      }
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [user]);
-
   // Live real-time SOL balance with server proxy and connection fallback
   const fetchWalletBalance = useCallback(async () => {
     if (!publicKey || user?.isTestUser) return;
     const walletStr = publicKey.toBase58();
 
-    if (connection) {
-      try {
-        const lamports = await connection.getBalance(publicKey, 'confirmed');
-        setSolBalance(lamports / LAMPORTS_PER_SOL);
-        return;
-      } catch (e) {
-        // Fallback to server proxy
-      }
-    }
-
+    // 1. Try server-side proxy balance lookup first (fast, CORS-free, bypasses browser RPC limits)
     try {
       const res = await fetch(`/api/solana/balance?wallet=${walletStr}`);
       if (res.ok) {
@@ -375,11 +373,23 @@ export default function App() {
         }
       }
     } catch (e) {
-      // Fallback to public RPC
+      // Fallback
     }
 
+    // 2. Try primary wallet connection
+    if (connection) {
+      try {
+        const lamports = await connection.getBalance(publicKey, 'confirmed');
+        setSolBalance(lamports / LAMPORTS_PER_SOL);
+        return;
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    // 3. Direct Devnet fallback connection
     try {
-      const conn = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+      const conn = new Connection('https://api.devnet.solana.com', 'confirmed');
       const lamports = await conn.getBalance(new PublicKey(walletStr));
       setSolBalance(lamports / LAMPORTS_PER_SOL);
     } catch (e) {
@@ -611,7 +621,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-screen bg-[#0e0e0e] text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
+      <div className="flex flex-col min-h-screen bg-background text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
         <AppHeader onOpenProfileModal={() => user?.id && setShowOwnProfileModal(true)} />
         
         {/* Own Profile Modal triggered from header */}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSolPrice } from '../utils/solPrice';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coins, DollarSign } from 'lucide-react';
+import { Coins, CurrencyDollar } from '@phosphor-icons/react';
 
 interface SolAmountProps {
   amount: number | string | null | undefined;
@@ -54,7 +54,7 @@ export default function SolAmount({
       className="relative inline-flex items-center group/sol"
     >
       <span className={`inline-flex items-center gap-1 transition-colors ${className}`}>
-        {showIcon && <Coins size={13} className="text-velocity-red shrink-0" />}
+        {showIcon && <Coins size={13} className="text-primary shrink-0" />}
         {children ? children : `${prefix}${numAmount}${suffix}`}
       </span>
 
@@ -70,7 +70,7 @@ export default function SolAmount({
           >
             <div className="bg-[#121212]/95 backdrop-blur-xl border border-white/20 px-3 py-1.5 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.9)] flex flex-col items-center gap-0.5 font-mono text-center">
               <div className="flex items-center gap-1 text-emerald-400 font-bold text-xs">
-                <DollarSign size={11} className="-mr-0.5" />
+                <CurrencyDollar size={11} className="-mr-0.5" />
                 <span>≈ {usdValueStr} USD</span>
               </div>
               {solPrice && (

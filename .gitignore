@@ -14,3 +14,4 @@ bun.lock
 .agents/
 .antigravity/
 service-account-key.json
+escrow-keypair.json

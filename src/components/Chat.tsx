@@ -3,7 +3,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit 
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useGameStore } from '../store';
 import { logError } from '../utils/logger';
-import { Send, MessageSquare } from 'lucide-react';
+import { PaperPlaneRight, ChatCircle } from '@phosphor-icons/react';
 
 export default function Chat({ gameId }: { gameId: string }) {
   const { user } = useGameStore();
@@ -35,10 +35,10 @@ export default function Chat({ gameId }: { gameId: string }) {
     return () => unsub();
   }, [gameId]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handlePaperPlaneRight = (e: React.FormEvent) => {
     e.preventDefault();
-    const messageToSend = text.trim();
-    if (!messageToSend || !user) return;
+    const messageToPaperPlaneRight = text.trim();
+    if (!messageToPaperPlaneRight || !user) return;
 
     setText('');
 
@@ -46,7 +46,7 @@ export default function Chat({ gameId }: { gameId: string }) {
       senderId: user.id,
       senderName: user.username,
       isTestUser: !!user.isTestUser,
-      text: messageToSend,
+      text: messageToPaperPlaneRight,
       createdAt: serverTimestamp(),
     }).catch((err) => {
       logError('Failed to send message:', err);
@@ -54,11 +54,11 @@ export default function Chat({ gameId }: { gameId: string }) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#141414]">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="p-3.5 border-b border-white/10 flex justify-between items-center bg-[#181818]">
         <div className="flex items-center gap-2">
-          <MessageSquare size={14} className="text-velocity-red" />
+          <ChatCircle size={14} className="text-primary" />
           <h3 className="text-xs text-white font-bold uppercase tracking-wider font-mono">
             Game Chat
           </h3>
@@ -81,14 +81,14 @@ export default function Chat({ gameId }: { gameId: string }) {
               ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : '...';
             
-            const isMsgSenderTest = msg.isTestUser || msg.senderId?.startsWith?.('test_');
+            const isMsgPaperPlaneRighterTest = msg.isTestUser || msg.senderId?.startsWith?.('test_');
             const rawName = isMe ? (user?.username || 'You') : (msg.senderName || msg.senderId.substring(0, 6));
-            const name = isMsgSenderTest ? rawName : `@${rawName}`;
+            const name = isMsgPaperPlaneRighterTest ? rawName : `@${rawName}`;
 
             return (
               <div key={msg.id} className="flex flex-col gap-0.5 text-xs">
                 <div className="flex items-center gap-1.5">
-                  <span className={`text-[11px] font-semibold ${isMe ? 'text-velocity-red' : 'text-white'}`}>
+                  <span className={`text-[11px] font-semibold ${isMe ? 'text-primary' : 'text-white'}`}>
                     {name}
                   </span>
                   <span className="text-[9px] text-text-muted font-mono">
@@ -106,20 +106,23 @@ export default function Chat({ gameId }: { gameId: string }) {
 
       {/* Input */}
       <div className="p-2.5 bg-[#181818] border-t border-white/10 mt-auto">
-        <form onSubmit={handleSend} className="flex gap-2">
+        <form onSubmit={handlePaperPlaneRight} className="flex gap-2">
           <input
+            id="chatInput"
+            name="chatMessage"
+            autoComplete="off"
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 bg-[#101010] border border-white/10 text-white text-xs px-3.5 py-2 rounded-full focus:border-velocity-red outline-none placeholder:text-text-muted"
+            className="flex-1 bg-[#101010] border border-white/10 text-white text-xs px-3.5 py-2 rounded-full focus:border-primary outline-none placeholder:text-text-muted"
           />
           <button
             type="submit"
             disabled={!text.trim()}
-            className="w-8 h-8 rounded-full bg-velocity-red hover:bg-red-600 disabled:opacity-40 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-full bg-primary hover:bg-red-600 disabled:opacity-40 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
-            <Send size={13} />
+            <PaperPlaneRight size={13} />
           </button>
         </form>
       </div>

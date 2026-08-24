@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ChevronDown } from 'lucide-react';
+import { Sparkle, CaretDown } from '@phosphor-icons/react';
 
 const ROWS = 6;
 const COLS = 7;
@@ -122,7 +122,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
           {game.status === 'active' ? (
             isSpectator ? (
               <div className="bg-[#1e1e1e] border border-white/10 text-text-secondary px-4 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-mono">
-                <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 <span>Spectating Live Game</span>
               </div>
             ) : isMyTurn ? (
@@ -131,11 +131,11 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                 animate={{ scale: 1 }}
                 className={`border px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono whitespace-nowrap shadow-md ${
                   myDiscIsRed
-                    ? 'bg-velocity-red/15 border-velocity-red text-velocity-red shadow-[0_0_20px_rgba(255,77,77,0.4)]'
+                    ? 'bg-primary/15 border-primary text-primary shadow-[0_0_20px_rgba(255,77,77,0.4)]'
                     : 'bg-white/15 border-white text-white shadow-[0_0_20px_rgba(255,255,255,0.3)]'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full animate-ping ${myDiscIsRed ? 'bg-velocity-red' : 'bg-white'}`} />
+                <span className={`w-2 h-2 rounded-full animate-ping ${myDiscIsRed ? 'bg-primary' : 'bg-white'}`} />
                 <span>Your Turn to Move ({myDiscIsRed ? 'Red' : 'White'})</span>
               </motion.div>
             ) : (
@@ -145,8 +145,8 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               </div>
             )
           ) : game.status === 'waiting' ? (
-            <div className="bg-[#1e1e1e] border border-velocity-red/40 text-velocity-red px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap">
-              <span className="w-2 h-2 bg-velocity-red rounded-full animate-ping" />
+            <div className="bg-[#1e1e1e] border border-primary/40 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap">
+              <span className="w-2 h-2 bg-primary rounded-full animate-ping" />
               <span>Waiting for Opponent</span>
             </div>
           ) : (
@@ -154,9 +154,9 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               initial={{ scale: 0.95 }}
               animate={{ scale: [1, 1.03, 1] }}
               transition={{ repeat: Infinity, duration: 2 }}
-              className="bg-[#1e1e1e] border border-velocity-red/60 text-velocity-red px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono shadow-[0_0_20px_rgba(255,77,77,0.4)] whitespace-nowrap"
+              className="bg-[#1e1e1e] border border-primary/60 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono shadow-[0_0_20px_rgba(255,77,77,0.4)] whitespace-nowrap"
             >
-              <Sparkles size={13} className="text-velocity-red animate-spin" />
+              <Sparkle size={13} className="text-primary animate-spin" />
               <span>{game.winner === 'draw' ? 'Match Draw' : 'Match Finished'}</span>
             </motion.div>
           )}
@@ -170,7 +170,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
             return (
               <div
                 key={`col-${colIndex}`}
-                className={`flex flex-col gap-1 min-[380px]:gap-1.5 sm:gap-3 md:gap-3.5 relative group overflow-visible touch-manipulation active:scale-[0.98] transition-transform ${
+                className={`flex flex-col gap-1 min-[380px]:gap-1.5 sm:gap-3 md:gap-3.5 relative group overflow-visible touch-manipulation ${
                   isMyTurn ? 'cursor-pointer' : ''
                 }`}
                 onMouseEnter={() => isMyTurn && setHoverColumn(colIndex)}
@@ -186,10 +186,10 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                       exit={{ y: -6, opacity: 0 }}
                       transition={{ y: { repeat: Infinity, duration: 0.6, ease: 'easeInOut' } }}
                       className={`absolute -top-6 min-[380px]:-top-7 sm:-top-9 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center pointer-events-none ${
-                        myDiscIsRed ? 'text-velocity-red' : 'text-white'
+                        myDiscIsRed ? 'text-primary' : 'text-white'
                       }`}
                     >
-                      <ChevronDown size={18} className="drop-shadow-[0_0_8px_currentColor]" />
+                      <CaretDown size={18} className="drop-shadow-[0_0_8px_currentColor]" />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -205,7 +205,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                   const isGhostSlot = isColHovered && hoverLandingRow === rowIndex && cellValue === 0;
 
                   // Distance from above the board down to this row
-                  const dropY = -((rowIndex + 2.2) * 75);
+                  const dropY = `${-((rowIndex + 1.25) * 100)}%`;
                   const cellIsRed = isDiscRed(cellValue);
 
                   return (
@@ -221,7 +221,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                           exit={{ opacity: 0 }}
                           className={`w-full h-full rounded-full border-2 border-dashed ${
                             myDiscIsRed
-                              ? 'border-velocity-red bg-velocity-red/20 shadow-[0_0_10px_rgba(255,77,77,0.3)]'
+                              ? 'border-primary bg-primary/20 shadow-[0_0_10px_rgba(255,77,77,0.3)]'
                               : 'border-white bg-white/20 shadow-[0_0_10px_rgba(255,255,255,0.3)]'
                           }`}
                         />
@@ -235,12 +235,12 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                           animate={{ y: 0 }}
                           transition={{
                             type: 'spring',
-                            damping: 14,
-                            stiffness: 180,
-                            mass: 0.8,
+                            stiffness: 460,
+                            damping: 32,
+                            mass: 0.75,
                           }}
-                          className={`w-full h-full rounded-full flex items-center justify-center relative transition-all duration-300 z-10 ${
-                            isDimmed ? 'opacity-35 scale-95 grayscale-[40%]' : 'opacity-100'
+                          className={`w-full h-full rounded-full flex items-center justify-center relative z-10 ${
+                            isDimmed ? 'opacity-35 scale-95 grayscale-[40%] transition-opacity duration-300' : 'opacity-100'
                           } ${
                             cellIsRed
                               ? 'bg-[radial-gradient(circle_at_35%_35%,_#ff6666_0%,_#e60000_65%,_#990000_100%)] shadow-[0_0_16px_rgba(255,77,77,0.6),inset_0_-3px_5px_rgba(0,0,0,0.5),inset_0_2px_4px_rgba(255,255,255,0.4)] border border-red-400/40'
@@ -269,7 +269,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                                 }}
                                 className="w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_15px_#ffffff] flex items-center justify-center"
                               >
-                                <Sparkles size={11} className={cellIsRed ? 'text-velocity-red' : 'text-black'} />
+                                <Sparkle size={11} className={cellIsRed ? 'text-primary' : 'text-black'} />
                               </motion.div>
                             )}
                           </div>

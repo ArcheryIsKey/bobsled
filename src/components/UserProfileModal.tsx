@@ -5,7 +5,7 @@ import { db } from '../firebase';
 import { useGameStore } from '../store';
 import SolAmount from './SolAmount';
 import { logError } from '../utils/logger';
-import { X, ExternalLink, Copy, Check, Loader2, FlaskConical, User as UserIcon } from 'lucide-react';
+import { X, ArrowUpRight, Copy, Check, CircleNotch, Flask, User as UserIcon } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserProfileModalProps {
@@ -169,7 +169,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.95, y: 15 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-lg bg-[#141414] border border-white/15 shadow-[0_16px_50px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col max-h-[85vh] rounded-3xl relative"
+          className="w-full max-w-lg bg-background border border-white/15 shadow-[0_16px_50px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col max-h-[85vh] rounded-3xl relative"
         >
           {/* Close Button */}
           <button
@@ -186,7 +186,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               <img src={profileData.bannerUrl} alt="Banner" className="w-full h-full object-contain" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#0a0a0a_100%)]">
-                <div className="w-64 h-64 bg-velocity-red/10 rounded-full blur-2xl" />
+                <div className="w-64 h-64 bg-primary/10 rounded-full blur-2xl" />
               </div>
             )}
           </div>
@@ -210,11 +210,11 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               {!isTestUser && (
                 <button
                   onClick={handleOpenFullProfile}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 hover:border-velocity-red text-xs font-semibold text-white transition-all cursor-pointer font-mono shrink-0 whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#202020] hover:bg-[#282828] border border-white/10 hover:border-primary text-xs font-semibold text-white transition-all cursor-pointer font-mono shrink-0 whitespace-nowrap"
                   title="View Full Profile Page"
                 >
                   <span className="whitespace-nowrap">Full Profile</span>
-                  <ExternalLink size={12} className="shrink-0 text-text-muted" />
+                  <ArrowUpRight size={12} className="shrink-0 text-text-muted" />
                 </button>
               )}
             </div>
@@ -224,13 +224,13 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleOpenFullProfile}
-                  className="text-xl font-bold text-white font-headline-lg hover:text-velocity-red transition-colors text-left cursor-pointer flex items-center gap-1.5 truncate"
+                  className="text-xl font-bold text-white font-headline-lg hover:text-primary transition-colors text-left cursor-pointer flex items-center gap-1.5 truncate"
                 >
                   <span className="truncate">{displayName}</span>
                 </button>
                 {isTestUser && (
-                  <span className="text-[10px] font-mono text-velocity-red px-2 py-0.5 rounded-full bg-velocity-red/10 border border-velocity-red/30 flex items-center gap-1 font-bold shrink-0">
-                    <FlaskConical size={10} />
+                  <span className="text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold shrink-0">
+                    <Flask size={10} />
                     <span>Guest</span>
                   </span>
                 )}
@@ -242,7 +242,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
             {/* Wallet Address Pill */}
             {profileData?.walletAddress && (
-              <div className="text-xs font-mono text-text-secondary bg-[#0e0e0e] p-2.5 rounded-xl border border-white/5 flex items-center justify-between mt-2.5">
+              <div className="text-xs font-mono text-text-secondary bg-black p-2.5 rounded-xl border border-white/5 flex items-center justify-between mt-2.5">
                 <span className="truncate">{profileData.walletAddress}</span>
                 <button
                   onClick={handleCopyWallet}
@@ -256,14 +256,14 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-4 border-b border-white/10 bg-[#0e0e0e] shrink-0 font-mono">
+          <div className="grid grid-cols-4 border-b border-white/10 bg-black shrink-0 font-mono">
             <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Matches</span>
               <span className="text-sm font-bold text-white">{stats.totalGames}</span>
             </div>
             <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Wins</span>
-              <span className="text-sm font-bold text-velocity-red">{stats.wins}</span>
+              <span className="text-sm font-bold text-primary">{stats.wins}</span>
             </div>
             <div className="p-3 text-center border-r border-white/10">
               <span className="text-[10px] text-text-muted uppercase block">Losses</span>
@@ -271,7 +271,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
             </div>
             <div className="p-3 text-center">
               <span className="text-[10px] text-text-muted uppercase block">SOL</span>
-              <div className="text-sm font-bold text-velocity-red flex items-center justify-center">
+              <div className="text-sm font-bold text-primary flex items-center justify-center">
                 {isTestUser ? (
                   '—'
                 ) : (
@@ -284,7 +284,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                         : 0
                     }
                     suffix=""
-                    className="font-bold text-velocity-red hover:text-red-400"
+                    className="font-bold text-primary hover:text-red-400"
                   />
                 )}
               </div>
@@ -292,7 +292,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
           </div>
 
           {/* Bottom Actions */}
-          <div className="p-4 border-t border-white/10 bg-[#141414] flex justify-end items-center shrink-0">
+          <div className="p-4 border-t border-white/10 bg-background flex justify-end items-center shrink-0">
             <button
               onClick={onClose}
               className="px-6 py-2 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"

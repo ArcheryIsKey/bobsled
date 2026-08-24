@@ -1,11 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle, XCircle, Warning, Info, X } from '@phosphor-icons/react';
 import { useGameStore, type ToastItem } from '../store';
 
 const ICON_MAP: Record<ToastItem['type'], typeof Info> = {
   success: CheckCircle,
   error: XCircle,
-  warning: AlertTriangle,
+  warning: Warning,
   info: Info,
 };
 

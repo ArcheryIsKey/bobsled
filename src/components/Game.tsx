@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
@@ -12,23 +12,7 @@ import MatchInviteModal from './MatchInviteModal';
 import SolAmount from './SolAmount';
 import { depositMatchStake } from '../utils/solanaEscrow';
 import { logError } from '../utils/logger';
-import {
-  ArrowLeft,
-  Copy,
-  Check,
-  Trophy,
-  Flag,
-  AlertTriangle,
-  XCircle,
-  ArrowRight,
-  User,
-  MessageSquareOff,
-  UserPlus,
-  Eye,
-  Swords,
-  X,
-  ExternalLink,
-} from 'lucide-react';
+import { ArrowLeft, Copy, Check, Trophy, Flag, Warning as Warning, XCircle, ArrowRight, User, ChatSlash as ChatCircleOff, UserPlus, Eye, Sword as Swords, X, ArrowUpRight as ArrowUpRight, CircleNotch } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Game() {
@@ -52,7 +36,6 @@ export default function Game() {
   const [dismissedInviteModal, setDismissedInviteModal] = useState(false);
 
   const isExplicitWatchRoute = location.pathname.startsWith('/watch/');
-  const heartbeatIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -72,6 +55,19 @@ export default function Game() {
         setGame(data);
         if (data.status === 'finished') {
           setShowWinModal(true);
+          if (
+            data.wager > 0 &&
+            data.wagerCurrency !== 'FREE' &&
+            !data.payoutTx &&
+            data.payoutStatus !== 'completed' &&
+            data.payoutStatus !== 'processing'
+          ) {
+            fetch('/api/escrow/settle', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ gameId: data.id }),
+            }).catch((err) => logError('Auto-settle trigger failed:', err));
+          }
         }
       } else {
         navigate('/');
@@ -81,103 +77,36 @@ export default function Game() {
     return () => unsub();
   }, [gameId, navigate]);
 
-  // Dynamic Browser Title: "bobsled vs {user}"
+  // Dynamic Browser Title for Matches
   useEffect(() => {
-    if (!game) {
-      document.title = 'bobsled';
+    if (!game || game.status === 'finished') {
+      document.title = 'bobsled.gg - Connect 4';
       return;
     }
 
     const isP1 = user?.id === game.player1;
     const isP2 = user?.id === game.player2;
 
-    let opponentName: string | null = null;
-    if (isP1) {
-      opponentName = game.player2Name || null;
-    } else if (isP2) {
-      opponentName = game.player1Name || null;
+    if (isP1 || isP2) {
+      const opponentName = isP1 ? game.player2Name : game.player1Name;
+      if (opponentName) {
+        document.title = `bobsled.gg - vs @${opponentName}`;
+      } else {
+        document.title = 'bobsled.gg - Connect 4';
+      }
     } else {
       // Spectator
       if (game.player1Name && game.player2Name) {
-        opponentName = `${game.player1Name} vs ${game.player2Name}`;
+        document.title = `bobsled.gg - @${game.player1Name} vs @${game.player2Name}`;
       } else if (game.player1Name) {
-        opponentName = game.player1Name;
+        document.title = `bobsled.gg - @${game.player1Name}`;
+      } else {
+        document.title = 'bobsled.gg - Connect 4';
       }
     }
 
-    if (opponentName) {
-      document.title = `bobsled vs ${opponentName}`;
-    } else {
-      document.title = 'bobsled';
-    }
-
     return () => {
-      document.title = 'bobsled';
-    };
-  }, [game, user]);
-
-  // Guest User Auto-Forfeit on Disconnect / Tab Close
-  useEffect(() => {
-    if (!game || game.status !== 'active' || !user?.id) return;
-
-    const isGuestUser = user.isTestUser || user.id.startsWith('test_');
-    const isP1 = game.player1 === user.id;
-    const isP2 = game.player2 === user.id;
-    if (!isP1 && !isP2) return;
-
-    const opponentId = isP1 ? game.player2 : game.player1;
-
-    // 1. Unload & Pagehide listener
-    const handleForfeitOnDisconnect = () => {
-      if (isGuestUser && game.status === 'active' && opponentId) {
-        updateDoc(doc(db, 'games', game.id), {
-          status: 'finished',
-          winner: opponentId,
-          updatedAt: serverTimestamp(),
-        }).catch(() => {});
-      }
-    };
-
-    window.addEventListener('beforeunload', handleForfeitOnDisconnect);
-    window.addEventListener('pagehide', handleForfeitOnDisconnect);
-
-    // 2. Periodic Heartbeat for guest users
-    if (isGuestUser) {
-      const field = isP1 ? 'player1Heartbeat' : 'player2Heartbeat';
-      heartbeatIntervalRef.current = setInterval(() => {
-        updateDoc(doc(db, 'games', game.id), {
-          [field]: Date.now(),
-          updatedAt: serverTimestamp(),
-        }).catch(() => {});
-      }, 3000);
-    }
-
-    // 3. Opponent checks if the guest user has disconnected (no heartbeat for > 8s)
-    const opponentIsGuest = isP1
-      ? (game.player2IsTest || game.player2?.startsWith('test_'))
-      : (game.player1IsTest || game.player1?.startsWith('test_'));
-
-    let disconnectCheckInterval: any = null;
-
-    if (opponentIsGuest) {
-      const oppHeartbeatField = isP1 ? 'player2Heartbeat' : 'player1Heartbeat';
-      disconnectCheckInterval = setInterval(() => {
-        const lastHb = game[oppHeartbeatField] || game.updatedAt?.toMillis?.() || 0;
-        if (Date.now() - lastHb > 8000 && game.status === 'active') {
-          updateDoc(doc(db, 'games', game.id), {
-            status: 'finished',
-            winner: user.id,
-            updatedAt: serverTimestamp(),
-          }).catch(() => {});
-        }
-      }, 2000);
-    }
-
-    return () => {
-      window.removeEventListener('beforeunload', handleForfeitOnDisconnect);
-      window.removeEventListener('pagehide', handleForfeitOnDisconnect);
-      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
-      if (disconnectCheckInterval) clearInterval(disconnectCheckInterval);
+      document.title = 'bobsled.gg - Connect 4';
     };
   }, [game, user]);
 
@@ -195,8 +124,6 @@ export default function Game() {
     setJoiningStatus('Preparing stake...');
 
     try {
-      let p2DepositTx: string | null = null;
-
       // If it's a SOL staked match, deposit into Escrow
       if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
         if (!publicKey || !signTransaction) {
@@ -206,40 +133,56 @@ export default function Game() {
 
         setJoiningStatus(`Approve ${game.wager} SOL deposit in your wallet...`);
 
-        p2DepositTx = await depositMatchStake({
+        const depositSig = await depositMatchStake({
           connection,
           signTransaction,
           publicKey,
           amountSol: game.wager,
+          onSigned: async (_sig) => {
+            setJoiningStatus('Entering match...');
+          }
         });
 
-        setJoiningStatus('Entering match...');
+        // Fully confirmed on-chain -> verify with backend
+        setJoiningStatus('Verifying deposit on backend...');
+        const verifyRes = await fetch('/api/escrow/verify-deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gameId: game.id,
+            role: 'player2',
+            txHash: depositSig,
+            senderWallet: publicKey.toBase58(),
+            userId: user.id,
+            username: user.username || 'Player 2',
+            avatarUrl: user.avatarUrl || null,
+          }),
+        });
+
+        if (!verifyRes.ok) {
+          const errData = await verifyRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to verify join deposit on-chain');
+        }
+      } else {
+        // Free game is active immediately
+        const firstTurn = Math.random() > 0.5 ? game.player1 : user.id;
+        const initialUpdates: any = {
+          player2: user.id,
+          player2Name: user.username || 'Player 2',
+          player2Avatar: user.avatarUrl || null,
+          player2IsTest: !!user.isTestUser,
+          players: [game.player1, user.id],
+          status: 'active',
+          turn: firstTurn,
+          updatedAt: serverTimestamp(),
+          escrowStatus: 'free',
+        };
+        if (publicKey) initialUpdates.p2Wallet = publicKey.toBase58();
+        
+        const gameRef = doc(db, 'games', game.id);
+        await updateDoc(gameRef, initialUpdates);
       }
-
-      // Randomly assign who goes first
-      const firstTurn = Math.random() > 0.5 ? game.player1 : user.id;
-
-      const updates: any = {
-        player2: user.id,
-        player2Name: user.username || 'Player 2',
-        player2Avatar: user.avatarUrl || null,
-        player2IsTest: !!user.isTestUser,
-        players: [game.player1, user.id],
-        status: 'active',
-        turn: firstTurn,
-        updatedAt: serverTimestamp(),
-      };
-
-      if (p2DepositTx) {
-        updates.p2DepositTx = p2DepositTx;
-        updates.escrowStatus = 'fully_funded';
-      }
-
-      if (publicKey) {
-        updates.p2Wallet = publicKey.toBase58();
-      }
-
-      await updateDoc(doc(db, 'games', game.id), updates);
+      
       setDismissedInviteModal(true);
     } catch (e: any) {
       logError('Failed to join match via invite:', e);
@@ -289,6 +232,13 @@ export default function Game() {
         updatedAt: serverTimestamp(),
       });
       setShowResignModal(false);
+      if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
+        fetch('/api/escrow/settle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId: game.id }),
+        }).catch((err) => logError('Resign settle failed:', err));
+      }
     } catch (e) {
       logError('Resign failed:', e);
     }
@@ -302,6 +252,13 @@ export default function Game() {
         winner: user.id,
         updatedAt: serverTimestamp(),
       });
+      if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
+        fetch('/api/escrow/settle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId: game.id }),
+        }).catch((err) => logError('AFK settle failed:', err));
+      }
     } catch (e) {
       logError('AFK claim failed:', e);
     }
@@ -323,6 +280,13 @@ export default function Game() {
 
     try {
       await updateDoc(doc(db, 'games', game.id), updates);
+      if (winner && game.wager > 0 && game.wagerCurrency !== 'FREE') {
+        fetch('/api/escrow/settle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId: game.id }),
+        }).catch((err) => logError('Move settle failed:', err));
+      }
     } catch (err) {
       logError('Move failed:', err);
     }
@@ -353,9 +317,48 @@ export default function Game() {
 
   if (!game) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] bg-[#0e0e0e]">
-        <div className="w-8 h-8 border-2 border-velocity-red/30 border-t-velocity-red rounded-full animate-spin mb-4" />
-        <p className="text-xs uppercase tracking-wider text-text-muted font-mono">Loading Game...</p>
+      <div className="min-h-screen flex flex-col bg-background text-text-primary antialiased w-full overflow-y-auto">
+        <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 pt-24 sm:pt-28 pb-8 flex flex-col gap-5">
+          {/* Top Bar Skeleton */}
+          <div className="w-full flex items-center justify-between gap-4 pb-2 border-b border-white/5">
+            <div className="h-10 w-36 rounded-full bg-white/5 skeleton-shimmer" />
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-28 rounded-full bg-white/5 skeleton-shimmer" />
+              <div className="h-8 w-20 rounded-full bg-white/5 skeleton-shimmer" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full items-start">
+            {/* Left Column Skeleton */}
+            <aside className="lg:col-span-3 space-y-4">
+              <div className="rounded-2xl p-4 border border-white/10 bg-white/5 space-y-4">
+                <div className="h-5 w-24 rounded bg-white/5 skeleton-shimmer" />
+                <div className="h-16 rounded-xl bg-black/40 border border-white/5 skeleton-shimmer" />
+                <div className="space-y-2">
+                  <div className="h-12 rounded-xl bg-black/40 border border-white/5 skeleton-shimmer" />
+                  <div className="h-12 rounded-xl bg-black/40 border border-white/5 skeleton-shimmer" />
+                </div>
+              </div>
+              <div className="rounded-2xl p-4 border border-white/10 bg-white/5 h-32 skeleton-shimmer" />
+            </aside>
+
+            {/* Center Board Skeleton */}
+            <section className="lg:col-span-6 flex flex-col items-center justify-start gap-4 w-full">
+              <div className="w-full max-w-lg aspect-[7/6] bg-white/5 border border-white/10 rounded-3xl p-5 flex flex-col justify-between">
+                <div className="grid grid-cols-7 gap-2.5 h-full">
+                  {Array.from({ length: 42 }).map((_, idx) => (
+                    <div key={idx} className="aspect-square rounded-full bg-black/60 border border-white/5 skeleton-shimmer" />
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* Right Chat Skeleton */}
+            <aside className="lg:col-span-3 w-full">
+              <div className="rounded-2xl p-4 border border-white/10 bg-white/5 h-[480px] skeleton-shimmer" />
+            </aside>
+          </div>
+        </main>
       </div>
     );
   }
@@ -400,7 +403,7 @@ export default function Game() {
   const isFreeGame = game.wager === 0 || game.wagerCurrency === 'FREE';
 
   return (
-    <div className="min-h-[calc(100vh-76px)] flex flex-col bg-[#0e0e0e] text-text-primary antialiased w-full overflow-y-auto">
+    <div className="min-h-screen flex flex-col bg-background text-text-primary antialiased w-full overflow-y-auto">
       
       {/* Floating User Profile Modal */}
       {selectedProfileId && (
@@ -424,63 +427,309 @@ export default function Game() {
 
       {/* Spectator Mode Banner */}
       {isSpectator && !showMatchInviteModal && (
-        <div className="w-full bg-[#141414] border-b border-white/10 py-2 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2 font-mono">
-          <span className="w-2 h-2 rounded-full bg-velocity-red animate-pulse" />
+        <div className="w-full bg-white/5 border-b border-white/10 py-2.5 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2 font-mono pt-20">
+          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           <span>Watching Match <strong className="text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>
         </div>
       )}
 
-      {/* Arena Main Container */}
-      <main className="flex-grow w-full max-w-6xl mx-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 flex flex-col lg:flex-row gap-5 lg:gap-6">
+      {/* Main Game Page Container */}
+      <main className={`flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 ${isSpectator && !showMatchInviteModal ? 'pt-6' : 'pt-24 sm:pt-28'} pb-8 flex flex-col gap-5`}>
         
-        {/* Right Column: Game Board & Actions (Rendered Top on Mobile, Right on Desktop) */}
-        <section className="flex-1 flex flex-col items-center justify-start gap-4 sm:gap-6 order-1 lg:order-2 w-full">
-          
-          {/* Top Bar Actions with Enhanced 'Back to Lobby' Button */}
-          <div className="w-full flex justify-between items-center">
-            <button
-              onClick={handleLeave}
-              className="flex items-center gap-2 text-xs sm:text-sm text-white font-bold py-2 sm:py-2.5 px-4 sm:px-5 rounded-full bg-[#1c1c1c] hover:bg-[#262626] border border-white/20 hover:border-velocity-red transition-all shadow-md font-mono cursor-pointer group shrink-0"
-            >
-              <ArrowLeft size={15} className="text-velocity-red group-hover:-translate-x-1 transition-transform" />
-              <span>Back to Lobby</span>
-            </button>
+        {/* Prominent Top Match Header Bar */}
+        <div className="w-full flex items-center justify-between gap-4 pb-2 border-b border-white/5">
+          <button
+            onClick={handleLeave}
+            className="flex items-center gap-2 text-xs sm:text-sm text-white font-bold py-2 sm:py-2.5 px-4 sm:px-5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary transition-all shadow-md font-mono cursor-pointer group shrink-0"
+          >
+            <ArrowLeft size={15} className="text-primary group-hover:-translate-x-1 transition-transform" />
+            <span>Back to Lobby</span>
+          </button>
 
-            {/* Mobile-Only Inactivity Timer pill */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 font-mono text-xs text-text-secondary shadow-sm">
+              <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">Match</span>
+              <span className="text-white font-bold">#{game.id.substring(0, 8).toUpperCase()}</span>
+            </div>
+
+            <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-mono font-bold text-white shadow-sm">
+              {isFreeGame ? 'Free' : <SolAmount amount={game.wager} className="text-primary font-bold" />}
+            </div>
+
+            <span
+              className={`text-[11px] px-3 py-1.5 rounded-full font-semibold uppercase tracking-wider font-mono ${
+                game.status === 'active'
+                  ? 'bg-primary/10 text-primary border border-primary/30'
+                  : game.status === 'waiting'
+                  ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                  : 'bg-white/5 text-text-secondary border border-white/10'
+              }`}
+            >
+              {game.status === 'active' ? 'Live' : game.status === 'waiting' ? 'Waiting' : 'Finished'}
+            </span>
+
+            {/* Inactivity Timer pill */}
             {game.status === 'active' && !isMyTurn && isParticipant && (
-              <div className="lg:hidden px-3 py-1.5 rounded-full bg-[#141414] border border-white/10 flex items-center gap-1.5 text-[11px] font-mono">
-                <AlertTriangle size={12} className="text-yellow-500" />
-                <span className={`font-bold ${afkSecondsLeft < 15 ? 'text-velocity-red animate-pulse' : 'text-text-secondary'}`}>
+              <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 flex items-center gap-1.5 text-xs font-mono">
+                <Warning size={13} className="text-yellow-500" />
+                <span className={`font-bold ${afkSecondsLeft < 15 ? 'text-primary animate-pulse' : 'text-text-secondary'}`}>
+                  {afkSecondsLeft}s
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 3-Column Responsive Layout: Left (Info) | Center (Board) | Right (Chat) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full items-start">
+        
+        {/* Left Column: Match Details & Share Links (col-span-3) */}
+        <aside className="lg:col-span-3 flex flex-col gap-4 order-2 lg:order-1 w-full">
+          
+          {/* Match Info Panel */}
+          <div className="rounded-2xl p-4 border border-white/10 shadow-xl bg-white/5 space-y-3.5">
+            <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
+              <div>
+                <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold font-mono">Match Info</span>
+                <h2 className="font-display text-base text-white font-bold font-mono">
+                  #{game.id.substring(0, 8).toUpperCase()}
+                </h2>
+              </div>
+              <span
+                className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider font-mono ${
+                  game.status === 'active'
+                    ? 'bg-primary/10 text-primary border border-primary/30'
+                    : game.status === 'waiting'
+                    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                    : 'bg-[#1e1e1e] text-text-secondary border border-white/10'
+                }`}
+              >
+                {game.status === 'active' ? 'Live' : game.status === 'waiting' ? 'Waiting' : 'Finished'}
+              </span>
+            </div>
+
+            {/* Stakes */}
+            <div className="flex justify-between items-center bg-background p-3 rounded-xl border border-white/5">
+              <div>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
+                <div className="font-display text-lg text-primary font-bold font-mono">
+                  {isFreeGame ? 'Free' : <SolAmount amount={game.wager} className="font-bold text-primary" />}
+                </div>
+              </div>
+              {!isFreeGame && (
+                <span className="text-xs text-text-secondary bg-[#1a1a1a] px-2.5 py-1 rounded-full border border-white/10 font-mono font-bold">
+                  SOL
+                </span>
+              )}
+            </div>
+
+            {/* Player VS Player */}
+            <div className="bg-background rounded-xl p-3 border border-white/5 space-y-2.5">
+              
+              {/* Player 1 */}
+              <div
+                onClick={() => !isP1Guest && game.player1 && setSelectedProfileId(game.player1)}
+                className={`flex items-center justify-between p-1 -m-1 rounded-xl transition-colors ${!isP1Guest ? 'group cursor-pointer hover:bg-white/5' : ''}`}
+                title={!isP1Guest ? 'View Profile' : 'Guest Player'}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-8 h-8 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
+                    p1IsRed ? 'border-primary shadow-[0_0_8px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                  }`}>
+                    {game.player1Avatar ? (
+                      <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className={`w-3 h-3 rounded-full ${p1IsRed ? 'bg-primary' : 'bg-white'}`} />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-display text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1 group-hover:text-primary transition-colors truncate">
+                      <span className="truncate">{p1DisplayName}</span>
+                      <span className={`text-[10px] font-semibold font-mono tracking-normal shrink-0 ${p1IsRed ? 'text-primary' : 'text-text-secondary'}`}>
+                        ({p1ColorLabel})
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-text-muted font-mono">
+                      {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
+                    </p>
+                  </div>
+                </div>
+                {game.status === 'active' && game.turn === game.player1 && (
+                  <span className={`w-2 h-2 rounded-full animate-ping shrink-0 ${p1IsRed ? 'bg-primary' : 'bg-white'}`} />
+                )}
+              </div>
+
+              {/* Minimal Divider */}
+              <div className="relative flex items-center justify-center my-0.5">
+                <div className="w-full border-t border-white/5" />
+                <span className="absolute bg-background px-2 text-[9px] text-text-muted uppercase font-semibold tracking-wider font-mono">vs</span>
+              </div>
+
+              {/* Player 2 */}
+              <div
+                onClick={() => !isP2Guest && game.player2 && setSelectedProfileId(game.player2)}
+                className={`flex items-center justify-between ${!isP2Guest && game.player2 ? 'group cursor-pointer hover:bg-white/5' : ''} p-1 -m-1 rounded-xl transition-colors`}
+                title={!isP2Guest && game.player2 ? 'View Profile' : ''}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-8 h-8 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
+                    p2IsRed ? 'border-primary shadow-[0_0_8px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
+                  }`}>
+                    {opponentAvatar && game.player2 ? (
+                      <img src={opponentAvatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className={`w-3 h-3 rounded-full ${p2IsRed ? 'bg-primary' : 'bg-white'}`} />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-display text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1 group-hover:text-primary transition-colors truncate">
+                      <span className="truncate">{game.player2 ? p2DisplayName : '...'}</span>
+                      <span className={`text-[10px] font-semibold font-mono tracking-normal shrink-0 ${p2IsRed ? 'text-primary' : 'text-text-secondary'}`}>
+                        ({p2ColorLabel})
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-text-muted font-mono">
+                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : '...'}
+                    </p>
+                  </div>
+                </div>
+                {game.status === 'active' && game.turn === game.player2 && (
+                  <span className={`w-2 h-2 rounded-full animate-ping shrink-0 ${p2IsRed ? 'bg-primary' : 'bg-white'}`} />
+                )}
+              </div>
+            </div>
+
+            {/* Inactivity warning (Desktop) */}
+            {game.status === 'active' && !isMyTurn && isParticipant && (
+              <div className="p-2 rounded-full bg-background border border-white/5 flex items-center justify-between text-xs px-3.5">
+                <span className="text-text-muted flex items-center gap-1 font-mono text-[11px]">
+                  <Warning size={12} className="text-yellow-500" />
+                  Opponent Timer:
+                </span>
+                <span className={`font-mono font-bold text-xs ${afkSecondsLeft < 15 ? 'text-primary animate-pulse' : 'text-text-secondary'}`}>
                   {afkSecondsLeft}s
                 </span>
               </div>
             )}
           </div>
 
+          {/* Share Links & Audit Panel */}
+          <div className="rounded-2xl p-3.5 border border-white/10 bg-white/5 space-y-2.5">
+            <h3 className="text-[11px] text-white font-bold uppercase tracking-wider font-mono">
+              Share Links
+            </h3>
+
+            {/* One-Time Player Invite Link */}
+            {game.status === 'waiting' && isPlayer1 && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-1 text-[10px] text-primary font-semibold font-display">
+                  <UserPlus size={11} />
+                  <span>Invite Player Link</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    id="playerInviteShareInput"
+                    name="playerInviteUrl"
+                    className="flex-grow bg-background border border-white/10 text-white text-[11px] px-3 py-1 rounded-full focus:border-primary outline-none select-all font-mono min-w-0"
+                    readOnly
+                    type="text"
+                    value={getInviteUrl()}
+                  />
+                  <button
+                    onClick={handleCopyInvite}
+                    className="bg-primary hover:bg-red-600 text-white px-3 py-1 rounded-full text-[11px] flex items-center gap-1 transition-colors font-medium cursor-pointer shadow-md font-mono shrink-0"
+                  >
+                    {copiedInvite ? <Check size={11} /> : <Copy size={11} />}
+                    <span>{copiedInvite ? 'Copied' : 'Invite'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Public Spectator Link */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1 text-[10px] text-text-secondary font-semibold font-display">
+                <Eye size={11} />
+                <span>Spectator Link</span>
+              </div>
+              <div className="flex gap-1.5">
+                <input
+                  id="spectatorShareInput"
+                  name="spectatorShareUrl"
+                  className="flex-grow bg-background border border-white/10 text-white text-[11px] px-3 py-1 rounded-full focus:border-primary outline-none select-all font-mono min-w-0"
+                  readOnly
+                  type="text"
+                  value={getSpectateUrl()}
+                />
+                <button
+                  onClick={handleCopySpectate}
+                  className="bg-[#1e1e1e] border border-white/10 hover:border-primary text-white px-3 py-1 rounded-full text-[11px] flex items-center gap-1 transition-colors font-medium cursor-pointer font-mono shrink-0"
+                >
+                  {copiedSpectate ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                  <span>{copiedSpectate ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* On-Chain Solscan Proof Link */}
+            {game.p1DepositTx && (
+              <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono">
+                <span className="text-text-muted">Host Deposit:</span>
+                <a
+                  href={`https://solscan.io/tx/${game.p1DepositTx}?cluster=devnet`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary hover:underline flex items-center gap-1"
+                >
+                  <span>Solscan</span>
+                  <ArrowUpRight size={9} />
+                </a>
+              </div>
+            )}
+            {game.p2DepositTx && (
+              <div className="pt-0.5 flex items-center justify-between text-[10px] font-mono">
+                <span className="text-text-muted">Player 2 Deposit:</span>
+                <a
+                  href={`https://solscan.io/tx/${game.p2DepositTx}?cluster=devnet`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary hover:underline flex items-center gap-1"
+                >
+                  <span>Solscan</span>
+                  <ArrowUpRight size={9} />
+                </a>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Center Column: Game Board & Actions (col-span-6) */}
+        <section className="lg:col-span-6 flex flex-col items-center justify-start gap-4 order-1 lg:order-2 w-full">
+
           {/* Mobile-Only Player Summary Bar Above Board */}
-          <div className="lg:hidden w-full bg-[#141414] border border-white/10 rounded-2xl p-2.5 flex items-center justify-between shadow-md font-mono text-xs">
+          <div className="lg:hidden w-full bg-white/5 border border-white/10 rounded-2xl p-2.5 flex items-center justify-between shadow-md font-mono text-xs">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className={`w-3 h-3 rounded-full shrink-0 ${p1IsRed ? 'bg-velocity-red shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
+              <span className={`w-3 h-3 rounded-full shrink-0 ${p1IsRed ? 'bg-primary shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
               <div className="min-w-0">
-                <p className={`truncate font-semibold text-xs ${game.turn === game.player1 && game.status === 'active' ? 'text-velocity-red font-bold' : 'text-white'}`}>
+                <p className={`truncate font-semibold text-xs ${game.turn === game.player1 && game.status === 'active' ? 'text-primary font-bold' : 'text-white'}`}>
                   {p1DisplayName}
                 </p>
                 <p className="text-[10px] text-text-muted">{p1ColorLabel}</p>
               </div>
             </div>
 
-            <div className="px-2.5 py-1 rounded-full bg-[#0e0e0e] border border-white/10 text-[10px] text-text-secondary font-bold shrink-0 mx-2">
+            <div className="px-2.5 py-1 rounded-full bg-background border border-white/10 text-[10px] text-text-secondary font-bold shrink-0 mx-2">
               {isFreeGame ? 'FREE' : <SolAmount amount={game.wager} />}
             </div>
 
             <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
               <div className="min-w-0">
-                <p className={`truncate font-semibold text-xs ${game.turn === game.player2 && game.status === 'active' ? 'text-velocity-red font-bold' : 'text-white'}`}>
+                <p className={`truncate font-semibold text-xs ${game.turn === game.player2 && game.status === 'active' ? 'text-primary font-bold' : 'text-white'}`}>
                   {game.player2 ? p2DisplayName : '...'}
                 </p>
                 <p className="text-[10px] text-text-muted">{p2ColorLabel}</p>
               </div>
-              <span className={`w-3 h-3 rounded-full shrink-0 ${p2IsRed ? 'bg-velocity-red shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
+              <span className={`w-3 h-3 rounded-full shrink-0 ${p2IsRed ? 'bg-primary shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
             </div>
           </div>
 
@@ -505,7 +754,7 @@ export default function Game() {
             {game.status === 'active' && isParticipant && (
               <button
                 onClick={() => setShowResignModal(true)}
-                className="bg-[#141414] hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 px-6 py-2.5 rounded-full text-xs uppercase tracking-wider transition-all flex items-center gap-2 font-semibold font-mono cursor-pointer"
+                className="bg-white/5 hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 px-6 py-2.5 rounded-full text-xs uppercase tracking-wider transition-all flex items-center gap-2 font-semibold font-mono cursor-pointer"
               >
                 <Flag size={14} /> Resign
               </button>
@@ -515,7 +764,7 @@ export default function Game() {
             {canClaimAfk && (
               <button
                 onClick={handleClaimAfk}
-                className="w-full sm:w-auto bg-velocity-red text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.6)] animate-bounce flex items-center justify-center gap-2 font-bold font-mono cursor-pointer"
+                className="w-full sm:w-auto bg-primary text-white text-xs uppercase tracking-wider px-6 py-2.5 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.6)] animate-bounce flex items-center justify-center gap-2 font-bold font-mono cursor-pointer"
               >
                 <Trophy size={14} /> Claim Win (Opponent Inactive)
               </button>
@@ -525,7 +774,7 @@ export default function Game() {
             {isFinished && (
               <button
                 onClick={handleLeave}
-                className="w-full sm:w-auto bg-velocity-red text-white text-xs uppercase tracking-wider px-8 py-3 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] font-bold flex items-center justify-center gap-2 font-mono cursor-pointer"
+                className="w-full sm:w-auto bg-primary text-white text-xs uppercase tracking-wider px-8 py-3 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.3)] font-bold flex items-center justify-center gap-2 font-mono cursor-pointer"
               >
                 <span>Return to Lobby</span>
                 <ArrowRight size={15} />
@@ -534,226 +783,12 @@ export default function Game() {
           </div>
         </section>
 
-        {/* Left Column: Match Details & Chat (1/3) */}
-        <aside className="w-full lg:w-80 flex flex-col gap-5 order-2 lg:order-1 shrink-0">
-          
-          {/* Match Info Panel */}
-          <div className="rounded-2xl p-4 sm:p-5 border border-white/10 shadow-2xl bg-[#141414] space-y-4">
-            <div className="flex justify-between items-center border-b border-white/10 pb-3">
-              <div>
-                <span className="text-[10px] text-text-muted uppercase tracking-wider block font-semibold font-mono">Match ID</span>
-                <h2 className="font-headline-lg text-lg text-white font-bold font-mono">
-                  #{game.id.substring(0, 8).toUpperCase()}
-                </h2>
-              </div>
-              <span
-                className={`text-[11px] px-3 py-1 rounded-full font-semibold uppercase tracking-wider font-mono ${
-                  game.status === 'active'
-                    ? 'bg-velocity-red/10 text-velocity-red border border-velocity-red/30'
-                    : game.status === 'waiting'
-                    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                    : 'bg-[#1e1e1e] text-text-secondary border border-white/10'
-                }`}
-              >
-                {game.status === 'active' ? 'Live' : game.status === 'waiting' ? 'Waiting' : 'Finished'}
-              </span>
-            </div>
-
-            {/* Stakes */}
-            <div className="flex justify-between items-center bg-[#0e0e0e] p-3.5 rounded-xl border border-white/5">
-              <div>
-                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-mono">Stakes</p>
-                <div className="font-headline-lg text-xl text-velocity-red font-bold font-mono">
-                  {isFreeGame ? 'Free' : <SolAmount amount={game.wager} className="font-bold text-velocity-red" />}
-                </div>
-              </div>
-              {!isFreeGame && (
-                <span className="text-xs text-text-secondary bg-[#1a1a1a] px-3 py-1 rounded-full border border-white/10 font-mono font-bold">
-                  SOL
-                </span>
-              )}
-            </div>
-
-            {/* Player VS Player */}
-            <div className="bg-[#0e0e0e] rounded-xl p-4 border border-white/5 space-y-3.5">
-              
-              {/* Player 1 */}
-              <div
-                onClick={() => !isP1Guest && game.player1 && setSelectedProfileId(game.player1)}
-                className={`flex items-center justify-between p-1.5 -m-1.5 rounded-xl transition-colors ${!isP1Guest ? 'group cursor-pointer hover:bg-white/5' : ''}`}
-                title={!isP1Guest ? 'View Profile' : 'Guest Player'}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
-                    p1IsRed ? 'border-velocity-red shadow-[0_0_10px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_10px_rgba(255,255,255,0.25)]'
-                  }`}>
-                    {game.player1Avatar ? (
-                      <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className={`w-3.5 h-3.5 rounded-full ${p1IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-headline-lg text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
-                      <span>{p1DisplayName}</span>
-                      <span className={`text-[11px] font-semibold font-mono tracking-normal ${p1IsRed ? 'text-velocity-red' : 'text-text-secondary'}`}>
-                        ({p1ColorLabel})
-                      </span>
-                    </p>
-                    <p className="text-xs text-text-muted font-mono">
-                      {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
-                    </p>
-                  </div>
-                </div>
-                {game.status === 'active' && game.turn === game.player1 && (
-                  <span className={`w-2.5 h-2.5 rounded-full animate-ping ${p1IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
-                )}
-              </div>
-
-              {/* Minimal Divider */}
-              <div className="relative flex items-center justify-center my-1">
-                <div className="w-full border-t border-white/5" />
-                <span className="absolute bg-[#0e0e0e] px-2 text-[10px] text-text-muted uppercase font-semibold tracking-wider font-mono">vs</span>
-              </div>
-
-              {/* Player 2 */}
-              <div
-                onClick={() => !isP2Guest && game.player2 && setSelectedProfileId(game.player2)}
-                className={`flex items-center justify-between ${!isP2Guest && game.player2 ? 'group cursor-pointer hover:bg-white/5' : ''} p-1.5 -m-1.5 rounded-xl transition-colors`}
-                title={!isP2Guest && game.player2 ? 'View Profile' : ''}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
-                    p2IsRed ? 'border-velocity-red shadow-[0_0_10px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_10px_rgba(255,255,255,0.25)]'
-                  }`}>
-                    {opponentAvatar && game.player2 ? (
-                      <img src={opponentAvatar} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className={`w-3.5 h-3.5 rounded-full ${p2IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-headline-lg text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-velocity-red transition-colors">
-                      <span>{game.player2 ? p2DisplayName : '...'}</span>
-                      <span className={`text-[11px] font-semibold font-mono tracking-normal ${p2IsRed ? 'text-velocity-red' : 'text-text-secondary'}`}>
-                        ({p2ColorLabel})
-                      </span>
-                    </p>
-                    <p className="text-xs text-text-muted font-mono">
-                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : '...'}
-                    </p>
-                  </div>
-                </div>
-                {game.status === 'active' && game.turn === game.player2 && (
-                  <span className={`w-2.5 h-2.5 rounded-full animate-ping ${p2IsRed ? 'bg-velocity-red' : 'bg-white'}`} />
-                )}
-              </div>
-            </div>
-
-            {/* Inactivity warning (Desktop) */}
-            {game.status === 'active' && !isMyTurn && isParticipant && (
-              <div className="hidden lg:flex p-2.5 rounded-full bg-[#0e0e0e] border border-white/5 items-center justify-between text-xs px-4">
-                <span className="text-text-muted flex items-center gap-1.5 font-mono">
-                  <AlertTriangle size={13} className="text-yellow-500" />
-                  Opponent Timer:
-                </span>
-                <span className={`font-mono font-bold ${afkSecondsLeft < 15 ? 'text-velocity-red animate-pulse' : 'text-text-secondary'}`}>
-                  {afkSecondsLeft}s
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Share Links & On-Chain Audit Panel */}
-          <div className="rounded-2xl p-4 border border-white/10 bg-[#141414] space-y-3">
-            <h3 className="text-xs text-white font-bold uppercase tracking-wider font-mono">
-              Share Links
-            </h3>
-
-            {/* One-Time Player Invite Link */}
-            {game.status === 'waiting' && isPlayer1 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1 text-[11px] text-velocity-red font-semibold font-headline-lg">
-                  <UserPlus size={12} />
-                  <span>Invite Player Link (To Play)</span>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3 py-1.5 rounded-full focus:border-velocity-red outline-none select-all font-mono"
-                    readOnly
-                    type="text"
-                    value={getInviteUrl()}
-                  />
-                  <button
-                    onClick={handleCopyInvite}
-                    className="bg-velocity-red hover:bg-red-600 text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1 transition-colors font-medium cursor-pointer shadow-md font-mono shrink-0"
-                  >
-                    {copiedInvite ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copiedInvite ? 'Copied' : 'Invite'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Public Spectator Link */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1 text-[11px] text-text-secondary font-semibold font-headline-lg">
-                <Eye size={12} />
-                <span>Spectator Link (To Watch)</span>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  className="flex-grow bg-[#0e0e0e] border border-white/10 text-white text-xs px-3 py-1.5 rounded-full focus:border-velocity-red outline-none select-all font-mono"
-                  readOnly
-                  type="text"
-                  value={getSpectateUrl()}
-                />
-                <button
-                  onClick={handleCopySpectate}
-                  className="bg-[#1e1e1e] border border-white/10 hover:border-velocity-red text-white px-3.5 py-1.5 rounded-full text-xs flex items-center gap-1 transition-colors font-medium cursor-pointer font-mono shrink-0"
-                >
-                  {copiedSpectate ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                  <span>{copiedSpectate ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* On-Chain Solscan Proof Link */}
-            {game.p1DepositTx && (
-              <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono">
-                <span className="text-text-muted">Host Deposit Proof:</span>
-                <a
-                  href={`https://solscan.io/tx/${game.p1DepositTx}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-velocity-red hover:underline flex items-center gap-1"
-                >
-                  <span>Solscan</span>
-                  <ExternalLink size={10} />
-                </a>
-              </div>
-            )}
-            {game.p2DepositTx && (
-              <div className="pt-1 flex items-center justify-between text-[11px] font-mono">
-                <span className="text-text-muted">Player 2 Deposit:</span>
-                <a
-                  href={`https://solscan.io/tx/${game.p2DepositTx}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-velocity-red hover:underline flex items-center gap-1"
-                >
-                  <span>Solscan</span>
-                  <ExternalLink size={10} />
-                </a>
-              </div>
-            )}
-          </div>
-
-          {/* Chat Panel */}
-          <div className="rounded-2xl border border-white/10 overflow-hidden flex flex-col h-64 bg-[#141414] shadow-xl">
+        {/* Right Column: Chat Box (col-span-3) */}
+        <aside className="lg:col-span-3 flex flex-col order-3 w-full">
+          <div className="rounded-2xl border border-white/10 overflow-hidden flex flex-col h-[520px] bg-white/5 shadow-xl">
             {isSpectator ? (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-2 bg-[#121212]">
-                <MessageSquareOff size={24} className="text-text-muted mb-1" />
+                <ChatCircleOff size={24} className="text-text-muted mb-1" />
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
                   Private Chat
                 </h4>
@@ -766,6 +801,7 @@ export default function Game() {
             )}
           </div>
         </aside>
+        </div>
       </main>
 
       {/* In-App Custom Resign Confirmation Modal */}
@@ -783,7 +819,7 @@ export default function Game() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-[#141414] border border-white/10 shadow-2xl rounded-3xl p-6 sm:p-8 space-y-5"
+              className="w-full max-w-md bg-white/5 border border-white/10 shadow-2xl rounded-3xl p-6 sm:p-8 space-y-5"
             >
               <h3 className="text-lg font-bold text-white font-headline-lg">Resign Match</h3>
               <p className="text-xs text-text-secondary">
@@ -821,15 +857,15 @@ export default function Game() {
               initial={{ scale: 0.9, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 15 }}
-              className="rounded-3xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-velocity-red/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-[#141414] relative overflow-hidden"
+              className="rounded-3xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-primary/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-white/5 relative overflow-hidden"
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
+              <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
 
               {/* Icon */}
               <div
                 className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl ${
                   isWinner
-                    ? 'bg-velocity-red text-white shadow-[0_0_25px_rgba(255,77,77,0.7)]'
+                    ? 'bg-primary text-white shadow-[0_0_25px_rgba(255,77,77,0.7)]'
                     : isDraw
                     ? 'bg-[#222222] text-text-muted'
                     : 'bg-[#1a1a1a] text-text-secondary border border-white/10'
@@ -843,21 +879,52 @@ export default function Game() {
                 <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
                 </h2>
-                <div className="text-sm text-text-secondary font-sans">
+                <div className="text-sm text-text-secondary font-sans space-y-2">
                   {isWinner ? (
                     isFreeGame ? (
-                      'Free game'
+                      <div>Free game</div>
                     ) : (
-                      <span className="inline-flex items-center gap-1">
-                        Prize: <SolAmount amount={game.wager * 2} className="font-bold text-velocity-red" />
-                      </span>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1">
+                          <span>Prize:</span>
+                          <SolAmount amount={game.wager * 2} className="font-bold text-primary font-mono" />
+                        </div>
+                        {game.payoutTx ? (
+                          <div className="flex flex-col items-center gap-1 pt-1">
+                            <span className="text-xs text-emerald-400 font-mono">
+                              ✓ Disbursed to your wallet
+                            </span>
+                            <a
+                              href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                            >
+                              <span>View on Solscan</span>
+                              <ArrowUpRight size={11} />
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-mono pt-1">
+                            <CircleNotch size={13} className="animate-spin text-primary" />
+                            <span>Disbursing winnings to wallet...</span>
+                          </div>
+                        )}
+                      </div>
                     )
                   ) : isDraw ? (
-                    'The match ended in a draw.'
+                    <div>
+                      The match ended in a draw.
+                      {!isFreeGame && (
+                        <p className="text-xs text-emerald-400 font-mono mt-1">
+                          Deposit returned to your wallet.
+                        </p>
+                      )}
+                    </div>
                   ) : isSpectator ? (
-                    `Winner: ${game.winner === game.player1 ? 'Player 1' : 'Player 2'}`
+                    <div>Winner: {game.winner === game.player1 ? 'Player 1' : 'Player 2'}</div>
                   ) : (
-                    'Match completed.'
+                    <div>Match completed. Better luck next time!</div>
                   )}
                 </div>
               </div>
@@ -868,7 +935,7 @@ export default function Game() {
                   setShowWinModal(false);
                   handleLeave();
                 }}
-                className="w-full bg-velocity-red text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono cursor-pointer"
+                className="w-full bg-primary text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono cursor-pointer"
               >
                 Back to Lobby
               </button>

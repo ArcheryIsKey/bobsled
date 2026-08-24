@@ -5,7 +5,7 @@ import { logWarn } from './logger';
 export const SOLANA_RPC_FALLBACKS = [
   (import.meta as any).env?.VITE_SOLANA_RPC_URL,
   SOLANA_RPC_URL,
-  'https://api.mainnet-beta.solana.com',
+  'https://api.devnet.solana.com',
 ].filter(Boolean) as string[];
 
 export async function getReliableBlockhash(primaryConnection?: Connection): Promise<{
@@ -75,11 +75,13 @@ export async function depositMatchStake({
   signTransaction,
   publicKey,
   amountSol,
+  onSigned,
 }: {
   connection: Connection;
   signTransaction: (transaction: Transaction) => Promise<Transaction>;
   publicKey: PublicKey;
   amountSol: number;
+  onSigned?: (signature: string) => Promise<void>;
 }): Promise<string> {
   const escrowPubkey = new PublicKey(ESCROW_HOUSE_WALLET);
   const lamports = Math.round(amountSol * LAMPORTS_PER_SOL);
@@ -96,7 +98,7 @@ export async function depositMatchStake({
     })
   );
 
-  const { blockhash, lastValidBlockHeight, connection: activeConn } = await getReliableBlockhash(connection);
+  const { blockhash, connection: activeConn } = await getReliableBlockhash(connection);
   transaction.recentBlockhash = blockhash;
   transaction.feePayer = publicKey;
 
@@ -110,11 +112,17 @@ export async function depositMatchStake({
     preflightCommitment: 'confirmed',
   });
 
+  if (onSigned) {
+    await onSigned(signature);
+  }
+
   // Confirm via HTTP polling without WebSocket dependency
   try {
     await waitForConfirmation(activeConn, signature);
   } catch (err: any) {
     logWarn('Confirmation notice:', err?.message);
+    // Even if confirmation polling times out, the tx might succeed.
+    // The backend's recovery job will verify its final status.
   }
 
   return signature;

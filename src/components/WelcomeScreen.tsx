@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { User, FlaskConical } from 'lucide-react';
+import { User, Flask } from '@phosphor-icons/react';
 import MatchInviteModal from './MatchInviteModal';
 
 interface WelcomeScreenProps {
@@ -48,9 +48,9 @@ export default function WelcomeScreen({
       <div className="w-full max-w-md space-y-6">
         
         {/* Main Welcome Container */}
-        <div className="bg-[#141414] border border-white/10 p-8 sm:p-10 rounded-3xl shadow-2xl flex flex-col items-center text-center gap-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-velocity-red" />
-          <div className="absolute top-0 right-0 w-64 h-64 bg-velocity-red/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="bg-background border border-white/10 p-8 sm:p-10 rounded-3xl shadow-2xl flex flex-col items-center text-center gap-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
 
           {/* Logo & Headline */}
           <div className="space-y-2 relative z-10">
@@ -58,7 +58,7 @@ export default function WelcomeScreen({
               <img src="/logo.jpg" alt="bobsled.gg" className="w-full h-full object-cover mix-blend-screen" />
             </div>
             <h1 className="font-headline-lg text-3xl sm:text-4xl text-white font-bold tracking-tight">
-              bobsled<span className="text-velocity-red">.</span>gg
+              bobsled<span className="text-primary">.</span>gg
             </h1>
             <p className="text-xs text-text-secondary max-w-[280px] mx-auto">
               High-performance on-chain Connect 4. Connect your wallet or guest mode to start playing right away.
@@ -69,7 +69,7 @@ export default function WelcomeScreen({
           <div className="w-full space-y-3 relative z-10">
             <button
               onClick={() => setVisible(true)}
-              className="w-full h-12 bg-velocity-red hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
+              className="w-full h-12 bg-primary hover:bg-red-600 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider rounded-full transition-all shadow-[0_0_20px_rgba(255,77,77,0.4)] flex items-center justify-center gap-2 font-mono cursor-pointer"
             >
               <User size={16} />
               <span>Connect Wallet to Play</span>
@@ -79,26 +79,29 @@ export default function WelcomeScreen({
           {/* Divider */}
           <div className="relative flex items-center justify-center w-full my-1">
             <div className="w-full border-t border-white/10" />
-            <span className="absolute bg-[#141414] px-3 text-[11px] text-text-muted font-mono uppercase">OR</span>
+            <span className="absolute bg-background px-3 text-[11px] text-text-muted font-mono uppercase">OR</span>
           </div>
 
           {/* Guest Mode */}
           {onTestLogin && (
             <div className="w-full space-y-3 relative z-10">
               <div className="flex items-center justify-center gap-1.5 text-xs text-text-secondary font-semibold font-mono">
-                <FlaskConical size={14} className="text-velocity-red" />
+                <Flask size={14} className="text-primary" />
                 <span>Guest Mode</span>
               </div>
 
               <form onSubmit={handleGuestSubmit} className="flex flex-col gap-2.5 w-full">
                 <div className="relative">
                   <input
+                    id="guestUsernameInput"
+                    name="guestUsername"
+                    autoComplete="username"
                     type="text"
                     maxLength={20}
                     placeholder="Enter guest username..."
                     value={guestUsername}
                     onChange={(e) => setGuestUsername(e.target.value)}
-                    className="w-full h-11 bg-[#0e0e0e] border border-white/10 focus:border-velocity-red rounded-full px-4 text-xs text-white text-center font-mono outline-none transition-colors placeholder:text-text-muted"
+                    className="w-full h-11 bg-black border border-white/10 focus:border-primary rounded-full px-4 text-xs text-white text-center font-mono outline-none transition-colors placeholder:text-text-muted"
                   />
                 </div>
                 <button
@@ -106,7 +109,7 @@ export default function WelcomeScreen({
                   disabled={!guestUsername.trim()}
                   className="w-full h-10 bg-[#202020] hover:bg-[#282828] disabled:opacity-40 text-white font-semibold text-xs uppercase tracking-wider rounded-full transition-all border border-white/10 font-mono flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <FlaskConical size={13} className="text-velocity-red" />
+                  <Flask size={13} className="text-primary" />
                   <span>Play as Guest</span>
                 </button>
               </form>

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -331,15 +332,18 @@ const PORT = process.env.PORT || 3000;
 // In-memory store for nonces
 const nonces = new Map<string, string>();
 
+const crypto = require('crypto');
 function generateNonce() {
-  return Math.floor(Math.random() * 1000000).toString();
+  return crypto.randomBytes(32).toString('base64url');
 }
 
+const NonceSchema = z.object({ publicKey: z.string().min(32).max(44) }).strict();
 app.post('/api/auth/nonce', (req, res) => {
-  const { publicKey } = req.body;
-  if (!publicKey) {
-    return res.status(400).json({ error: 'Public key is required' });
+  const parseResult = NonceSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parseResult.error.errors });
   }
+  const { publicKey } = parseResult.data;
   const nonce = generateNonce();
   nonces.set(publicKey, nonce);
   res.json({ nonce });
@@ -420,7 +424,17 @@ app.get('/api/solana/balance', async (req, res) => {
 });
 
 // JSON-RPC Proxy for Solana Web3 client requests (CORS-free, high-reliability)
+const RpcSchema = z.object({
+  jsonrpc: z.literal('2.0'),
+  id: z.union([z.string().max(50), z.number()]).optional(),
+  method: z.string().min(1).max(50),
+  params: z.array(z.any()).max(10).optional(),
+}).strict();
 app.post('/api/solana/rpc', async (req, res) => {
+  const parseResult = RpcSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ jsonrpc: '2.0', error: { code: -32600, message: 'Invalid Request' }, id: req.body?.id || null });
+  }
   const rpcEndpoints = [
     process.env.SOLANA_RPC_URL,
     SOLANA_NETWORK === 'devnet'
@@ -987,6 +1001,10 @@ app.post('/api/escrow/refund-cancel', async (req, res) => {
 
 // 5. Cron Job to Recover Pending Transactions
 app.post('/api/cron/recover', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     const db = getFirestore();
     const conn = getSolanaConnection();

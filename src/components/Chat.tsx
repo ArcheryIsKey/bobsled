@@ -113,13 +113,14 @@ export default function Chat({ gameId }: { gameId: string }) {
             autoComplete="off"
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => setText(e.target.value.slice(0, 200))}
+            maxLength={200}
             placeholder="Type a message..."
             className="flex-1 bg-[#101010] border border-white/10 text-white text-xs px-3.5 py-2 rounded-full focus:border-primary outline-none placeholder:text-text-muted"
           />
           <button
             type="submit"
-            disabled={!text.trim()}
+            disabled={!text.trim() || text.length > 200}
             className="w-8 h-8 rounded-full bg-primary hover:bg-red-600 disabled:opacity-40 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
             <PaperPlaneRight size={13} />

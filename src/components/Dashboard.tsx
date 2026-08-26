@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -17,6 +17,7 @@ function WagerPill({
   isSelected,
   onClick,
 }: {
+  key?: number;
   amt: number;
   isSelected: boolean;
   onClick: () => void;
@@ -385,7 +386,7 @@ export default function Dashboard() {
     }
   };
 
-  const handlePlayerClick = (e: React.MouseEvent, playerId: string | null, isGuest: boolean, matchSlotKey: string) => {
+  const handlePlayerClick = (e: MouseEvent, playerId: string | null, isGuest: boolean, matchSlotKey: string) => {
     e.stopPropagation();
     if (!playerId) return;
     if (isGuest || playerId.startsWith('test_')) {

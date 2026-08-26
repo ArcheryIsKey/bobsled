@@ -13,6 +13,13 @@ export function processImageFile(
       reject(new Error('Selected file is not an image'));
       return;
     }
+    
+    // Check file size (10 MB max)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      reject(new Error('Image file is too large (max 10MB)'));
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -77,6 +84,13 @@ export function processBannerFile(
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {
       reject(new Error('Selected file is not an image'));
+      return;
+    }
+    
+    // Check file size (10 MB max)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      reject(new Error('Banner image file is too large (max 10MB)'));
       return;
     }
 

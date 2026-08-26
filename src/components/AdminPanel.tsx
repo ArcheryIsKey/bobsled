@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -139,7 +139,7 @@ export default function AdminPanel() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleOpponentClick = (e: React.MouseEvent, oppId: string | null, matchId: string) => {
+  const handleOpponentClick = (e: MouseEvent, oppId: string | null, matchId: string) => {
     e.stopPropagation();
     if (!oppId || oppId.startsWith('test_')) {
       setTestUserToast({ matchId, message: 'Guest User (Temporary Account)' });

@@ -47,7 +47,12 @@ service cloud.firestore {
         && data.status in ['waiting', 'active', 'finished']
         && data.board is list && data.board.size() == 42
         && data.wager is number
+        && data.wager <= 100
         && data.wagerCurrency in ['SOL', 'FREE']
+        && (
+             (data.wagerCurrency == 'FREE' && data.wager == 0) ||
+             (data.wagerCurrency == 'SOL' && data.wager >= 0.001)
+           )
         && (!("player1Avatar" in data) || data.player1Avatar == null || data.player1Avatar is string)
         && (!("player2Avatar" in data) || data.player2Avatar == null || data.player2Avatar is string)
         && (!("player2Name" in data) || (data.player2Name == null || (data.player2Name is string && data.player2Name.size() <= 50)))
@@ -121,12 +126,15 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && isValidId(gameId)
         && isValidGameUpdate(incoming())
+        && incoming().wager == existing().wager
+        && incoming().wagerCurrency == existing().wagerCurrency
         && existing().status != 'finished'
         && (
           // Action: Join game
           (
             existing().status == 'waiting'
             && incoming().status in ['waiting', 'active']
+            && incoming().board == existing().board
             && (
               ownsWallet(incoming().player2) ||
               ownsWallet(incoming().player1)

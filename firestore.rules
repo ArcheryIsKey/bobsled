@@ -72,10 +72,12 @@ service cloud.firestore {
         && data.text is string && data.text.size() <= 500;
     }
 
-    // Owner is permanently 11111111111111111111111111111111
     function isOwner() {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.walletAddress == '11111111111111111111111111111111';
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner')
+      );
     }
 
     function isAdmin() {
@@ -90,7 +92,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow list: if isAdmin();
       // Owner cannot be deleted by anyone
-      allow delete: if isOwner() && existing().walletAddress != '11111111111111111111111111111111';
+      allow delete: if isOwner() && existing().role != 'owner';
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming());
       allow update: if (isSignedIn() && request.auth.uid == userId 
           && isValidId(userId)

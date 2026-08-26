@@ -47,14 +47,7 @@ try {
 }
 
 // -------------------------------------------------------------
-// ESCROW VAULT & HOUSE TREASURY INITIALIZATION
-// -------------------------------------------------------------
-let houseWallet = (process.env.HOUSE_WALLET_ADDRESS || '').trim();
-if (!houseWallet && process.env.ESCROW_PRIVATE_KEY?.includes('HOUSE_WALLET_ADDRESS=')) {
-  const match = process.env.ESCROW_PRIVATE_KEY.match(/HOUSE_WALLET_ADDRESS=([^\s]+)/);
-  if (match) houseWallet = match[1];
-}
-const HOUSE_WALLET_ADDRESS = houseWallet || '11111111111111111111111111111111';
+const HOUSE_WALLET_ADDRESS = (process.env.HOUSE_WALLET_ADDRESS || '').trim();
 const rawHouseFee = parseFloat(process.env.HOUSE_FEE_PERCENT || '3.5');
 const HOUSE_FEE_PERCENT = Math.min(Math.max(isNaN(rawHouseFee) ? 3.5 : rawHouseFee, 0.0), 20.0);
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'devnet';

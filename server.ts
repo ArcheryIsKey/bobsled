@@ -769,7 +769,8 @@ async function settleGameInternal(gameId: string): Promise<any> {
   }
 
   const winnerPubkey = new PublicKey(winnerWalletStr);
-  const housePubkey = new PublicKey(HOUSE_WALLET_ADDRESS);
+  const houseWallet = HOUSE_WALLET_ADDRESS && HOUSE_WALLET_ADDRESS.length >= 32 ? HOUSE_WALLET_ADDRESS : null;
+  const housePubkey = houseWallet ? new PublicKey(houseWallet) : null;
 
   const tx = new Transaction().add(
     // 1. Transfer prize to winner
@@ -781,7 +782,7 @@ async function settleGameInternal(gameId: string): Promise<any> {
   );
 
   // 2. Transfer house rake to treasury if > 0 and not transferring to self
-  if (houseFeeLamports > 0 && HOUSE_WALLET_ADDRESS !== escrowKeypair.publicKey.toBase58()) {
+  if (houseFeeLamports > 0 && housePubkey && houseWallet !== escrowKeypair.publicKey.toBase58()) {
     tx.add(
       SystemProgram.transfer({
         fromPubkey: escrowKeypair.publicKey,

@@ -70,6 +70,31 @@ export async function waitForConfirmation(
   return signature;
 }
 
+let cachedEscrowPublicKey: string | null = null;
+
+export async function getEscrowPublicKey(): Promise<string> {
+  if (cachedEscrowPublicKey && cachedEscrowPublicKey.length >= 32) {
+    return cachedEscrowPublicKey;
+  }
+  if (ESCROW_HOUSE_WALLET && ESCROW_HOUSE_WALLET.length >= 32) {
+    cachedEscrowPublicKey = ESCROW_HOUSE_WALLET;
+    return cachedEscrowPublicKey;
+  }
+  try {
+    const res = await fetch('/api/escrow/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.escrowPublicKey && typeof data.escrowPublicKey === 'string' && data.escrowPublicKey.length >= 32) {
+        cachedEscrowPublicKey = data.escrowPublicKey;
+        return cachedEscrowPublicKey;
+      }
+    }
+  } catch (e: any) {
+    logWarn('Failed to fetch escrow config from server:', e?.message);
+  }
+  throw new Error('Escrow vault public key is unavailable. Please try again.');
+}
+
 export async function depositMatchStake({
   connection,
   signTransaction,
@@ -83,7 +108,8 @@ export async function depositMatchStake({
   amountSol: number;
   onSigned?: (signature: string) => Promise<void>;
 }): Promise<string> {
-  const escrowPubkey = new PublicKey(ESCROW_HOUSE_WALLET);
+  const escrowKeyStr = await getEscrowPublicKey();
+  const escrowPubkey = new PublicKey(escrowKeyStr);
   const lamports = Math.round(amountSol * LAMPORTS_PER_SOL);
 
   if (lamports <= 0) {

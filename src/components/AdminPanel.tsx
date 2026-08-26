@@ -59,7 +59,7 @@ export default function AdminPanel() {
   // Admin Role Toggle State
   const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
 
-  const isOwner = currentUser?.walletAddress === OWNER_WALLET;
+  const isOwner = currentUser?.role === 'owner' || (!!OWNER_WALLET && currentUser?.walletAddress === OWNER_WALLET);
   const isAdmin = isOwner || currentUser?.isAdmin || currentUser?.role === 'admin';
 
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function AdminPanel() {
 
   const handleToggleAdminRole = async (targetUser: any) => {
     if (!isOwner) return;
-    if (targetUser.walletAddress === OWNER_WALLET) {
+    if (targetUser.role === 'owner' || (!!OWNER_WALLET && targetUser.walletAddress === OWNER_WALLET)) {
       alert('The platform owner role is permanent and cannot be modified.');
       return;
     }
@@ -198,7 +198,7 @@ export default function AdminPanel() {
 
   const handleConfirmDeleteUser = async () => {
     if (!userToDelete) return;
-    if (userToDelete.walletAddress === OWNER_WALLET) {
+    if (userToDelete.role === 'owner' || (!!OWNER_WALLET && userToDelete.walletAddress === OWNER_WALLET)) {
       alert('The platform owner account cannot be deleted.');
       return;
     }
@@ -458,7 +458,7 @@ export default function AdminPanel() {
                       ? u.createdAt.toDate().toLocaleDateString()
                       : 'Earlier';
                     const walletStr = u.walletAddress || 'None';
-                    const isTargetOwner = u.walletAddress === OWNER_WALLET;
+                    const isTargetOwner = u.role === 'owner' || (!!OWNER_WALLET && u.walletAddress === OWNER_WALLET);
                     const isTargetAdmin = isTargetOwner || u.isAdmin || u.role === 'admin';
                     const isTest = u.isTestUser || !u.walletAddress;
                     const displayLabel = isTest ? (u.username || 'Guest') : `@${u.username}`;
@@ -759,12 +759,12 @@ export default function AdminPanel() {
                     <h3 className="text-xl font-bold text-white font-headline-lg truncate">
                       {inspectUser.isTestUser || !inspectUser.walletAddress ? inspectUser.username : `@${inspectUser.username}`}
                     </h3>
-                    {inspectUser.walletAddress === OWNER_WALLET && (
+                    {(inspectUser.role === 'owner' || (!!OWNER_WALLET && inspectUser.walletAddress === OWNER_WALLET)) && (
                       <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
                         <Crown size={11} /> Owner
                       </span>
                     )}
-                    {(inspectUser.isAdmin || inspectUser.role === 'admin') && inspectUser.walletAddress !== OWNER_WALLET && (
+                    {(inspectUser.isAdmin || inspectUser.role === 'admin') && inspectUser.role !== 'owner' && (!OWNER_WALLET || inspectUser.walletAddress !== OWNER_WALLET) && (
                       <span className="px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/40 text-[10px] font-bold uppercase font-mono flex items-center gap-1 shrink-0">
                         <ShieldCheck size={11} /> Admin
                       </span>
@@ -916,7 +916,7 @@ export default function AdminPanel() {
               {/* Bottom Actions */}
               <div className="p-4 border-t border-white/10 bg-background flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
-                  {isOwner && inspectUser.walletAddress !== OWNER_WALLET && (
+                  {isOwner && inspectUser.role !== 'owner' && (!OWNER_WALLET || inspectUser.walletAddress !== OWNER_WALLET) && (
                     <button
                       onClick={() => handleToggleAdminRole(inspectUser)}
                       disabled={roleUpdatingId === inspectUser.id}
@@ -935,7 +935,7 @@ export default function AdminPanel() {
                       )}
                     </button>
                   )}
-                  {inspectUser.walletAddress !== OWNER_WALLET && (
+                  {inspectUser.role !== 'owner' && (!OWNER_WALLET || inspectUser.walletAddress !== OWNER_WALLET) && (
                     <button
                       onClick={() => {
                         setUserToDelete(inspectUser);

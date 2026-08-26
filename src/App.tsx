@@ -20,7 +20,7 @@ import ToastContainer from './components/Toast';
 import { useSolPrice } from './utils/solPrice';
 import { OWNER_WALLET, SOLANA_FAUCET_URL } from './constants';
 import { logError, logWarn } from './utils/logger';
-import { Shield, User, Flask, Drop, ArrowSquareOut } from '@phosphor-icons/react';
+import { Shield, User, Flask, Drop, ArrowSquareOut, Crown } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 async function cleanupGuestUserGames(guestUserId: string) {
@@ -84,7 +84,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
     navigate('/');
   };
 
-  const isOwner = user?.walletAddress === OWNER_WALLET;
+  const isOwner = user?.role === 'owner' || (!!OWNER_WALLET && user?.walletAddress === OWNER_WALLET);
   const isAdmin = isOwner || user?.isAdmin || user?.role === 'admin';
   const isLobby = location.pathname === '/';
   const isAdminRoute = location.pathname === '/admin';
@@ -210,6 +210,18 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
                 <span className="hidden sm:inline-flex items-center text-xs font-semibold text-white tracking-normal group-hover:text-primary transition-colors leading-none">
                   {userDisplayName}
                 </span>
+                {isOwner && (
+                  <span className="hidden sm:inline-flex text-[10px] font-mono text-amber-400 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 items-center gap-1 font-bold">
+                    <Crown size={11} weight="fill" />
+                    <span>Owner</span>
+                  </span>
+                )}
+                {isAdmin && !isOwner && (
+                  <span className="hidden sm:inline-flex text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 items-center gap-1 font-bold">
+                    <Shield size={11} weight="fill" />
+                    <span>Admin</span>
+                  </span>
+                )}
               </button>
 
               <button

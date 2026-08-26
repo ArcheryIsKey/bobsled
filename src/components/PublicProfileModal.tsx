@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logError } from '../utils/logger';
-import { X, CircleNotch } from '@phosphor-icons/react';
+import { OWNER_WALLET } from '../constants';
+import { X, CircleNotch, Crown, ShieldCheck } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
 
 export default function PublicProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
@@ -50,6 +51,8 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
   if (!profile) return null;
 
   const walletAddress = profile.walletAddress || userId;
+  const isOwner = profile.role === 'owner' || (!!OWNER_WALLET && profile.walletAddress === OWNER_WALLET);
+  const isAdmin = isOwner || profile.isAdmin || profile.role === 'admin';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
@@ -77,7 +80,21 @@ export default function PublicProfileModal({ userId, onClose }: { userId: string
               </div>
             )}
           </div>
-          <h3 className="text-xl font-headline-lg text-text-primary font-bold tracking-tight mb-1">{profile.username}</h3>
+          <div className="flex items-center gap-2 mb-1 flex-wrap justify-center">
+            <h3 className="text-xl font-headline-lg text-text-primary font-bold tracking-tight">{profile.username}</h3>
+            {isOwner && (
+              <span className="text-[10px] font-mono text-amber-400 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 font-bold shrink-0">
+                <Crown size={11} />
+                <span>Owner</span>
+              </span>
+            )}
+            {isAdmin && !isOwner && (
+              <span className="text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold shrink-0">
+                <ShieldCheck size={11} />
+                <span>Admin</span>
+              </span>
+            )}
+          </div>
           <p className="text-xs text-text-muted font-mono">
             {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 6)}
           </p>

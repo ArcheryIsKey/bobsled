@@ -244,7 +244,7 @@ export default function Profile() {
   const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
   const lossRate = totalGames > 0 ? Math.round((losses / totalGames) * 100) : 0;
 
-  const isOwner = profileData.walletAddress === OWNER_WALLET;
+  const isOwner = profileData.role === 'owner' || (!!OWNER_WALLET && profileData.walletAddress === OWNER_WALLET);
   const isAdmin = isOwner || profileData.isAdmin || profileData.role === 'admin';
 
   const userDisplayName = isTestUser

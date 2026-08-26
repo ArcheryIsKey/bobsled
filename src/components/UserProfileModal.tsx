@@ -5,7 +5,8 @@ import { db } from '../firebase';
 import { useGameStore } from '../store';
 import SolAmount from './SolAmount';
 import { logError } from '../utils/logger';
-import { X, ArrowUpRight, Copy, Check, CircleNotch, Flask, User as UserIcon } from '@phosphor-icons/react';
+import { OWNER_WALLET } from '../constants';
+import { X, ArrowUpRight, Copy, Check, CircleNotch, Flask, User as UserIcon, Crown, ShieldCheck } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserProfileModalProps {
@@ -105,6 +106,8 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
   if (!userId) return null;
 
   const isTestUser = profileData?.isTestUser || profileData?.id?.startsWith('test_') || !profileData?.walletAddress;
+  const isOwner = profileData?.role === 'owner' || (!!OWNER_WALLET && profileData?.walletAddress === OWNER_WALLET);
+  const isAdmin = isOwner || profileData?.isAdmin || profileData?.role === 'admin';
   const rawUsername = profileData?.username || (currentUser?.id === userId ? currentUser?.username : null) || 'Guest';
   const displayName = isTestUser ? rawUsername : `@${rawUsername}`;
 
@@ -228,6 +231,18 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                 >
                   <span className="truncate">{displayName}</span>
                 </button>
+                {isOwner && (
+                  <span className="text-[10px] font-mono text-amber-400 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 font-bold shrink-0">
+                    <Crown size={11} />
+                    <span>Owner</span>
+                  </span>
+                )}
+                {isAdmin && !isOwner && (
+                  <span className="text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold shrink-0">
+                    <ShieldCheck size={11} />
+                    <span>Admin</span>
+                  </span>
+                )}
                 {isTestUser && (
                   <span className="text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold shrink-0">
                     <Flask size={10} />

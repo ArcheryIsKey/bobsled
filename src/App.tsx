@@ -111,9 +111,9 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
           </Link>
         </div>
 
-        {/* Center: Navigation (Absolute Centered) */}
+        {/* Center: Navigation (Flex Centered to prevent overlap) */}
         {user && (
-          <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
+          <div className="hidden md:flex flex-1 items-center justify-center px-2">
             <nav className="flex items-center space-x-2 bg-white/5 p-1 rounded-full border border-white/10 shadow-inner">
               <Link
                 to="/"
@@ -153,7 +153,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
             </Link>
           )}
 
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-white/70 px-4 py-2 rounded-full bg-white/5 border border-white/10 whitespace-nowrap shrink-0" title="Live SOL Price">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               <span>1 SOL = <span className="text-white">${currentSolPrice ? currentSolPrice.toFixed(2) : '---'}</span></span>
@@ -163,7 +163,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               href={SOLANA_FAUCET_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-[10px] font-sans uppercase tracking-widest font-bold text-primary hover:text-white bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3.5 py-2 rounded-full transition-all cursor-pointer shadow-sm hover:shadow-[0_0_12px_rgba(255,77,77,0.25)] active:scale-[0.98] group"
+              className="inline-flex items-center gap-1.5 text-xs uppercase tracking-widest font-bold text-primary hover:text-white bg-primary/10 hover:bg-primary/20 border border-primary/30 px-4 py-2 rounded-full transition-all cursor-pointer shadow-sm hover:shadow-[0_0_12px_rgba(255,77,77,0.25)] active:scale-[0.98] group"
               title="Get Devnet SOL Faucet"
               aria-label="Solana Devnet Faucet"
             >

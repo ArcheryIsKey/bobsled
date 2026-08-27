@@ -405,6 +405,7 @@ export default function Dashboard() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to cancel match');
       }
+      addToast('info', 'Match cancelled.');
     } catch (e: any) {
       logError('Failed to cancel match:', e);
       addToast('error', e.message || 'Failed to cancel match');

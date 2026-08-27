@@ -36,6 +36,8 @@ export default function Game() {
   const [joiningStatus, setJoiningStatus] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [dismissedInviteModal, setDismissedInviteModal] = useState(false);
+  const isLeavingRef = useRef(false);
+  const gameRef = useRef<any>(null);
 
   const isExplicitWatchRoute = location.pathname.startsWith('/watch/');
 
@@ -96,6 +98,7 @@ export default function Game() {
         if (docSnap.exists()) {
           const data = { id: docSnap.id, ...docSnap.data() } as any;
           setGame(data);
+          gameRef.current = data;
           if (data.status === 'finished') {
             setShowWinModal(true);
             if (
@@ -113,7 +116,25 @@ export default function Game() {
             }
           }
         } else {
-          addToast('error', 'Match does not exist or has been cancelled.');
+          // If the user intentionally left or cancelled, navigate home cleanly without error toast
+          if (isLeavingRef.current) {
+            navigate('/');
+            return;
+          }
+
+          // If the user was the host of this match, navigate cleanly
+          const wasHost = gameRef.current?.player1 === user?.id;
+          if (wasHost) {
+            navigate('/');
+            return;
+          }
+
+          // If opponent or spectator was viewing a match that was closed/cancelled
+          if (gameRef.current) {
+            addToast('info', 'This match has ended or was cancelled.');
+          } else {
+            addToast('error', 'Match does not exist.');
+          }
           navigate('/');
         }
       },
@@ -123,7 +144,7 @@ export default function Game() {
     );
 
     return () => unsub();
-  }, [gameId, navigate, addToast]);
+  }, [gameId, navigate, addToast, user?.id]);
 
   // Dynamic Browser Title for Matches
   useEffect(() => {
@@ -252,12 +273,14 @@ export default function Game() {
   };
 
   const handleLeave = () => {
+    isLeavingRef.current = true;
     navigate('/');
   };
 
   const handleCancelMatch = async () => {
     if (!user || !game || game.status !== 'waiting') return;
     if (game.player1 !== user.id) return;
+    isLeavingRef.current = true;
     try {
       const response = await fetch('/api/escrow/refund-cancel', {
         method: 'POST',
@@ -268,8 +291,10 @@ export default function Game() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to cancel match');
       }
+      addToast('info', 'Match cancelled.');
       navigate('/');
     } catch (e: any) {
+      isLeavingRef.current = false;
       logError('Failed to cancel match:', e);
       addToast('error', e.message || 'Failed to cancel match');
     }

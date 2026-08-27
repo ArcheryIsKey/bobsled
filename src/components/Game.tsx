@@ -978,13 +978,15 @@ export default function Game() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+            onClick={() => setShowWinModal(false)}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 cursor-pointer"
           >
             <motion.div
               initial={{ scale: 0.9, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 15 }}
-              className="rounded-3xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-primary/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-white/5 relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-3xl p-8 sm:p-10 max-w-md w-full flex flex-col items-center text-center gap-6 border border-primary/50 shadow-[0_0_50px_rgba(255,77,77,0.25)] bg-white/5 relative overflow-hidden cursor-default"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
 

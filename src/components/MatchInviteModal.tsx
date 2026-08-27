@@ -59,12 +59,16 @@ export default function MatchInviteModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
+    <div
+      onClick={onDismiss}
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto cursor-pointer"
+    >
       <motion.div
         initial={{ scale: 0.92, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 20 }}
-        className="w-full max-w-lg bg-background border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.9)] double-bezel-inner p-8 space-y-6 relative overflow-hidden my-auto"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg bg-background border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.9)] double-bezel-inner p-8 space-y-6 relative overflow-hidden my-auto cursor-default"
       >
         {/* Top Accent Line */}
         <div className="absolute top-0 left-0 w-full h-1 bg-primary" />

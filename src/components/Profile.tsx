@@ -429,7 +429,7 @@ export default function Profile() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           
           {/* Card 1: Matches */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
               <Swords size={16} className="text-text-muted group-hover:text-primary transition-colors" />
@@ -443,7 +443,7 @@ export default function Profile() {
           </div>
 
           {/* Card 2: Wins */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
               <Trophy size={16} className="text-primary transition-colors" />
@@ -457,7 +457,7 @@ export default function Profile() {
           </div>
 
           {/* Card 3: Losses */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
               <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
@@ -471,7 +471,7 @@ export default function Profile() {
           </div>
 
           {/* Card 4: SOL Holdings */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy z-10">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">SOL Balance</span>
               <span className="text-xs font-mono font-bold text-primary">SOL</span>

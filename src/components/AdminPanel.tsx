@@ -49,7 +49,8 @@ import {
   ArrowsClockwise,
   Cube,
   ChatCircleText,
-  Broadcast
+  Broadcast,
+  UserPlus
 } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -66,6 +67,7 @@ export type AdminHistoryEventType =
   | 'draw_refunded'
   | 'cancelled'
   | 'cron_recovery'
+  | 'user_registered'
   | string;
 
 export interface AdminHistoryRecord {
@@ -113,6 +115,8 @@ function formatRelativeTime(timestamp: any, isoTimestamp?: string): string {
   let date: Date | null = null;
   if (timestamp?.toDate) {
     date = timestamp.toDate();
+  } else if (timestamp?.toMillis) {
+    date = new Date(timestamp.toMillis());
   } else if (timestamp?.seconds) {
     date = new Date(timestamp.seconds * 1000);
   } else if (timestamp instanceof Date) {
@@ -140,6 +144,8 @@ function formatFullTimestamp(timestamp: any, isoTimestamp?: string): string {
   let date: Date | null = null;
   if (timestamp?.toDate) {
     date = timestamp.toDate();
+  } else if (timestamp?.toMillis) {
+    date = new Date(timestamp.toMillis());
   } else if (timestamp?.seconds) {
     date = new Date(timestamp.seconds * 1000);
   } else if (timestamp instanceof Date) {
@@ -205,21 +211,27 @@ function getEventBadgeProps(eventType: string) {
       };
     case 'match_started':
       return {
-        className: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+        className: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
         label: 'MATCH STARTED',
         icon: <GameController size={11} className="shrink-0" />,
       };
     case 'cancelled':
       return {
-        className: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+        className: 'bg-neutral-500/10 text-neutral-400 border-neutral-500/30',
         label: 'CANCELLED',
         icon: <X size={11} className="shrink-0" />,
       };
     case 'game_finished':
       return {
-        className: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-        label: 'FINISHED',
+        className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        label: 'MATCH FINISHED',
         icon: <Trophy size={11} className="shrink-0" />,
+      };
+    case 'user_registered':
+      return {
+        className: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
+        label: 'NEW USER',
+        icon: <UserPlus size={11} className="shrink-0" />,
       };
     case 'cron_recovery':
       return {
@@ -241,30 +253,26 @@ function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'confirmed':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-semibold">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-semibold">
           Confirmed
         </span>
       );
     case 'processing':
     case 'pending':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-mono font-semibold">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-mono font-semibold">
           Processing
         </span>
       );
     case 'failed':
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono font-semibold">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono font-semibold">
           Failed
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-800 border border-white/10 text-text-muted text-[10px] font-mono font-semibold">
-          <span className="w-1.5 h-1.5 rounded-full bg-text-muted" />
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-800 border border-white/10 text-text-muted text-[10px] font-mono font-semibold">
           {status || 'Unknown'}
         </span>
       );
@@ -426,7 +434,7 @@ export default function AdminPanel() {
   // Live Activity Stream Filters & Search
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<
-    'all' | 'deposits' | 'payouts' | 'refunds' | 'resignations' | 'rooms' | 'cron'
+    'all' | 'rooms' | 'matches' | 'users' | 'deposits' | 'payouts' | 'refunds' | 'resignations' | 'cron'
   >('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'processing' | 'failed'>('all');
 
@@ -471,7 +479,7 @@ export default function AdminPanel() {
     };
   }, []);
 
-  // Fetch Users & Games
+  // Fetch Users & Games in Real-Time
   useEffect(() => {
     if (!isAdmin && currentUser) {
       navigate('/');
@@ -532,6 +540,203 @@ export default function AdminPanel() {
       setIsLoadingHistory(false);
     }
   }, [isAdmin]);
+
+  // Unified, Super Verbose Activity Stream (Synthesizes admin_history + all games + all user accounts)
+  const unifiedHistoryEvents = useMemo(() => {
+    const eventMap = new Map<string, AdminHistoryRecord>();
+
+    // 1. Ingest all official admin_history records first
+    for (const ev of historyEvents) {
+      if (ev.id) {
+        eventMap.set(ev.id, ev);
+      }
+    }
+
+    // 2. Generate comprehensive verbose events from all games
+    for (const g of games) {
+      if (!g.id) continue;
+
+      // A. Room Created event
+      const createdKey = `game_created_${g.id}`;
+      if (!eventMap.has(createdKey)) {
+        eventMap.set(createdKey, {
+          id: createdKey,
+          timestamp: g.createdAt,
+          eventType: 'created',
+          eventLabel: 'Room Created',
+          status: 'confirmed',
+          gameId: g.id,
+          gameType: g.gameType || 'connect4',
+          wager: g.wager || 0,
+          wagerCurrency: g.wagerCurrency || 'SOL',
+          userId: g.player1 || 'guest',
+          username: g.player1Name || (g.player1IsTest ? 'Guest' : 'Player 1'),
+          walletAddress: g.p1Wallet || null,
+          role: 'host',
+          targetUserId: g.player2 || null,
+          targetUsername: g.player2Name || null,
+          targetWallet: g.p2Wallet || null,
+          txSignature: g.p1DepositTx || null,
+          amountSol: g.wager || 0,
+          network: 'Solana',
+          metadata: {
+            status: g.status,
+            inviteCode: g.inviteCode,
+          },
+        });
+      }
+
+      // B. Player 1 Deposit event (if deposit signature exists)
+      if (g.p1DepositTx && !eventMap.has(`dep_p1_${g.id}`)) {
+        eventMap.set(`dep_p1_${g.id}`, {
+          id: `dep_p1_${g.id}`,
+          timestamp: g.createdAt,
+          eventType: 'deposit_p1',
+          eventLabel: 'Deposit (Host)',
+          status: 'confirmed',
+          gameId: g.id,
+          wager: g.wager || 0,
+          wagerCurrency: g.wagerCurrency || 'SOL',
+          userId: g.player1,
+          username: g.player1Name || 'Player 1',
+          walletAddress: g.p1Wallet || null,
+          amountSol: g.wager || 0,
+          txSignature: g.p1DepositTx,
+          network: 'Solana',
+        });
+      }
+
+      // C. Player 2 Join / Match Started event
+      if (g.player2 || g.status === 'active' || g.status === 'finished') {
+        const joinKey = `game_started_${g.id}`;
+        if (!eventMap.has(joinKey)) {
+          eventMap.set(joinKey, {
+            id: joinKey,
+            timestamp: g.updatedAt || g.createdAt,
+            eventType: 'match_started',
+            eventLabel: 'Match Started',
+            status: 'confirmed',
+            gameId: g.id,
+            gameType: g.gameType || 'connect4',
+            wager: g.wager || 0,
+            wagerCurrency: g.wagerCurrency || 'SOL',
+            userId: g.player2 || 'guest',
+            username: g.player2Name || (g.player2IsTest ? 'Guest' : 'Player 2'),
+            walletAddress: g.p2Wallet || null,
+            role: 'opponent',
+            targetUserId: g.player1,
+            targetUsername: g.player1Name || 'Player 1',
+            targetWallet: g.p1Wallet || null,
+            txSignature: g.p2DepositTx || null,
+            amountSol: g.wager || 0,
+            network: 'Solana',
+            metadata: {
+              status: g.status,
+              turn: g.turn,
+            },
+          });
+        }
+      }
+
+      // D. Player 2 Deposit event
+      if (g.p2DepositTx && !eventMap.has(`dep_p2_${g.id}`)) {
+        eventMap.set(`dep_p2_${g.id}`, {
+          id: `dep_p2_${g.id}`,
+          timestamp: g.updatedAt || g.createdAt,
+          eventType: 'deposit_p2',
+          eventLabel: 'Deposit (Opponent)',
+          status: 'confirmed',
+          gameId: g.id,
+          wager: g.wager || 0,
+          wagerCurrency: g.wagerCurrency || 'SOL',
+          userId: g.player2,
+          username: g.player2Name || 'Player 2',
+          walletAddress: g.p2Wallet || null,
+          amountSol: g.wager || 0,
+          txSignature: g.p2DepositTx,
+          network: 'Solana',
+        });
+      }
+
+      // E. Match Finished / Payout / Draw event
+      if (g.status === 'finished') {
+        const finishKey = `game_finished_${g.id}`;
+        if (!eventMap.has(finishKey)) {
+          const isDraw = g.winner === 'draw';
+          const isP1Win = g.winner === g.player1;
+          const winnerName = isDraw ? 'Draw' : (isP1Win ? g.player1Name : g.player2Name);
+          const loserName = isDraw ? null : (isP1Win ? g.player2Name : g.player1Name);
+          const loserId = isDraw ? null : (isP1Win ? g.player2 : g.player1);
+
+          eventMap.set(finishKey, {
+            id: finishKey,
+            timestamp: g.updatedAt || g.createdAt,
+            eventType: isDraw ? 'draw_refunded' : 'game_finished',
+            eventLabel: isDraw ? 'Draw Match' : 'Match Finished',
+            status: 'confirmed',
+            gameId: g.id,
+            gameType: g.gameType || 'connect4',
+            wager: g.wager || 0,
+            wagerCurrency: g.wagerCurrency || 'SOL',
+            userId: isDraw ? (g.player1 || 'System') : (g.winner || 'System'),
+            username: isDraw ? (g.player1Name || 'Draw') : (winnerName || 'Winner'),
+            targetUserId: loserId,
+            targetUsername: loserName,
+            amountSol: g.wager > 0 ? (isDraw ? g.wager : g.wager * 2 * 0.99) : 0,
+            houseFeeSol: g.wager > 0 ? g.wager * 2 * 0.01 : 0,
+            totalPot: g.wager > 0 ? g.wager * 2 : 0,
+            txSignature: g.payoutTx || g.refundTx || null,
+            network: 'Solana',
+            metadata: {
+              winner: g.winner,
+              boardSnapshot: g.board,
+            },
+          });
+        }
+      }
+    }
+
+    // 3. Generate verbose events from all user registrations
+    for (const u of users) {
+      if (!u.id) continue;
+      const userRegKey = `user_reg_${u.id}`;
+      if (!eventMap.has(userRegKey)) {
+        eventMap.set(userRegKey, {
+          id: userRegKey,
+          timestamp: u.createdAt,
+          eventType: 'user_registered',
+          eventLabel: 'User Registered',
+          status: 'confirmed',
+          gameId: '',
+          wager: 0,
+          userId: u.id,
+          username: u.username || 'Anonymous',
+          walletAddress: u.walletAddress || null,
+          role: u.role || (u.isAdmin ? 'admin' : 'player'),
+          network: 'Solana',
+          metadata: {
+            isTestUser: !!u.isTestUser,
+            isAdmin: !!u.isAdmin,
+          },
+        });
+      }
+    }
+
+    // Convert map to array and sort chronologically descending (newest first)
+    const allEvents = Array.from(eventMap.values());
+    allEvents.sort((a, b) => {
+      const getTime = (t: any, iso?: string) => {
+        if (t?.toMillis) return t.toMillis();
+        if (t?.seconds) return t.seconds * 1000;
+        if (t instanceof Date) return t.getTime();
+        if (iso) return new Date(iso).getTime();
+        return 0;
+      };
+      return getTime(b.timestamp, b.isoTimestamp) - getTime(a.timestamp, a.isoTimestamp);
+    });
+
+    return allEvents;
+  }, [historyEvents, games, users]);
 
   // User Inspector Profile Hook
   useEffect(() => {
@@ -767,20 +972,24 @@ export default function AdminPanel() {
     return true;
   });
 
-  // Filtered History Events
+  // Filtered Unified Activity Stream Events
   const filteredHistoryEvents = useMemo(() => {
-    return historyEvents.filter((ev) => {
+    return unifiedHistoryEvents.filter((ev) => {
       // 1. Category Filter
-      if (categoryFilter === 'deposits') {
+      if (categoryFilter === 'rooms') {
+        if (ev.eventType !== 'created' && ev.eventType !== 'cancelled') return false;
+      } else if (categoryFilter === 'matches') {
+        if (ev.eventType !== 'match_started' && ev.eventType !== 'game_finished' && ev.eventType !== 'draw_refunded') return false;
+      } else if (categoryFilter === 'users') {
+        if (ev.eventType !== 'user_registered') return false;
+      } else if (categoryFilter === 'deposits') {
         if (ev.eventType !== 'deposit_p1' && ev.eventType !== 'deposit_p2') return false;
       } else if (categoryFilter === 'payouts') {
-        if (ev.eventType !== 'paid_out') return false;
+        if (ev.eventType !== 'paid_out' && ev.eventType !== 'game_finished') return false;
       } else if (categoryFilter === 'refunds') {
         if (ev.eventType !== 'refunded' && ev.eventType !== 'draw_refunded') return false;
       } else if (categoryFilter === 'resignations') {
         if (ev.eventType !== 'resigned' && ev.eventType !== 'timeout_win') return false;
-      } else if (categoryFilter === 'rooms') {
-        if (!['created', 'match_started', 'cancelled', 'game_finished'].includes(ev.eventType)) return false;
       } else if (categoryFilter === 'cron') {
         if (ev.eventType !== 'cron_recovery') return false;
       }
@@ -812,7 +1021,7 @@ export default function AdminPanel() {
 
       return true;
     });
-  }, [historyEvents, categoryFilter, statusFilter, historySearchTerm]);
+  }, [unifiedHistoryEvents, categoryFilter, statusFilter, historySearchTerm]);
 
   return (
     <div className="min-h-screen flex flex-col bg-black text-text-primary antialiased w-full overflow-y-auto">
@@ -1128,14 +1337,13 @@ export default function AdminPanel() {
           <div className="lg:col-span-5 xl:col-span-4 flex flex-col space-y-4">
             <section className="bg-background border border-white/10 rounded-2xl flex flex-col h-[750px] shadow-2xl overflow-hidden">
               
-              {/* Chat-like Header */}
+              {/* Chat-like Header (No green dot) */}
               <div className="p-4 border-b border-white/10 bg-[#181818] flex flex-col gap-3 shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-                    <h3 className="font-headline-lg text-sm text-white font-bold tracking-tight flex items-center gap-1.5">
-                      <Broadcast size={15} className="text-primary" />
-                      <span>Live Activity Stream</span>
+                    <Broadcast size={16} className="text-primary" />
+                    <h3 className="font-headline-lg text-sm text-white font-bold tracking-tight">
+                      Live Activity Stream
                     </h3>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-black/60 border border-white/10 text-[10px] font-mono text-text-muted">
@@ -1152,7 +1360,7 @@ export default function AdminPanel() {
                       name="activityStreamSearchQuery"
                       autoComplete="off"
                       type="text"
-                      placeholder="Filter activity stream..."
+                      placeholder="Filter all activity..."
                       value={historySearchTerm}
                       onChange={(e) => setHistorySearchTerm(e.target.value)}
                       className="w-full bg-black border border-white/10 focus:border-primary text-[11px] text-white pl-8 pr-7 py-1.5 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
@@ -1167,7 +1375,7 @@ export default function AdminPanel() {
                     )}
                   </div>
 
-                  {/* Quick Category Filter Bar */}
+                  {/* Verbose Category Filter Bar */}
                   <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px] font-mono no-scrollbar">
                     <button
                       onClick={() => setCategoryFilter('all')}
@@ -1177,7 +1385,7 @@ export default function AdminPanel() {
                           : 'bg-black text-text-muted hover:text-white border border-white/5'
                       }`}
                     >
-                      All
+                      All ({unifiedHistoryEvents.length})
                     </button>
                     <button
                       onClick={() => setCategoryFilter('rooms')}
@@ -1188,6 +1396,26 @@ export default function AdminPanel() {
                       }`}
                     >
                       Rooms
+                    </button>
+                    <button
+                      onClick={() => setCategoryFilter('matches')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'matches'
+                          ? 'bg-blue-500/25 text-blue-300 font-bold border border-blue-500/40'
+                          : 'bg-black text-text-muted hover:text-blue-300 border border-white/5'
+                      }`}
+                    >
+                      Matches
+                    </button>
+                    <button
+                      onClick={() => setCategoryFilter('users')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'users'
+                          ? 'bg-teal-500/25 text-teal-300 font-bold border border-teal-500/40'
+                          : 'bg-black text-text-muted hover:text-teal-300 border border-white/5'
+                      }`}
+                    >
+                      Users
                     </button>
                     <button
                       onClick={() => setCategoryFilter('deposits')}
@@ -1235,16 +1463,10 @@ export default function AdminPanel() {
 
               {/* Chat Message / Event Feed List */}
               <div className="flex-1 p-3 overflow-y-auto space-y-2.5 bg-[#121212] min-h-0">
-                {isLoadingHistory ? (
+                {isLoadingHistory && filteredHistoryEvents.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center gap-2 p-6 text-center">
                     <CircleNotch className="animate-spin text-primary" size={24} />
-                    <p className="text-xs text-text-muted font-mono">Listening for live events...</p>
-                  </div>
-                ) : historyError ? (
-                  <div className="p-6 text-center space-y-2">
-                    <Warning size={24} className="text-red-400 mx-auto" />
-                    <p className="text-xs font-bold text-white">Stream Error</p>
-                    <p className="text-[11px] text-text-muted font-mono">{historyError}</p>
+                    <p className="text-xs text-text-muted font-mono">Aggregating live events across platform...</p>
                   </div>
                 ) : filteredHistoryEvents.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-2">
@@ -1252,21 +1474,22 @@ export default function AdminPanel() {
                     <p className="text-xs font-semibold text-white font-mono">No activity events recorded yet</p>
                     <p className="text-[11px] text-text-muted font-mono">
                       {historySearchTerm || categoryFilter !== 'all' || statusFilter !== 'all'
-                        ? 'No events match the current filter.'
-                        : 'Game creations, deposits, and settlement events will stream here live.'}
+                        ? 'No activity events matching your current filter.'
+                        : 'Platform events will stream here live.'}
                     </p>
                   </div>
                 ) : (
                   filteredHistoryEvents.map((ev) => {
                     const badge = getEventBadgeProps(ev.eventType);
                     const relativeTime = formatRelativeTime(ev.timestamp, ev.isoTimestamp);
-                    const hasGameId = !!ev.gameId;
+                    const fullTime = formatFullTimestamp(ev.timestamp, ev.isoTimestamp);
+                    const hasGameId = !!ev.gameId && ev.gameId.length > 0;
 
                     return (
                       <div
                         key={ev.id}
                         onClick={() => setSelectedEvent(ev)}
-                        className="p-3 rounded-xl bg-[#181818] hover:bg-[#202020] border border-white/5 hover:border-white/15 transition-all text-xs font-mono space-y-2 cursor-pointer group"
+                        className="p-3 rounded-xl bg-[#181818] hover:bg-[#202020] border border-white/5 hover:border-white/15 transition-all text-xs font-mono space-y-2 cursor-pointer group shadow-sm"
                       >
                         {/* Event Card Top Row: Badge + Timestamp + Inspect Action */}
                         <div className="flex items-center justify-between gap-2">
@@ -1278,15 +1501,15 @@ export default function AdminPanel() {
                             <StatusBadge status={ev.status} />
                           </div>
 
-                          <div className="flex items-center gap-1.5 text-text-muted text-[10px] shrink-0">
+                          <div className="flex items-center gap-1 text-text-muted text-[10px] shrink-0" title={fullTime}>
                             <Clock size={10} />
                             <span>{relativeTime}</span>
                           </div>
                         </div>
 
-                        {/* Event Details: Clickable Users & Action Description */}
+                        {/* Super Verbose Event Description */}
                         <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 flex-wrap text-text-secondary">
+                          <div className="flex items-center gap-1.5 flex-wrap text-text-secondary leading-relaxed">
                             {/* Clickable Actor User */}
                             <button
                               onClick={(e) => {
@@ -1294,24 +1517,79 @@ export default function AdminPanel() {
                                 handleUserClick(ev.userId, ev.username, ev.walletAddress);
                               }}
                               className="font-bold text-white hover:text-primary transition-colors cursor-pointer underline-offset-2 hover:underline"
-                              title={`View @${ev.username || ev.userId} profile`}
+                              title={`Inspect @${ev.username || ev.userId} profile`}
                             >
                               @{ev.username || ev.userId || 'System'}
                             </button>
 
-                            {/* Action Context Text */}
-                            {ev.eventType === 'created' && <span className="text-text-muted">created room</span>}
-                            {ev.eventType === 'deposit_p1' && <span className="text-text-muted">deposited stake</span>}
-                            {ev.eventType === 'deposit_p2' && <span className="text-text-muted">accepted & deposited</span>}
-                            {ev.eventType === 'match_started' && <span className="text-text-muted">started match with</span>}
-                            {ev.eventType === 'paid_out' && <span className="text-emerald-400 font-semibold">won pot against</span>}
-                            {ev.eventType === 'refunded' && <span className="text-amber-400">received refund for</span>}
-                            {ev.eventType === 'draw_refunded' && <span className="text-amber-400">draw refund with</span>}
-                            {ev.eventType === 'resigned' && <span className="text-red-400">resigned from</span>}
-                            {ev.eventType === 'timeout_win' && <span className="text-red-400">won on timeout vs</span>}
-                            {ev.eventType === 'cancelled' && <span className="text-text-muted">cancelled room</span>}
+                            {/* Verbose Action Descriptions */}
+                            {ev.eventType === 'created' && (
+                              <span className="text-text-muted">
+                                created Connect 4 room
+                              </span>
+                            )}
+                            {ev.eventType === 'deposit_p1' && (
+                              <span className="text-text-muted">
+                                deposited stake for room
+                              </span>
+                            )}
+                            {ev.eventType === 'deposit_p2' && (
+                              <span className="text-text-muted">
+                                deposited match stake for room
+                              </span>
+                            )}
+                            {ev.eventType === 'match_started' && (
+                              <span className="text-text-muted">
+                                joined and started match with
+                              </span>
+                            )}
+                            {ev.eventType === 'game_finished' && (
+                              <span className="text-emerald-400 font-semibold">
+                                won match against
+                              </span>
+                            )}
+                            {ev.eventType === 'paid_out' && (
+                              <span className="text-emerald-400 font-semibold">
+                                received winning payout vs
+                              </span>
+                            )}
+                            {ev.eventType === 'refunded' && (
+                              <span className="text-amber-400">
+                                received cancellation refund for
+                              </span>
+                            )}
+                            {ev.eventType === 'draw_refunded' && (
+                              <span className="text-amber-400">
+                                played a draw match with
+                              </span>
+                            )}
+                            {ev.eventType === 'resigned' && (
+                              <span className="text-red-400">
+                                resigned match against
+                              </span>
+                            )}
+                            {ev.eventType === 'timeout_win' && (
+                              <span className="text-red-400">
+                                won on opponent turn timeout vs
+                              </span>
+                            )}
+                            {ev.eventType === 'cancelled' && (
+                              <span className="text-text-muted">
+                                cancelled waiting match
+                              </span>
+                            )}
+                            {ev.eventType === 'user_registered' && (
+                              <span className="text-teal-300">
+                                registered new account on platform
+                              </span>
+                            )}
+                            {ev.eventType === 'cron_recovery' && (
+                              <span className="text-indigo-300">
+                                server automated recovery processed
+                              </span>
+                            )}
 
-                            {/* Clickable Target User (if applicable) */}
+                            {/* Clickable Target User */}
                             {ev.targetUsername && (
                               <button
                                 onClick={(e) => {
@@ -1319,7 +1597,7 @@ export default function AdminPanel() {
                                   handleUserClick(ev.targetUserId || '', ev.targetUsername || '', ev.targetWallet);
                                 }}
                                 className="font-bold text-white hover:text-primary transition-colors cursor-pointer underline-offset-2 hover:underline"
-                                title={`View @${ev.targetUsername} profile`}
+                                title={`Inspect @${ev.targetUsername} profile`}
                               >
                                 @{ev.targetUsername}
                               </button>
@@ -1333,7 +1611,7 @@ export default function AdminPanel() {
                             )}
                           </div>
 
-                          {/* Stake / Amount Display */}
+                          {/* Financial & Metadata Info */}
                           <div className="flex items-center justify-between gap-2 pt-0.5">
                             <div>
                               {ev.amountSol !== undefined && ev.amountSol !== null && ev.amountSol > 0 ? (
@@ -1343,6 +1621,10 @@ export default function AdminPanel() {
                               ) : ev.wager && ev.wager > 0 ? (
                                 <span className="text-text-secondary text-[11px]">
                                   Stake: <SolAmount amount={ev.wager} suffix=" SOL" />
+                                </span>
+                              ) : ev.eventType === 'user_registered' ? (
+                                <span className="text-text-muted text-[10px] font-mono">
+                                  {ev.walletAddress ? `Wallet: ${ev.walletAddress.substring(0, 4)}...${ev.walletAddress.substring(ev.walletAddress.length - 4)}` : 'Guest Account'}
                                 </span>
                               ) : (
                                 <span className="text-text-muted text-[10px] italic">Free (0 SOL)</span>
@@ -1363,7 +1645,7 @@ export default function AdminPanel() {
                           </div>
                         </div>
 
-                        {/* Interactive Footer Row: Spectate Game Button (for Game Creation/Room events) & Inspect Button */}
+                        {/* Interactive Footer Row: Spectate Game Button & Inspect Button */}
                         <div className="flex items-center justify-between pt-1 border-t border-white/5">
                           {/* "Game creation" Spectate Button */}
                           {hasGameId ? (
@@ -1379,7 +1661,7 @@ export default function AdminPanel() {
                               <span>Spectate Match</span>
                             </button>
                           ) : (
-                            <span className="text-[10px] text-text-muted italic">System Log</span>
+                            <span className="text-[10px] text-text-muted italic">Account Activity</span>
                           )}
 
                           {/* Quick Inspect Details */}
@@ -1399,13 +1681,10 @@ export default function AdminPanel() {
                 <div ref={activityFeedEndRef} />
               </div>
 
-              {/* Chat-like Footer Bar */}
+              {/* Chat-like Footer Bar (No green dot) */}
               <div className="p-2.5 border-t border-white/10 bg-[#161616] text-[10px] font-mono text-text-muted flex items-center justify-between shrink-0">
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  Streaming on-chain & room updates
-                </span>
-                {historyEvents.length > 0 && (
+                <span>Streaming live platform activity</span>
+                {unifiedHistoryEvents.length > 0 && (
                   <button
                     onClick={() => {
                       setCategoryFilter('all');
@@ -1478,7 +1757,7 @@ export default function AdminPanel() {
                   <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1">
                     <span className="text-[10px] uppercase text-text-muted block font-semibold">Game ID</span>
                     <span className="text-sm font-bold text-white block truncate">
-                      #{selectedEvent.gameId ? selectedEvent.gameId.substring(0, 8).toUpperCase() : 'N/A'}
+                      {selectedEvent.gameId ? `#${selectedEvent.gameId.substring(0, 8).toUpperCase()}` : 'N/A'}
                     </span>
                   </div>
                   <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1">

@@ -377,7 +377,6 @@ export default function Game() {
   const showMatchInviteModal = !isParticipant && game.status === 'waiting' && !dismissedInviteModal && !isExplicitWatchRoute;
 
   const isMyTurn = isParticipant && game.turn === user?.id && game.status === 'active';
-  const opponentAvatar = isPlayer1 ? game.player2Avatar : game.player1Avatar;
 
   const isP1Guest = game.player1IsTest || game.player1?.startsWith?.('test_');
   const isP2Guest = game.player2IsTest || game.player2?.startsWith?.('test_');
@@ -580,8 +579,8 @@ export default function Game() {
                   <div className={`w-8 h-8 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
                     p2IsRed ? 'border-primary shadow-[0_0_8px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
                   }`}>
-                    {opponentAvatar && game.player2 ? (
-                      <img src={opponentAvatar} alt="" className="w-full h-full object-cover" />
+                    {game.player2Avatar && game.player2 ? (
+                      <img src={game.player2Avatar} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <span className={`w-3 h-3 rounded-full ${p2IsRed ? 'bg-primary' : 'bg-white'}`} />
                     )}

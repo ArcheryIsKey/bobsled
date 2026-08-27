@@ -49,6 +49,40 @@ export const RefundCancelRequestSchema = z.object({
   userId: z.string().min(1).max(128),
 });
 
+export const LogEventSchema = z.object({
+  eventType: z.enum([
+    'created',
+    'deposit_p1',
+    'deposit_p2',
+    'match_started',
+    'resigned',
+    'timeout_win',
+    'game_finished',
+    'paid_out',
+    'refunded',
+    'draw_refunded',
+    'cancelled',
+    'cron_recovery',
+  ]),
+  eventLabel: z.string().min(1).max(100).optional(),
+  gameId: z.string().min(1).max(128),
+  userId: z.string().min(1).max(128),
+  username: z.string().max(100).optional(),
+  walletAddress: z.string().max(100).nullable().optional(),
+  role: z.enum(['player1', 'player2', 'system', 'admin']).optional(),
+  targetUserId: z.string().max(128).nullable().optional(),
+  targetUsername: z.string().max(100).nullable().optional(),
+  targetWallet: z.string().max(100).nullable().optional(),
+  wager: z.number().min(0).max(100).optional(),
+  wagerCurrency: z.enum(['SOL', 'FREE']).optional(),
+  totalPot: z.number().nullable().optional(),
+  amountSol: z.number().nullable().optional(),
+  houseFeeSol: z.number().nullable().optional(),
+  txSignature: z.string().max(128).nullable().optional(),
+  status: z.enum(['confirmed', 'processing', 'failed']).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+}).strict();
+
 export function createTestApp(options = {}) {
   const app = express();
   const solanaHarness = options.solanaHarness || new MockSolanaHarness();
@@ -203,9 +237,10 @@ export function createTestApp(options = {}) {
   const validateBody = (schema) => (req, res, next) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
+      const issues = result.error.issues || result.error.errors || [];
       return res.status(400).json({
         error: 'Invalid request payload',
-        details: result.error.errors.map((e) => ({ path: e.path.join('.'), message: e.message })),
+        details: issues.map((e) => ({ path: Array.isArray(e.path) ? e.path.join('.') : String(e.path), message: e.message })),
       });
     }
     req.body = result.data;
@@ -215,14 +250,53 @@ export function createTestApp(options = {}) {
   const validateQuery = (schema) => (req, res, next) => {
     const result = schema.safeParse(req.query);
     if (!result.success) {
+      const issues = result.error.issues || result.error.errors || [];
       return res.status(400).json({
         error: 'Invalid query parameters',
-        details: result.error.errors.map((e) => ({ path: e.path.join('.'), message: e.message })),
+        details: issues.map((e) => ({ path: Array.isArray(e.path) ? e.path.join('.') : String(e.path), message: e.message })),
       });
     }
     req.query = result.data;
     next();
   };
+
+  // Helper for server-authoritative admin history logging in test app
+  async function logAdminHistory(entry) {
+    const solscanUrl = entry.txSignature
+      ? `https://solscan.io/tx/${entry.txSignature}?cluster=devnet`
+      : null;
+    const docId = `hist_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const record = {
+      id: docId,
+      timestamp: new Date().toISOString(),
+      isoTimestamp: new Date().toISOString(),
+      eventType: entry.eventType,
+      eventLabel: entry.eventLabel || entry.eventType,
+      status: entry.status || 'confirmed',
+      gameId: entry.gameId,
+      gameType: 'connect4',
+      wager: typeof entry.wager === 'number' ? entry.wager : 0,
+      wagerCurrency: entry.wagerCurrency || (entry.wager && entry.wager > 0 ? 'SOL' : 'FREE'),
+      totalPot: entry.totalPot !== undefined && entry.totalPot !== null
+        ? entry.totalPot
+        : (typeof entry.wager === 'number' ? entry.wager * 2 : 0),
+      userId: entry.userId || 'system',
+      username: entry.username || 'Anonymous',
+      walletAddress: entry.walletAddress || null,
+      role: entry.role || 'system',
+      targetUserId: entry.targetUserId || null,
+      targetUsername: entry.targetUsername || null,
+      targetWallet: entry.targetWallet || null,
+      amountSol: entry.amountSol !== undefined ? entry.amountSol : null,
+      houseFeeSol: entry.houseFeeSol !== undefined ? entry.houseFeeSol : null,
+      txSignature: entry.txSignature || null,
+      solscanUrl,
+      network: 'devnet',
+      metadata: entry.metadata || {},
+    };
+    await db.doc(`admin_history/${docId}`).set(record);
+    return record;
+  }
 
   // 4. API Endpoints
   app.post('/api/auth/nonce', validateBody(NonceRequestSchema), (req, res) => {
@@ -327,6 +401,20 @@ export function createTestApp(options = {}) {
         }
       });
 
+      // Log admin history for deposit event
+      await logAdminHistory({
+        eventType: role === 'player1' ? 'deposit_p1' : 'deposit_p2',
+        eventLabel: role === 'player1' ? 'Host Escrow Deposit' : 'Opponent Escrow Deposit',
+        gameId,
+        userId: senderWallet,
+        walletAddress: senderWallet,
+        role,
+        wager: gameData.wager,
+        wagerCurrency: gameData.wagerCurrency || 'SOL',
+        amountSol: gameData.wager,
+        txSignature: txHash,
+      });
+
       return res.json({
         success: true,
         escrowStatus: role === 'player1' ? 'p1_funded' : 'fully_funded',
@@ -377,7 +465,44 @@ export function createTestApp(options = {}) {
       // Atomic transition to processing
       await gameRef.update({ payoutStatus: 'processing' });
 
-      // Calculate payouts
+      // Handle Draw 50/50 refund with 0% fee
+      if (game.winner === 'draw') {
+        const totalPotSol = (game.wager || 0) * 2;
+        const refundTx1 = `draw_p1_refund_sig_${Math.random().toString(36).slice(2)}`;
+        const refundTx2 = `draw_p2_refund_sig_${Math.random().toString(36).slice(2)}`;
+
+        await gameRef.update({
+          payoutTx: refundTx1,
+          payoutStatus: 'completed',
+          payoutAmount: totalPotSol,
+          houseFeeAmount: 0,
+        });
+
+        await logAdminHistory({
+          eventType: 'draw_refunded',
+          eventLabel: 'Match Draw 50/50 Refund',
+          gameId,
+          userId: 'system',
+          role: 'system',
+          wager: game.wager,
+          totalPot: totalPotSol,
+          amountSol: totalPotSol,
+          houseFeeSol: 0,
+          txSignature: refundTx1,
+          metadata: { refundP1: refundTx1, refundP2: refundTx2, winner: 'draw' },
+        });
+
+        return res.json({
+          success: true,
+          payoutTx: refundTx1,
+          refundP1Tx: refundTx1,
+          refundP2Tx: refundTx2,
+          winnerPayout: totalPotSol / 2,
+          houseFee: 0,
+        });
+      }
+
+      // Calculate standard winner payout
       const totalPotLamports = Math.round(game.wager * 2 * 1e9);
       const houseFeeLamports = Math.round(totalPotLamports * (HOUSE_FEE_PERCENT / 100));
       const winnerPayoutLamports = totalPotLamports - houseFeeLamports;
@@ -389,6 +514,21 @@ export function createTestApp(options = {}) {
         payoutStatus: 'completed',
         payoutAmount: winnerPayoutLamports / 1e9,
         houseFeeAmount: houseFeeLamports / 1e9,
+      });
+
+      await logAdminHistory({
+        eventType: 'paid_out',
+        eventLabel: 'Escrow Winner Payout',
+        gameId,
+        userId: game.winner,
+        walletAddress: game.winner === game.player1 ? game.p1Wallet : game.p2Wallet,
+        role: game.winner === game.player1 ? 'player1' : 'player2',
+        wager: game.wager,
+        totalPot: game.wager * 2,
+        amountSol: winnerPayoutLamports / 1e9,
+        houseFeeSol: houseFeeLamports / 1e9,
+        txSignature: payoutSignature,
+        metadata: { winner: game.winner },
       });
 
       return res.json({
@@ -440,8 +580,30 @@ export function createTestApp(options = {}) {
           refundStatus: 'completed',
         });
 
+        await logAdminHistory({
+          eventType: 'refunded',
+          eventLabel: 'Match Cancelled & Host Refunded',
+          gameId,
+          userId,
+          walletAddress: game.p1Wallet || null,
+          role: 'player1',
+          wager: game.wager,
+          amountSol: game.wager,
+          txSignature: refundSignature,
+        });
+
         return res.json({ success: true, refundTx: refundSignature });
       }
+
+      await logAdminHistory({
+        eventType: 'cancelled',
+        eventLabel: 'Match Cancelled & Room Closed',
+        gameId,
+        userId,
+        role: 'player1',
+        wager: game.wager || 0,
+        amountSol: 0,
+      });
 
       await gameRef.delete();
       return res.json({ success: true, message: 'Match deleted' });
@@ -450,8 +612,77 @@ export function createTestApp(options = {}) {
     }
   });
 
-  app.post('/api/cron/recover', (req, res) => {
-    res.json({ success: true, processed: 0, settled: 0, refunded: 0 });
+  app.post('/api/admin/log-event', validateBody(LogEventSchema), async (req, res) => {
+    try {
+      const data = req.body;
+      const defaultLabels = {
+        created: 'Match Room Created',
+        deposit_p1: 'Host Escrow Deposit',
+        deposit_p2: 'Opponent Escrow Deposit',
+        match_started: 'Match Started',
+        resigned: 'Player Forfeited Match',
+        timeout_win: 'AFK Timeout Victory Claimed',
+        game_finished: 'Match Concluded Normally',
+        paid_out: 'Escrow Winner Payout',
+        refunded: 'Match Cancelled & Host Refunded',
+        draw_refunded: 'Match Draw 50/50 Refund',
+        cancelled: 'Match Cancelled & Room Closed',
+        cron_recovery: 'Cron Reconciled Match',
+      };
+
+      const eventLabel = data.eventLabel || defaultLabels[data.eventType] || data.eventType;
+      const record = await logAdminHistory({
+        ...data,
+        eventLabel,
+      });
+
+      return res.json({ success: true, id: record.id, record });
+    } catch (err) {
+      return res.status(500).json({ error: 'Internal server error logging event' });
+    }
+  });
+
+  app.post('/api/cron/recover', async (req, res) => {
+    if (options.cronSecret || process.env.CRON_SECRET) {
+      const expectedSecret = options.cronSecret || process.env.CRON_SECRET;
+      const authHeader = req.headers.authorization;
+      if (authHeader !== `Bearer ${expectedSecret}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
+    let processed = 0;
+    let settled = 0;
+    let refunded = 0;
+
+    const gamesCol = db._getCol('games');
+    for (const [gameId, gameData] of gamesCol.entries()) {
+      if (gameData.escrowStatus === 'verifying_deposit' && gameData.p1DepositTx) {
+        gameData.escrowStatus = 'p1_funded';
+        processed++;
+        await logAdminHistory({
+          eventType: 'cron_recovery',
+          eventLabel: 'Cron Reconciled Match',
+          gameId,
+          userId: gameData.player1 || 'system',
+          status: 'confirmed',
+          metadata: { action: 'recovered_p1_deposit' },
+        });
+      }
+    }
+
+    res.json({ success: true, processed, settled, refunded });
+  });
+
+  // Catch-all error handler for Express body-parser SyntaxErrors and PayloadTooLargeErrors
+  app.use((err, _req, res, next) => {
+    if (err instanceof SyntaxError && (err.status === 400 || err.statusCode === 400) && 'body' in err) {
+      return res.status(400).json({ error: 'Malformed JSON payload' });
+    }
+    if (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413) {
+      return res.status(413).json({ error: 'Payload entity too large' });
+    }
+    return res.status(err.status || err.statusCode || 500).json({ error: err.message || 'Internal Server Error' });
   });
 
   return { app, solanaHarness, db };

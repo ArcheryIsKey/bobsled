@@ -22,6 +22,8 @@ import { OWNER_WALLET, SOLANA_FAUCET_URL } from './constants';
 import { logError, logWarn } from './utils/logger';
 import { Shield, User, Flask, Drop, ArrowSquareOut, Crown } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { RouteErrorBoundary, ComponentErrorBoundary } from './components/common/ErrorBoundary';
+import ConnectionStatusBanner from './components/common/ConnectionStatusBanner';
 
 async function cleanupGuestUserGames(guestUserId: string) {
   try {
@@ -328,15 +330,17 @@ function MainContent({
         transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
         className="w-full flex-1 flex flex-col"
       >
-        <Routes location={location}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/profile/:userId" element={<Profile />} />
-          <Route path="/admin" element={<AdminPanel />} />
-          <Route path="/game/:gameId" element={<Game />} />
-          <Route path="/watch/:gameId" element={<Game />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <RouteErrorBoundary>
+          <Routes location={location}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/:userId" element={<Profile />} />
+            <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/game/:gameId" element={<Game />} />
+            <Route path="/watch/:gameId" element={<Game />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </RouteErrorBoundary>
       </motion.div>
     </AnimatePresence>
   );
@@ -634,6 +638,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="flex flex-col min-h-screen bg-background text-text-primary font-sans selection:bg-velocity-red selection:text-white antialiased">
+        <ConnectionStatusBanner />
         <AppHeader onOpenProfileModal={() => user?.id && setShowOwnProfileModal(true)} />
         
         {/* Own Profile Modal triggered from header */}
@@ -645,18 +650,20 @@ export default function App() {
         )}
 
         <main className="flex flex-1 w-full relative z-10">
-          <MainContent
-            isAuthenticating={isAuthenticating}
-            needsUsername={needsUsername}
-            usernameError={usernameError}
-            authError={authError}
-            handleSetUsername={handleSetUsername}
-            handleGuestLogin={handleGuestLogin}
-            handleSpectateGuest={handleSpectateGuest}
-            handleDismissInvite={handleDismissInvite}
-            disconnect={disconnect}
-            pendingGame={pendingGame}
-          />
+          <RouteErrorBoundary>
+            <MainContent
+              isAuthenticating={isAuthenticating}
+              needsUsername={needsUsername}
+              usernameError={usernameError}
+              authError={authError}
+              handleSetUsername={handleSetUsername}
+              handleGuestLogin={handleGuestLogin}
+              handleSpectateGuest={handleSpectateGuest}
+              handleDismissInvite={handleDismissInvite}
+              disconnect={disconnect}
+              pendingGame={pendingGame}
+            />
+          </RouteErrorBoundary>
         </main>
         
         <ToastContainer />

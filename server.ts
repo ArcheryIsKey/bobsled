@@ -194,6 +194,96 @@ export function verifyOnChainDeposit({
   return { valid: true, transferredLamports };
 }
 
+// -------------------------------------------------------------
+// SERVER-AUTHORITATIVE ADMIN HISTORY & SOLSCAN LOGGING
+// -------------------------------------------------------------
+
+export type AdminHistoryEventType =
+  | 'created'
+  | 'deposit_p1'
+  | 'deposit_p2'
+  | 'match_started'
+  | 'resigned'
+  | 'timeout_win'
+  | 'game_finished'
+  | 'paid_out'
+  | 'refunded'
+  | 'draw_refunded'
+  | 'cancelled'
+  | 'cron_recovery';
+
+export interface AdminHistoryLogEntry {
+  eventType: AdminHistoryEventType | string;
+  eventLabel: string;
+  gameId: string;
+  userId: string;
+  username?: string;
+  walletAddress?: string | null;
+  role?: 'player1' | 'player2' | 'system' | 'admin' | string;
+  targetUserId?: string | null;
+  targetUsername?: string | null;
+  targetWallet?: string | null;
+  wager?: number;
+  wagerCurrency?: 'SOL' | 'FREE';
+  totalPot?: number | null;
+  amountSol?: number | null;
+  houseFeeSol?: number | null;
+  txSignature?: string | null;
+  status?: 'confirmed' | 'processing' | 'failed';
+  metadata?: Record<string, any>;
+}
+
+export function constructSolscanTxUrl(txSignature: string, network = SOLANA_NETWORK): string {
+  return `https://solscan.io/tx/${txSignature}?cluster=${network}`;
+}
+
+export function constructSolscanAccountUrl(walletAddress: string, network = SOLANA_NETWORK): string {
+  return `https://solscan.io/account/${walletAddress}?cluster=${network}`;
+}
+
+export async function logAdminHistory(entry: AdminHistoryLogEntry) {
+  try {
+    const db = getFirestore();
+    const solscanUrl = entry.txSignature
+      ? constructSolscanTxUrl(entry.txSignature, SOLANA_NETWORK)
+      : null;
+
+    const record = {
+      timestamp: FieldValue.serverTimestamp(),
+      isoTimestamp: new Date().toISOString(),
+      eventType: entry.eventType,
+      eventLabel: entry.eventLabel,
+      status: entry.status || 'confirmed',
+      gameId: entry.gameId,
+      gameType: 'connect4' as const,
+      wager: typeof entry.wager === 'number' ? entry.wager : 0,
+      wagerCurrency: entry.wagerCurrency || (entry.wager && entry.wager > 0 ? 'SOL' : 'FREE'),
+      totalPot: entry.totalPot !== undefined && entry.totalPot !== null
+        ? entry.totalPot
+        : (typeof entry.wager === 'number' ? entry.wager * 2 : 0),
+      userId: entry.userId || 'system',
+      username: entry.username || 'Anonymous',
+      walletAddress: entry.walletAddress || null,
+      role: entry.role || 'system',
+      targetUserId: entry.targetUserId || null,
+      targetUsername: entry.targetUsername || null,
+      targetWallet: entry.targetWallet || null,
+      amountSol: entry.amountSol !== undefined ? entry.amountSol : null,
+      houseFeeSol: entry.houseFeeSol !== undefined ? entry.houseFeeSol : null,
+      txSignature: entry.txSignature || null,
+      solscanUrl,
+      network: SOLANA_NETWORK,
+      metadata: entry.metadata || {},
+    };
+
+    const docRef = await db.collection('admin_history').add(record);
+    return { id: docRef.id, ...record };
+  } catch (logErr) {
+    console.error('Failed to write admin history log:', logErr);
+    return null;
+  }
+}
+
 const app = express();
 
 // Trust reverse proxy for Cloud Run
@@ -341,7 +431,7 @@ const NonceSchema = z.object({ publicKey: z.string().min(32).max(44) }).strict()
 app.post('/api/auth/nonce', (req, res) => {
   const parseResult = NonceSchema.safeParse(req.body);
   if (!parseResult.success) {
-    return res.status(400).json({ error: 'Invalid payload', details: parseResult.error.errors });
+    return res.status(400).json({ error: 'Invalid payload', details: parseResult.error.issues });
   }
   const { publicKey } = parseResult.data;
   const nonce = generateNonce();
@@ -583,6 +673,46 @@ app.post('/api/escrow/verify-deposit', async (req, res) => {
       }
     });
 
+    // 3. Emit Administrative History Log Event
+    if (role === 'player1') {
+      await logAdminHistory({
+        eventType: 'deposit_p1',
+        eventLabel: 'Host Escrow Deposit',
+        gameId,
+        userId: req.body.userId || senderWallet,
+        username: req.body.username || gameData.player1Name || 'Host',
+        walletAddress: senderWallet,
+        role: 'player1',
+        wager: gameData.wager,
+        wagerCurrency: 'SOL',
+        totalPot: gameData.wager * 2,
+        amountSol: verification.transferredLamports / LAMPORTS_PER_SOL,
+        txSignature: txHash,
+        status: 'confirmed',
+        metadata: { role: 'player1', transferredLamports: verification.transferredLamports },
+      });
+    } else {
+      await logAdminHistory({
+        eventType: 'deposit_p2',
+        eventLabel: 'Opponent Escrow Deposit & Match Active',
+        gameId,
+        userId: req.body.userId || senderWallet,
+        username: req.body.username || 'Player 2',
+        walletAddress: senderWallet,
+        role: 'player2',
+        targetUserId: gameData.player1,
+        targetUsername: gameData.player1Name || 'Host',
+        targetWallet: gameData.p1Wallet || null,
+        wager: gameData.wager,
+        wagerCurrency: 'SOL',
+        totalPot: gameData.wager * 2,
+        amountSol: verification.transferredLamports / LAMPORTS_PER_SOL,
+        txSignature: txHash,
+        status: 'confirmed',
+        metadata: { role: 'player2', transferredLamports: verification.transferredLamports },
+      });
+    }
+
     return res.json({
       success: true,
       escrowStatus: role === 'player1' ? 'p1_funded' : 'fully_funded',
@@ -758,6 +888,28 @@ async function settleGameInternal(gameId: string): Promise<any> {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
+    // Emit admin history for draw refund
+    await logAdminHistory({
+      eventType: 'draw_refunded',
+      eventLabel: 'Match Draw 50/50 Refund',
+      gameId,
+      userId: game.player1,
+      username: game.player1Name || 'Player 1',
+      walletAddress: game.p1Wallet,
+      targetUserId: game.player2,
+      targetUsername: game.player2Name || 'Player 2',
+      targetWallet: game.p2Wallet,
+      wager: game.wager,
+      wagerCurrency: 'SOL',
+      totalPot: game.wager * 2,
+      amountSol: (singleRefundLamports * 2) / LAMPORTS_PER_SOL,
+      houseFeeSol: 0,
+      txSignature: signature,
+      status: 'confirmed',
+      role: 'system',
+      metadata: { winner: 'draw', refundPerPlayer: singleRefundLamports / LAMPORTS_PER_SOL },
+    });
+
     return { status: 200, success: true, payoutTx: signature, result: 'draw_refunded' };
   }
 
@@ -802,6 +954,32 @@ async function settleGameInternal(gameId: string): Promise<any> {
     payoutAmount: winnerPayoutLamports / LAMPORTS_PER_SOL,
     houseFeeAmount: houseFeeLamports / LAMPORTS_PER_SOL,
     updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // Emit admin history for winner payout
+  await logAdminHistory({
+    eventType: 'paid_out',
+    eventLabel: 'Escrow Winner Payout',
+    gameId,
+    userId: game.winner,
+    username: game.winner === game.player1 ? (game.player1Name || 'Player 1') : (game.player2Name || 'Player 2'),
+    walletAddress: winnerWalletStr,
+    targetUserId: game.winner === game.player1 ? game.player2 : game.player1,
+    targetUsername: game.winner === game.player1 ? (game.player2Name || 'Player 2') : (game.player1Name || 'Player 1'),
+    targetWallet: game.winner === game.player1 ? game.p2Wallet : game.p1Wallet,
+    wager: game.wager,
+    wagerCurrency: 'SOL',
+    totalPot: game.wager * 2,
+    amountSol: winnerPayoutLamports / LAMPORTS_PER_SOL,
+    houseFeeSol: houseFeeLamports / LAMPORTS_PER_SOL,
+    txSignature: signature,
+    status: 'confirmed',
+    role: 'system',
+    metadata: {
+      totalPot: game.wager * 2,
+      winnerPayout: winnerPayoutLamports / LAMPORTS_PER_SOL,
+      houseFee: houseFeeLamports / LAMPORTS_PER_SOL,
+    },
   });
 
   return {
@@ -879,6 +1057,22 @@ app.post('/api/escrow/refund-cancel', async (req, res) => {
 
       if (!p1WalletStr || !txHash) {
         // No deposit was broadcast or no wallet registered, safe to delete
+        await logAdminHistory({
+          eventType: 'cancelled',
+          eventLabel: 'Match Cancelled & Room Closed',
+          gameId,
+          userId,
+          username: game.player1Name || 'Host',
+          walletAddress: null,
+          role: 'player1',
+          wager: game.wager || 0,
+          wagerCurrency: game.wagerCurrency || 'SOL',
+          totalPot: 0,
+          amountSol: 0,
+          status: 'confirmed',
+          metadata: { reason: 'cancelled_unfunded_waiting_game' },
+        });
+
         await gameRef.delete();
         return res.json({ success: true, message: 'Match deleted' });
       }
@@ -909,6 +1103,22 @@ app.post('/api/escrow/refund-cancel', async (req, res) => {
 
       if (!p1Verif.valid) {
         // If deposit was never sent/confirmed on chain, safe to delete/cancel without refund
+        await logAdminHistory({
+          eventType: 'cancelled',
+          eventLabel: 'Unconfirmed Match Cancelled & Deleted',
+          gameId,
+          userId,
+          username: game.player1Name || 'Host',
+          walletAddress: p1WalletStr,
+          role: 'player1',
+          wager: game.wager || 0,
+          wagerCurrency: game.wagerCurrency || 'SOL',
+          totalPot: 0,
+          amountSol: 0,
+          status: 'confirmed',
+          metadata: { reason: 'deposit_unconfirmed' },
+        });
+
         await gameRef.delete();
         return res.json({ success: true, message: 'Unconfirmed match deleted' });
       }
@@ -988,10 +1198,44 @@ app.post('/api/escrow/refund-cancel', async (req, res) => {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
+      // Emit admin history for refunded cancellation
+      await logAdminHistory({
+        eventType: 'refunded',
+        eventLabel: 'Match Cancelled & Host Refunded',
+        gameId,
+        userId,
+        username: game.player1Name || 'Host',
+        walletAddress: p1WalletStr,
+        role: 'player1',
+        wager: game.wager,
+        wagerCurrency: 'SOL',
+        totalPot: game.wager * 2,
+        amountSol: refundLamports / LAMPORTS_PER_SOL,
+        txSignature: signature,
+        status: 'confirmed',
+        metadata: { reason: 'host_cancelled_waiting_game', refundLamports },
+      });
+
       return res.json({ success: true, refundTx: signature });
     }
 
     // Free game or unfunded game cancellation
+    await logAdminHistory({
+      eventType: 'cancelled',
+      eventLabel: 'Match Cancelled & Room Closed',
+      gameId,
+      userId,
+      username: game.player1Name || 'Host',
+      walletAddress: game.p1Wallet || null,
+      role: 'player1',
+      wager: game.wager || 0,
+      wagerCurrency: game.wagerCurrency || 'FREE',
+      totalPot: 0,
+      amountSol: 0,
+      status: 'confirmed',
+      metadata: { reason: 'cancelled_before_funding' },
+    });
+
     await gameRef.delete();
     return res.json({ success: true, message: 'Match deleted' });
   } catch (err: any) {
@@ -1000,7 +1244,78 @@ app.post('/api/escrow/refund-cancel', async (req, res) => {
   }
 });
 
-// 5. Cron Job to Recover Pending Transactions
+// 5. Lifecycle Event Ingestion & Tracking Endpoint
+const LogEventSchema = z.object({
+  eventType: z.enum([
+    'created',
+    'deposit_p1',
+    'deposit_p2',
+    'match_started',
+    'resigned',
+    'timeout_win',
+    'game_finished',
+    'paid_out',
+    'refunded',
+    'draw_refunded',
+    'cancelled',
+    'cron_recovery',
+  ]),
+  eventLabel: z.string().min(1).max(100).optional(),
+  gameId: z.string().min(1).max(128),
+  userId: z.string().min(1).max(128),
+  username: z.string().max(100).optional(),
+  walletAddress: z.string().max(100).nullable().optional(),
+  role: z.enum(['player1', 'player2', 'system', 'admin']).optional(),
+  targetUserId: z.string().max(128).nullable().optional(),
+  targetUsername: z.string().max(100).nullable().optional(),
+  targetWallet: z.string().max(100).nullable().optional(),
+  wager: z.number().min(0).max(100).optional(),
+  wagerCurrency: z.enum(['SOL', 'FREE']).optional(),
+  totalPot: z.number().nullable().optional(),
+  amountSol: z.number().nullable().optional(),
+  houseFeeSol: z.number().nullable().optional(),
+  txSignature: z.string().max(128).nullable().optional(),
+  status: z.enum(['confirmed', 'processing', 'failed']).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+}).strict();
+
+app.post('/api/admin/log-event', async (req, res) => {
+  const parseResult = LogEventSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: 'Invalid payload', details: parseResult.error.issues });
+  }
+
+  const data = parseResult.data;
+  const defaultLabels: Record<string, string> = {
+    created: 'Match Room Created',
+    deposit_p1: 'Host Escrow Deposit',
+    deposit_p2: 'Opponent Escrow Deposit',
+    match_started: 'Match Started',
+    resigned: 'Player Forfeited Match',
+    timeout_win: 'AFK Timeout Victory Claimed',
+    game_finished: 'Match Concluded Normally',
+    paid_out: 'Prize Disbursed to Winner',
+    refunded: 'Host Deposit Refunded',
+    draw_refunded: 'Match Draw 50/50 Refunded',
+    cancelled: 'Match Room Cancelled',
+    cron_recovery: 'Cron Reconciled Match',
+  };
+
+  const eventLabel = data.eventLabel || defaultLabels[data.eventType] || data.eventType;
+
+  const result = await logAdminHistory({
+    ...data,
+    eventLabel,
+  });
+
+  if (!result) {
+    return res.status(500).json({ error: 'Failed to record administrative history log' });
+  }
+
+  return res.json({ success: true, id: result.id, record: result });
+});
+
+// 6. Cron Job to Recover Pending Transactions
 app.post('/api/cron/recover', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -1025,11 +1340,31 @@ app.post('/api/cron/recover', async (req, res) => {
           
           if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
             if (status.err) {
-              await doc.ref.update({ escrowStatus: isP1 ? 'free' : 'p1_funded' }); 
+              await doc.ref.update({ escrowStatus: isP1 ? 'free' : 'p1_funded' });
+              await logAdminHistory({
+                eventType: 'cron_recovery',
+                eventLabel: 'Cron Recovery: Deposit Failed',
+                gameId: doc.id,
+                userId: isP1 ? game.player1 : (game.player2 || 'unknown'),
+                walletAddress: isP1 ? game.p1Wallet : game.p2Wallet,
+                txSignature: sig,
+                status: 'failed',
+                metadata: { action: 'recover_deposit_err', isP1, err: status.err },
+              });
             } else {
               await doc.ref.update({ 
                 escrowStatus: isP1 ? 'p1_funded' : 'fully_funded',
                 ...(isP1 ? {} : { status: 'active' })
+              });
+              await logAdminHistory({
+                eventType: 'cron_recovery',
+                eventLabel: 'Cron Recovery: Deposit Confirmed',
+                gameId: doc.id,
+                userId: isP1 ? game.player1 : (game.player2 || 'unknown'),
+                walletAddress: isP1 ? game.p1Wallet : game.p2Wallet,
+                txSignature: sig,
+                status: 'confirmed',
+                metadata: { action: 'recover_deposit_confirmed', isP1 },
               });
             }
           }
@@ -1050,8 +1385,26 @@ app.post('/api/cron/recover', async (req, res) => {
           
           if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
             await doc.ref.update({ payoutStatus: 'completed' });
+            await logAdminHistory({
+              eventType: 'cron_recovery',
+              eventLabel: 'Cron Recovery: Payout Completed',
+              gameId: doc.id,
+              userId: game.winner || 'system',
+              txSignature: game.payoutTx,
+              status: 'confirmed',
+              metadata: { action: 'recover_payout_completed' },
+            });
           } else if (!status) {
             await doc.ref.update({ payoutStatus: 'failed' });
+            await logAdminHistory({
+              eventType: 'cron_recovery',
+              eventLabel: 'Cron Recovery: Payout Marked Failed',
+              gameId: doc.id,
+              userId: game.winner || 'system',
+              txSignature: game.payoutTx,
+              status: 'failed',
+              metadata: { action: 'recover_payout_failed' },
+            });
           }
         } catch (e) {
            console.error('Error recovering payout', e);
@@ -1070,8 +1423,26 @@ app.post('/api/cron/recover', async (req, res) => {
           
           if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
             await doc.ref.update({ refundStatus: 'completed' });
+            await logAdminHistory({
+              eventType: 'cron_recovery',
+              eventLabel: 'Cron Recovery: Refund Completed',
+              gameId: doc.id,
+              userId: game.player1 || 'system',
+              txSignature: game.refundTx,
+              status: 'confirmed',
+              metadata: { action: 'recover_refund_completed' },
+            });
           } else if (!status) {
             await doc.ref.update({ refundStatus: 'failed' });
+            await logAdminHistory({
+              eventType: 'cron_recovery',
+              eventLabel: 'Cron Recovery: Refund Marked Failed',
+              gameId: doc.id,
+              userId: game.player1 || 'system',
+              txSignature: game.refundTx,
+              status: 'failed',
+              metadata: { action: 'recover_refund_failed' },
+            });
           }
         } catch (e) {
            console.error('Error recovering refund', e);
@@ -1123,4 +1494,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NODE_ENV !== 'test' && !process.env.SKIP_SERVER_START) {
+  startServer();
+}

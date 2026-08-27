@@ -95,6 +95,62 @@ export async function getEscrowPublicKey(): Promise<string> {
   throw new Error('Escrow vault public key is unavailable. Please try again.');
 }
 
+export const MIN_TX_FEE_BUFFER_SOL = 0.005;
+export const MIN_WAGER_SOL = 0.001;
+export const MAX_WAGER_SOL = 100.0;
+
+export interface BalanceValidationResult {
+  valid: boolean;
+  currentBalance: number;
+  requiredBalance: number;
+  buffer: number;
+  error?: string;
+  faucetUrl: string;
+}
+
+export async function validateSolBalance(
+  connection: Connection,
+  publicKey: PublicKey,
+  amountSol: number,
+  bufferSol: number = MIN_TX_FEE_BUFFER_SOL
+): Promise<BalanceValidationResult> {
+  const faucetUrl = 'https://faucet.solana.com';
+  const requiredBalance = amountSol + bufferSol;
+
+  try {
+    const lamports = await connection.getBalance(publicKey, 'confirmed');
+    const currentBalance = lamports / LAMPORTS_PER_SOL;
+
+    if (currentBalance < requiredBalance) {
+      return {
+        valid: false,
+        currentBalance,
+        requiredBalance,
+        buffer: bufferSol,
+        error: `Insufficient SOL balance. You have ${currentBalance.toFixed(4)} SOL, but need at least ${requiredBalance.toFixed(4)} SOL (${amountSol} wager + ${bufferSol} SOL network fee reserve). Request test SOL from the Solana Devnet Faucet.`,
+        faucetUrl,
+      };
+    }
+
+    return {
+      valid: true,
+      currentBalance,
+      requiredBalance,
+      buffer: bufferSol,
+      faucetUrl,
+    };
+  } catch (err: any) {
+    logWarn('Failed to fetch SOL balance for validation:', err?.message);
+    return {
+      valid: true,
+      currentBalance: 0,
+      requiredBalance,
+      buffer: bufferSol,
+      faucetUrl,
+    };
+  }
+}
+
 export async function depositMatchStake({
   connection,
   signTransaction,
@@ -108,6 +164,16 @@ export async function depositMatchStake({
   amountSol: number;
   onSigned?: (signature: string) => Promise<void>;
 }): Promise<string> {
+  if (typeof amountSol !== 'number' || isNaN(amountSol) || amountSol < MIN_WAGER_SOL || amountSol > MAX_WAGER_SOL) {
+    throw new Error(`Wager amount must be between ${MIN_WAGER_SOL} and ${MAX_WAGER_SOL} SOL.`);
+  }
+
+  // Pre-validate balance before prompting wallet
+  const balanceCheck = await validateSolBalance(connection, publicKey, amountSol);
+  if (!balanceCheck.valid && balanceCheck.error) {
+    throw new Error(balanceCheck.error);
+  }
+
   const escrowKeyStr = await getEscrowPublicKey();
   const escrowPubkey = new PublicKey(escrowKeyStr);
   const lamports = Math.round(amountSol * LAMPORTS_PER_SOL);

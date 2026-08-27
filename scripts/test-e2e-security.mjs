@@ -14,7 +14,7 @@
 
 import { harness } from '../tests/security/harness/test-runner.mjs';
 
-// Load Tier 1: Feature Coverage (12 suites, >=5 tests each)
+// Load Tier 1: Feature Coverage (14 suites, >=5 tests each)
 import '../tests/security/tier1-features/f01-http-headers.test.mjs';
 import '../tests/security/tier1-features/f02-cors-restrictions.test.mjs';
 import '../tests/security/tier1-features/f03-rate-limiting.test.mjs';
@@ -27,6 +27,8 @@ import '../tests/security/tier1-features/f09-zod-schemas.test.mjs';
 import '../tests/security/tier1-features/f10-input-bounds.test.mjs';
 import '../tests/security/tier1-features/f11-firestore-rules.test.mjs';
 import '../tests/security/tier1-features/f12-secret-cleanliness.test.mjs';
+import '../tests/security/tier1-features/f13-admin-history-tracking.test.mjs';
+import '../tests/security/tier1-features/f14-edge-cases-resilience.test.mjs';
 
 // Load Tier 2: Boundary & Malformed Inputs (6 suites, 10 tests each)
 import '../tests/security/tier2-boundaries/b01-header-cors-boundaries.test.mjs';

@@ -1,9 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkle, CaretDown } from '@phosphor-icons/react';
+import { Sparkle, CaretDown, CircleNotch, WifiSlash } from '@phosphor-icons/react';
+import { useNetworkStatus } from '../common/ConnectionStatusBanner';
 
 const ROWS = 6;
 const COLS = 7;
+
+export function sanitizeBoard(rawBoard: any): number[] {
+  if (Array.isArray(rawBoard) && rawBoard.length === 42) {
+    return rawBoard.map((c) => (typeof c === 'number' && Number.isInteger(c) && (c === 0 || c === 1 || c === 2) ? c : 0));
+  }
+  return Array(42).fill(0);
+}
 
 function findWinningCells(board: number[]): number[] {
   const checkLine = (r: number, c: number, dr: number, dc: number): number[] | null => {
@@ -48,40 +56,53 @@ interface Connect4Props {
 
 export default function Connect4({ game, user, isSpectator, onMove }: Connect4Props) {
   const [hoverColumn, setHoverColumn] = useState<number | null>(null);
+  const [isMovePending, setIsMovePending] = useState(false);
+  const { isOffline } = useNetworkStatus();
 
-  const isMyTurn = !isSpectator && game.turn === user?.id && game.status === 'active';
-  const isPlayer1 = user?.id === game.player1;
+  // Defend board rendering with fallback sanitizer
+  const safeBoard = useMemo(() => sanitizeBoard(game?.board), [game?.board]);
+
+  const isMyTurn = !isSpectator && game?.turn === user?.id && game?.status === 'active' && !isOffline;
+  const isPlayer1 = user?.id === game?.player1;
   const myPlayerNumber = isPlayer1 ? 1 : 2;
 
-  const p1IsRed = game.player1Color !== 'white';
+  const p1IsRed = game?.player1Color !== 'white';
   const myDiscIsRed = isPlayer1 ? p1IsRed : !p1IsRed;
   const isDiscRed = (val: number) => (p1IsRed ? val === 1 : val === 2);
 
+  // Reset optimistic move lock whenever turn changes or board updates
+  useEffect(() => {
+    setIsMovePending(false);
+  }, [game?.turn, game?.board]);
+
   // Calculate winning cells if match is finished
   const winningIndices = useMemo(() => {
-    if (game.status === 'finished' && game.winner && game.winner !== 'draw') {
-      return findWinningCells(game.board);
+    if (game?.status === 'finished' && game?.winner && game?.winner !== 'draw') {
+      return findWinningCells(safeBoard);
     }
     return [];
-  }, [game.status, game.winner, game.board]);
+  }, [game?.status, game?.winner, safeBoard]);
 
   const winningSet = useMemo(() => new Set(winningIndices), [winningIndices]);
 
   // Compute landing row for hovered column preview
   const hoverLandingRow = useMemo(() => {
-    if (hoverColumn === null || !isMyTurn) return -1;
+    if (hoverColumn === null || !isMyTurn || isMovePending) return -1;
     for (let r = ROWS - 1; r >= 0; r--) {
-      if (game.board[r * COLS + hoverColumn] === 0) {
+      if (safeBoard[r * COLS + hoverColumn] === 0) {
         return r;
       }
     }
     return -1;
-  }, [hoverColumn, isMyTurn, game.board]);
+  }, [hoverColumn, isMyTurn, isMovePending, safeBoard]);
 
   const handleDrop = (colIndex: number) => {
-    if (game.status !== 'active' || isSpectator || !isMyTurn) return;
+    if (game?.status !== 'active' || isSpectator || !isMyTurn || isMovePending || isOffline) return;
 
-    const newBoard = [...game.board];
+    // Optimistic move locking to prevent double-clicks or race conditions
+    setIsMovePending(true);
+
+    const newBoard = [...safeBoard];
     
     // Find the bottom-most empty slot (Row 5 is bottom, Row 0 is top)
     let emptyRow = -1;
@@ -91,7 +112,10 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
         break;
       }
     }
-    if (emptyRow === -1) return; // Column is full
+    if (emptyRow === -1) {
+      setIsMovePending(false);
+      return; // Column is full
+    }
 
     newBoard[emptyRow * COLS + colIndex] = myPlayerNumber;
 
@@ -99,14 +123,18 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
     const isWin = winCells.length >= 4;
     const isDraw = !isWin && newBoard.every((cell) => cell !== 0);
 
-    let winner = null;
+    let winner: string | null = null;
     if (isWin) {
-      winner = user?.id;
+      winner = user?.id || null;
     } else if (isDraw) {
       winner = 'draw';
     }
 
-    onMove(newBoard, winner);
+    try {
+      onMove(newBoard, winner);
+    } catch {
+      setIsMovePending(false);
+    }
   };
 
   return (
@@ -119,8 +147,18 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
 
         {/* Turn & Status Header - Perfectly Vertically Centered */}
         <div className="w-full flex items-center justify-center py-3.5 sm:py-4 px-1 sm:px-2">
-          {game.status === 'active' ? (
-            isSpectator ? (
+          {game?.status === 'active' ? (
+            isOffline ? (
+              <div className="bg-red-950/40 border border-red-500/40 text-red-300 px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-mono shadow-md whitespace-nowrap leading-none">
+                <WifiSlash size={14} className="text-red-400 animate-pulse" />
+                <span>Offline — Moves Paused</span>
+              </div>
+            ) : isMovePending ? (
+              <div className="bg-[#1e1e1e] border border-primary/40 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-mono shadow-md whitespace-nowrap leading-none">
+                <CircleNotch size={14} className="animate-spin text-primary shrink-0" />
+                <span>Submitting Move...</span>
+              </div>
+            ) : isSpectator ? (
               <div className="bg-[#1e1e1e] border border-white/10 text-text-secondary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-mono shadow-sm leading-none">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
                 <span>Spectating Live Game</span>
@@ -144,7 +182,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                 <span>Opponent's Turn ({myDiscIsRed ? 'White' : 'Red'})</span>
               </div>
             )
-          ) : game.status === 'waiting' ? (
+          ) : game?.status === 'waiting' ? (
             <div className="bg-[#1e1e1e] border border-primary/40 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap leading-none">
               <span className="w-2 h-2 bg-primary rounded-full animate-ping shrink-0" />
               <span>Waiting for Opponent</span>
@@ -157,7 +195,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               className="bg-[#1e1e1e] border border-primary/60 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-bold uppercase font-mono shadow-[0_0_20px_rgba(255,77,77,0.4)] whitespace-nowrap leading-none"
             >
               <Sparkle size={13} className="text-primary animate-spin shrink-0" />
-              <span>{game.winner === 'draw' ? 'Match Draw' : 'Match Finished'}</span>
+              <span>{game?.winner === 'draw' ? 'Match Draw' : 'Match Finished'}</span>
             </motion.div>
           )}
         </div>
@@ -165,16 +203,16 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
         {/* 7 Columns x 6 Rows Board Container - Large Touch Targets for Mobile */}
         <div className="bg-[#181818] rounded-xl sm:rounded-2xl p-2 min-[380px]:p-3 sm:p-5 border border-white/10 grid grid-cols-7 gap-1 min-[380px]:gap-1.5 sm:gap-3 md:gap-3.5 mx-auto w-fit relative z-10 shadow-[inset_0_4px_20px_rgba(0,0,0,0.8)] overflow-visible select-none">
           {Array.from({ length: COLS }).map((_, colIndex) => {
-            const isColHovered = hoverColumn === colIndex && isMyTurn;
+            const isColHovered = hoverColumn === colIndex && isMyTurn && !isMovePending && !isOffline;
 
             return (
               <div
                 key={`col-${colIndex}`}
                 className={`flex flex-col gap-1 min-[380px]:gap-1.5 sm:gap-3 md:gap-3.5 relative group overflow-visible touch-manipulation ${
-                  isMyTurn ? 'cursor-pointer' : ''
+                  isMyTurn && !isMovePending && !isOffline ? 'cursor-pointer' : ''
                 }`}
-                onMouseEnter={() => isMyTurn && setHoverColumn(colIndex)}
-                onMouseLeave={() => isMyTurn && setHoverColumn(null)}
+                onMouseEnter={() => isMyTurn && !isMovePending && !isOffline && setHoverColumn(colIndex)}
+                onMouseLeave={() => setHoverColumn(null)}
                 onClick={() => handleDrop(colIndex)}
               >
                 {/* Column Hover Drop Marker Arrow */}
@@ -197,7 +235,7 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
                 {/* Rows from 0 (top) down to 5 (bottom) - Sized for Mobile Comfort */}
                 {Array.from({ length: ROWS }).map((_, rowIndex) => {
                   const cellIndex = rowIndex * COLS + colIndex;
-                  const cellValue = game.board[cellIndex];
+                  const cellValue = safeBoard[cellIndex];
                   const isWinningCell = winningSet.has(cellIndex);
                   const isFinishedWithWinner = winningIndices.length > 0;
                   const isDimmed = isFinishedWithWinner && !isWinningCell;

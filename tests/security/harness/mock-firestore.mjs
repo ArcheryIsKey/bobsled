@@ -54,58 +54,48 @@ export class MockFirestore {
 
   collection(colName) {
     const col = this._getCol(colName);
-    return {
+    const createQuery = (filters = [], orderBys = [], limitCount = null) => ({
       doc: (docId) => this.doc(`${colName}/${docId}`),
-      where: (field, op, value) => {
+      where: (field, op, value) => createQuery([...filters, { field, op, value }], orderBys, limitCount),
+      orderBy: (field, direction = 'asc') => createQuery(filters, [...orderBys, { field, direction }], limitCount),
+      limit: (n) => createQuery(filters, orderBys, n),
+      get: async () => {
+        let results = [];
+        for (const [id, data] of col.entries()) {
+          let match = true;
+          for (const f of filters) {
+            if (f.op === '==' && data[f.field] !== f.value) match = false;
+            if (f.op === 'in' && (!Array.isArray(f.value) || !f.value.includes(data[f.field]))) match = false;
+          }
+          if (match) {
+            results.push({
+              id,
+              exists: true,
+              data: () => JSON.parse(JSON.stringify(data)),
+              ref: this.doc(`${colName}/${id}`),
+            });
+          }
+        }
+        for (const o of orderBys) {
+          results.sort((a, b) => {
+            const da = a.data()[o.field];
+            const db = b.data()[o.field];
+            if (da < db) return o.direction === 'desc' ? 1 : -1;
+            if (da > db) return o.direction === 'desc' ? -1 : 1;
+            return 0;
+          });
+        }
+        if (limitCount !== null) {
+          results = results.slice(0, limitCount);
+        }
         return {
-          limit: (n) => ({
-            get: async () => {
-              const matches = [];
-              for (const [id, data] of col.entries()) {
-                let match = false;
-                if (op === '==' && data[field] === value) match = true;
-                if (op === 'in' && Array.isArray(value) && value.includes(data[field])) match = true;
-                if (match) {
-                  matches.push({
-                    id,
-                    exists: true,
-                    data: () => JSON.parse(JSON.stringify(data)),
-                    ref: this.doc(`${colName}/${id}`),
-                  });
-                  if (matches.length >= n) break;
-                }
-              }
-              return {
-                empty: matches.length === 0,
-                size: matches.length,
-                docs: matches,
-              };
-            },
-          }),
-          get: async () => {
-            const matches = [];
-            for (const [id, data] of col.entries()) {
-              let match = false;
-              if (op === '==' && data[field] === value) match = true;
-              if (op === 'in' && Array.isArray(value) && value.includes(data[field])) match = true;
-              if (match) {
-                matches.push({
-                  id,
-                  exists: true,
-                  data: () => JSON.parse(JSON.stringify(data)),
-                  ref: this.doc(`${colName}/${id}`),
-                });
-              }
-            }
-            return {
-              empty: matches.length === 0,
-              size: matches.length,
-              docs: matches,
-            };
-          },
+          empty: results.length === 0,
+          size: results.length,
+          docs: results,
         };
       },
-    };
+    });
+    return createQuery();
   }
 
   async runTransaction(updateFunction) {
@@ -357,5 +347,25 @@ export class FirestoreRulesEvaluator {
       return { allowed: false, reason: 'Message length must be between 1 and 200 characters' };
     }
     return { allowed: true };
+  }
+
+  /**
+   * Evaluate read/list rule on admin_history/{historyId}
+   */
+  async evaluateAdminHistoryRead({ auth }) {
+    if (!auth || !auth.uid) return { allowed: false, reason: 'Unauthenticated' };
+    const isAdminUser = await this.isAdmin(auth);
+    if (!isAdminUser) {
+      return { allowed: false, reason: 'Permission denied: Only administrators can read admin_history' };
+    }
+    return { allowed: true };
+  }
+
+  /**
+   * Evaluate write rule on admin_history/{historyId} (create/update/delete)
+   */
+  async evaluateAdminHistoryWrite({ auth }) {
+    // Client write is strictly prohibited; all records are server-authoritative
+    return { allowed: false, reason: 'Client writes to admin_history are forbidden' };
   }
 }

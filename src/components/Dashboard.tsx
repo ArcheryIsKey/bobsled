@@ -1,4 +1,4 @@
-import React, { useState, useEffect, type MouseEvent } from 'react';
+import React, { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -7,9 +7,10 @@ import { useGameStore } from '../store';
 import UserProfileModal from './UserProfileModal';
 import SolAmount from './SolAmount';
 import { useSolPrice } from '../utils/solPrice';
-import { depositMatchStake } from '../utils/solanaEscrow';
+import { depositMatchStake, validateSolBalance, MIN_WAGER_SOL, MAX_WAGER_SOL, MIN_TX_FEE_BUFFER_SOL } from '../utils/solanaEscrow';
 import { logError } from '../utils/logger';
-import { CircleNotch, Play, X, Flask, Coins, CurrencyDollar } from '@phosphor-icons/react';
+import { SOLANA_FAUCET_URL } from '../constants';
+import { CircleNotch, Play, X, Flask, Coins, CurrencyDollar, WarningCircle, ArrowSquareOut } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function WagerPill({
@@ -78,7 +79,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { connection } = useConnection();
   const { publicKey, signTransaction } = useWallet();
-  const { user, addToast } = useGameStore();
+  const { user, addToast, solBalance } = useGameStore();
   const { formatUsd } = useSolPrice();
 
   const [waitingGames, setWaitingGames] = useState<any[]>([]);
@@ -91,6 +92,9 @@ export default function Dashboard() {
   const [creationStatus, setCreationStatus] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
+
+  const isCreatingRef = useRef(false);
+  const isJoiningRef = useRef(false);
 
   useEffect(() => {
     document.title = 'bobsled.gg - Connect 4';
@@ -156,22 +160,34 @@ export default function Dashboard() {
   }, []);
 
   const handleCreateMatch = async () => {
-    if (!user) return;
+    if (!user || isCreatingRef.current) return;
+    isCreatingRef.current = true;
     setIsCreating(true);
     setCreationStatus('Preparing match...');
     let createdDocId: string | null = null;
     let broadcastTxHash: string | null = null;
 
     try {
-      const finalWager = user.isTestUser || wagerType === 'FREE' ? 0 : customWager ? parseFloat(customWager) : wagerAmount;
+      const parsedCustom = customWager.trim() ? parseFloat(customWager.trim()) : NaN;
+      const finalWager = user.isTestUser || wagerType === 'FREE' ? 0 : !isNaN(parsedCustom) ? parsedCustom : wagerAmount;
       const finalCurrency = user.isTestUser ? 'FREE' : wagerType;
 
-      if (finalCurrency === 'SOL' && (isNaN(finalWager) || finalWager <= 0)) {
-        throw new Error('Please enter a valid SOL wager.');
-      }
+      if (finalCurrency === 'SOL') {
+        if (isNaN(finalWager) || finalWager < MIN_WAGER_SOL) {
+          throw new Error(`Minimum wager is ${MIN_WAGER_SOL} SOL.`);
+        }
+        if (finalWager > MAX_WAGER_SOL) {
+          throw new Error(`Maximum wager is ${MAX_WAGER_SOL} SOL.`);
+        }
+        if (!publicKey || !signTransaction) {
+          throw new Error('Please connect your Solana wallet to create a staked game.');
+        }
 
-      if (finalCurrency === 'SOL' && (!publicKey || !signTransaction)) {
-        throw new Error('Please connect your Solana wallet to create a staked game.');
+        // Pre-validate balance before initiating transaction
+        const balanceCheck = await validateSolBalance(connection, publicKey, finalWager, MIN_TX_FEE_BUFFER_SOL);
+        if (!balanceCheck.valid) {
+          throw new Error(balanceCheck.error || `Insufficient SOL balance. Required: ${(finalWager + MIN_TX_FEE_BUFFER_SOL).toFixed(4)} SOL.`);
+        }
       }
 
       const inviteCode = Math.random().toString(36).substring(2, 8);
@@ -278,13 +294,14 @@ export default function Dashboard() {
         addToast('error', msg || 'Failed to create match');
       }
     } finally {
+      isCreatingRef.current = false;
       setIsCreating(false);
       setCreationStatus(null);
     }
   };
 
   const handleJoinMatch = async (game: any) => {
-    if (!user) return;
+    if (!user || isJoiningRef.current) return;
     
     if (user.isTestUser && game.wager > 0) {
       addToast('warning', 'Guest users can only join Free games. Connect a wallet to play with SOL stakes.');
@@ -300,8 +317,15 @@ export default function Dashboard() {
         addToast('warning', 'Please connect your Solana wallet to join this staked match.');
         return;
       }
+
+      const balanceCheck = await validateSolBalance(connection, publicKey, game.wager, MIN_TX_FEE_BUFFER_SOL);
+      if (!balanceCheck.valid) {
+        addToast('error', balanceCheck.error || 'Insufficient SOL balance to join match.');
+        return;
+      }
     }
 
+    isJoiningRef.current = true;
     try {
       let p2DepositTx: string | null = null;
 
@@ -364,6 +388,8 @@ export default function Dashboard() {
       } else {
         addToast('error', msg || 'Failed to join match');
       }
+    } finally {
+      isJoiningRef.current = false;
     }
   };
 
@@ -501,7 +527,9 @@ export default function Dashboard() {
                           autoComplete="off"
                           type="number"
                           step="0.01"
-                          placeholder="Custom SOL amount..."
+                          min={MIN_WAGER_SOL}
+                          max={MAX_WAGER_SOL}
+                          placeholder="Custom SOL amount (0.001 - 100)..."
                           value={customWager}
                           onChange={(e) => {
                             setCustomWager(e.target.value);
@@ -509,11 +537,51 @@ export default function Dashboard() {
                           }}
                           className="w-full h-12 bg-black/40 border border-white/10 rounded-full px-6 font-mono text-sm text-white outline-none focus:border-primary text-center transition-colors"
                         />
-                        {customWager && !isNaN(parseFloat(customWager)) && parseFloat(customWager) > 0 && (
-                          <div className="text-xs text-text-muted font-mono text-center">
-                            USD Value: <span className="text-white font-bold">{formatUsd(parseFloat(customWager)) || '---'}</span>
+                        {customWager && !isNaN(parseFloat(customWager)) && (
+                          <div className="flex flex-col items-center gap-1 w-full">
+                            {parseFloat(customWager) < MIN_WAGER_SOL && (
+                              <div className="text-xs text-red-400 font-mono text-center">
+                                Minimum custom wager is {MIN_WAGER_SOL} SOL
+                              </div>
+                            )}
+                            {parseFloat(customWager) > MAX_WAGER_SOL && (
+                              <div className="text-xs text-red-400 font-mono text-center">
+                                Maximum custom wager is {MAX_WAGER_SOL} SOL
+                              </div>
+                            )}
+                            {parseFloat(customWager) >= MIN_WAGER_SOL && parseFloat(customWager) <= MAX_WAGER_SOL && (
+                              <div className="text-xs text-text-muted font-mono text-center">
+                                USD Value: <span className="text-white font-bold">{formatUsd(parseFloat(customWager)) || '---'}</span>
+                              </div>
+                            )}
                           </div>
                         )}
+
+                        {/* Faucet Guidance Banner if Balance is Low */}
+                        {(() => {
+                          const currentWager = customWager ? parseFloat(customWager) : wagerAmount;
+                          const hasLowBalance = !isNaN(currentWager) && currentWager > 0 && solBalance !== null && solBalance < (currentWager + MIN_TX_FEE_BUFFER_SOL);
+                          if (!hasLowBalance) return null;
+                          return (
+                            <div className="w-full bg-red-950/40 border border-red-500/30 rounded-xl p-3 flex items-center justify-between gap-3 text-xs font-mono text-red-200">
+                              <div className="flex items-center gap-2 text-[11px] leading-tight">
+                                <WarningCircle size={16} className="text-primary shrink-0" />
+                                <span>
+                                  Balance ({solBalance.toFixed(3)} SOL) is below required {(currentWager + MIN_TX_FEE_BUFFER_SOL).toFixed(3)} SOL reserve.
+                                </span>
+                              </div>
+                              <a
+                                href={SOLANA_FAUCET_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded bg-primary/20 hover:bg-primary/30 border border-primary/40 text-white font-bold text-[11px] flex items-center gap-1 shrink-0 transition-colors"
+                              >
+                                <span>Faucet</span>
+                                <ArrowSquareOut size={12} />
+                              </a>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

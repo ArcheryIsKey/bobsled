@@ -1,6 +1,17 @@
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect, useMemo, type MouseEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, query, onSnapshot, deleteDoc, doc, getDocs, where, updateDoc } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  onSnapshot, 
+  deleteDoc, 
+  doc, 
+  getDocs, 
+  where, 
+  updateDoc, 
+  orderBy, 
+  limit 
+} from 'firebase/firestore';
 import { db } from '../firebase';
 import { useGameStore } from '../store';
 import { OWNER_WALLET } from '../constants';
@@ -26,30 +37,422 @@ import {
   ShieldCheck,
   Shield as ShieldMinus,
   ArrowUpRight,
-  Flask
+  Flask,
+  Lightning,
+  ArrowSquareOut,
+  Clock,
+  Funnel,
+  Receipt,
+  Code,
+  Cpu,
+  ArrowsLeftRight,
+  Eye,
+  Database,
+  Info,
+  ArrowsClockwise,
+  Cube
 } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+export type AdminHistoryEventType =
+  | 'created'
+  | 'deposit_p1'
+  | 'deposit_p2'
+  | 'match_started'
+  | 'resigned'
+  | 'timeout_win'
+  | 'game_finished'
+  | 'paid_out'
+  | 'refunded'
+  | 'draw_refunded'
+  | 'cancelled'
+  | 'cron_recovery'
+  | string;
+
+export interface AdminHistoryRecord {
+  id: string;
+  timestamp?: any;
+  isoTimestamp?: string;
+  eventType: AdminHistoryEventType;
+  eventLabel: string;
+  status: 'confirmed' | 'processing' | 'failed' | string;
+  gameId: string;
+  gameType?: string;
+  wager: number;
+  wagerCurrency?: 'SOL' | 'FREE' | string;
+  totalPot?: number | null;
+  userId: string;
+  username: string;
+  walletAddress?: string | null;
+  role?: string;
+  targetUserId?: string | null;
+  targetUsername?: string | null;
+  targetWallet?: string | null;
+  amountSol?: number | null;
+  houseFeeSol?: number | null;
+  txSignature?: string | null;
+  solscanUrl?: string | null;
+  network?: string;
+  metadata?: {
+    boardSnapshot?: number[];
+    winner?: string | null;
+    reason?: string;
+    senderWallet?: string;
+    errorMessage?: string;
+    totalPot?: number;
+    winnerPayout?: number;
+    houseFee?: number;
+    refundPerPlayer?: number;
+    transferredLamports?: number;
+    role?: string;
+    [key: string]: any;
+  };
+}
+
+// Helpers for timestamps
+function formatRelativeTime(timestamp: any, isoTimestamp?: string): string {
+  let date: Date | null = null;
+  if (timestamp?.toDate) {
+    date = timestamp.toDate();
+  } else if (timestamp?.seconds) {
+    date = new Date(timestamp.seconds * 1000);
+  } else if (timestamp instanceof Date) {
+    date = timestamp;
+  } else if (isoTimestamp) {
+    date = new Date(isoTimestamp);
+  }
+
+  if (!date || isNaN(date.getTime())) return 'Just now';
+
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return 'Just now';
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 45) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+function formatFullTimestamp(timestamp: any, isoTimestamp?: string): string {
+  let date: Date | null = null;
+  if (timestamp?.toDate) {
+    date = timestamp.toDate();
+  } else if (timestamp?.seconds) {
+    date = new Date(timestamp.seconds * 1000);
+  } else if (timestamp instanceof Date) {
+    date = timestamp;
+  } else if (isoTimestamp) {
+    date = new Date(isoTimestamp);
+  }
+
+  if (!date || isNaN(date.getTime())) return '—';
+  return date.toLocaleString();
+}
+
+// Event Type Color Badges per Requirement 5
+function getEventBadgeProps(eventType: string) {
+  switch (eventType) {
+    case 'paid_out':
+      return {
+        className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        label: 'PAID OUT',
+        icon: <Trophy size={11} className="shrink-0" />,
+      };
+    case 'deposit_p1':
+      return {
+        className: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
+        label: 'DEPOSIT (P1)',
+        icon: <Coins size={11} className="shrink-0" />,
+      };
+    case 'deposit_p2':
+      return {
+        className: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
+        label: 'DEPOSIT (P2)',
+        icon: <Coins size={11} className="shrink-0" />,
+      };
+    case 'refunded':
+      return {
+        className: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+        label: 'REFUNDED',
+        icon: <ArrowsClockwise size={11} className="shrink-0" />,
+      };
+    case 'draw_refunded':
+      return {
+        className: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+        label: 'DRAW REFUND',
+        icon: <ArrowsClockwise size={11} className="shrink-0" />,
+      };
+    case 'resigned':
+      return {
+        className: 'bg-red-500/10 text-red-400 border-red-500/30',
+        label: 'RESIGNED',
+        icon: <Warning size={11} className="shrink-0" />,
+      };
+    case 'timeout_win':
+      return {
+        className: 'bg-red-500/10 text-red-400 border-red-500/30',
+        label: 'TIMEOUT WIN',
+        icon: <Clock size={11} className="shrink-0" />,
+      };
+    case 'created':
+      return {
+        className: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+        label: 'ROOM CREATED',
+        icon: <Cube size={11} className="shrink-0" />,
+      };
+    case 'match_started':
+      return {
+        className: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+        label: 'MATCH STARTED',
+        icon: <GameController size={11} className="shrink-0" />,
+      };
+    case 'cancelled':
+      return {
+        className: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+        label: 'CANCELLED',
+        icon: <X size={11} className="shrink-0" />,
+      };
+    case 'game_finished':
+      return {
+        className: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+        label: 'FINISHED',
+        icon: <Trophy size={11} className="shrink-0" />,
+      };
+    case 'cron_recovery':
+      return {
+        className: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+        label: 'CRON RECOVERY',
+        icon: <Cpu size={11} className="shrink-0" />,
+      };
+    default:
+      return {
+        className: 'bg-neutral-800 text-text-secondary border-white/10',
+        label: (eventType || 'UNKNOWN').toUpperCase().replace('_', ' '),
+        icon: <Info size={11} className="shrink-0" />,
+      };
+  }
+}
+
+// Status Badge Component
+function StatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case 'confirmed':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-semibold">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          Confirmed
+        </span>
+      );
+    case 'processing':
+    case 'pending':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-mono font-semibold">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          Processing
+        </span>
+      );
+    case 'failed':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono font-semibold">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+          Failed
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-800 border border-white/10 text-text-muted text-[10px] font-mono font-semibold">
+          <span className="w-1.5 h-1.5 rounded-full bg-text-muted" />
+          {status || 'Unknown'}
+        </span>
+      );
+  }
+}
+
+// Solscan Devnet Transaction Pill (Requirement 4)
+function SolscanTxPill({
+  txSignature,
+  solscanUrl,
+  onCopy,
+  copied,
+}: {
+  txSignature?: string | null;
+  solscanUrl?: string | null;
+  onCopy?: (text: string) => void;
+  copied?: boolean;
+}) {
+  if (!txSignature) {
+    return <span className="text-text-muted text-[11px] font-mono italic">No Tx (Free)</span>;
+  }
+
+  const url = solscanUrl || `https://solscan.io/tx/${txSignature}?cluster=devnet`;
+  const truncated = `${txSignature.substring(0, 4)}...${txSignature.substring(txSignature.length - 4)}`;
+
+  return (
+    <div className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`Inspect Transaction on Solana Devnet Solscan: ${txSignature}`}
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 hover:border-primary text-[11px] font-mono transition-all hover:scale-105"
+      >
+        <span>{truncated}</span>
+        <ArrowSquareOut size={11} className="shrink-0" />
+      </a>
+      {onCopy && (
+        <button
+          onClick={() => onCopy(txSignature)}
+          className="p-1 text-text-muted hover:text-white transition-colors cursor-pointer"
+          title="Copy full transaction signature"
+        >
+          {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Solscan Devnet Account Link (Requirement 4)
+function SolscanAccountLink({
+  walletAddress,
+  onCopy,
+  copied,
+  truncate = true,
+}: {
+  walletAddress: string;
+  onCopy?: (text: string) => void;
+  copied?: boolean;
+  truncate?: boolean;
+}) {
+  const url = `https://solscan.io/account/${walletAddress}?cluster=devnet`;
+  const label = truncate
+    ? `${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}`
+    : walletAddress;
+
+  return (
+    <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`Inspect Account on Solscan Devnet: ${walletAddress}`}
+        className="inline-flex items-center gap-1 text-text-secondary hover:text-primary transition-colors font-mono"
+      >
+        <span>{label}</span>
+        <ArrowSquareOut size={11} className="shrink-0 text-text-muted hover:text-primary" />
+      </a>
+      {onCopy && (
+        <button
+          onClick={() => onCopy(walletAddress)}
+          className="text-text-muted hover:text-white transition-colors cursor-pointer"
+          title="Copy full wallet address"
+        >
+          {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Connect-4 Board Mini Visualizer
+function BoardSnapshotView({ board }: { board: number[] }) {
+  if (!Array.isArray(board) || board.length !== 42) {
+    return (
+      <div className="text-xs text-text-muted font-mono p-3 bg-black rounded-xl border border-white/5">
+        Invalid or empty board snapshot ({board ? board.length : 0} cells)
+      </div>
+    );
+  }
+
+  const rows = 6;
+  const cols = 7;
+
+  return (
+    <div className="bg-neutral-950 border border-white/10 rounded-2xl p-4 inline-block shadow-2xl">
+      <div className="grid grid-cols-7 gap-1.5 bg-[#141414] p-3 rounded-xl border border-white/5">
+        {Array.from({ length: rows * cols }).map((_, idx) => {
+          const val = board[idx];
+          return (
+            <div
+              key={idx}
+              className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border transition-all ${
+                val === 1
+                  ? 'bg-primary border-primary/80 shadow-[0_0_8px_rgba(255,77,77,0.5)]'
+                  : val === 2
+                  ? 'bg-amber-400 border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                  : 'bg-black/80 border-white/10'
+              }`}
+              title={`Cell ${idx}: ${val === 1 ? 'Player 1' : val === 2 ? 'Player 2' : 'Empty'}`}
+            >
+              {val === 1 && <span className="text-[9px] font-bold text-white">1</span>}
+              {val === 2 && <span className="text-[9px] font-bold text-black">2</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between text-[10px] font-mono text-text-muted mt-2.5 px-1">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" /> Player 1 (Host)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Player 2 (Opponent)
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { user: currentUser } = useGameStore();
 
+  // Navigation Tabs: 'history' (Default / Primary) | 'users'
+  const [activeTab, setActiveTab] = useState<'history' | 'users'>('history');
+
+  // Firestore Collections State
   const [users, setUsers] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [historyEvents, setHistoryEvents] = useState<AdminHistoryRecord[]>([]);
+
+  // Loading & Error States
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  // Users Tab Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'active'>('all');
+
+  // Live History Tab Filters & Search
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<
+    'all' | 'deposits' | 'payouts' | 'refunds' | 'resignations' | 'rooms' | 'cron'
+  >('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'processing' | 'failed'>('all');
+
+  // Copy States
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedTxSig, setCopiedTxSig] = useState<string | null>(null);
+  const [copiedJson, setCopiedJson] = useState(false);
+
+  // Purge Games Modal State
   const [isPurging, setIsPurging] = useState(false);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
 
-  // Floating Inspect Profile State
+  // Floating Inspect Profile Modal (Users Tab)
   const [inspectUser, setInspectUser] = useState<any | null>(null);
   const [inspectHistory, setInspectHistory] = useState<any[]>([]);
   const [inspectSolBalance, setInspectSolBalance] = useState<number | null>(null);
   const [isLoadingInspectHistory, setIsLoadingInspectHistory] = useState(false);
   const [isLoadingInspectBalance, setIsLoadingInspectBalance] = useState(false);
   const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
+
+  // Floating Event Inspector Modal (History Tab)
+  const [selectedEvent, setSelectedEvent] = useState<AdminHistoryRecord | null>(null);
 
   // In-App Custom Delete Modal State
   const [userToDelete, setUserToDelete] = useState<any | null>(null);
@@ -69,6 +472,7 @@ export default function AdminPanel() {
     };
   }, []);
 
+  // Fetch Users & Games
   useEffect(() => {
     if (!isAdmin && currentUser) {
       navigate('/');
@@ -78,7 +482,7 @@ export default function AdminPanel() {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const uList = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       setUsers(uList);
-      setIsLoading(false);
+      setIsLoadingUsers(false);
     });
 
     const unsubGames = onSnapshot(collection(db, 'games'), (snapshot) => {
@@ -92,6 +496,45 @@ export default function AdminPanel() {
     };
   }, [isAdmin, currentUser, navigate]);
 
+  // Live Admin History Stream Listener (Requirement 2)
+  useEffect(() => {
+    if (!isAdmin) return;
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+
+    try {
+      const q = query(
+        collection(db, 'admin_history'),
+        orderBy('timestamp', 'desc'),
+        limit(100)
+      );
+
+      const unsubHistory = onSnapshot(
+        q,
+        (snapshot) => {
+          const list = snapshot.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          })) as AdminHistoryRecord[];
+          setHistoryEvents(list);
+          setIsLoadingHistory(false);
+        },
+        (err) => {
+          logError('Failed to stream admin history:', err);
+          setHistoryError(err.message || 'Failed to load activity stream.');
+          setIsLoadingHistory(false);
+        }
+      );
+
+      return () => unsubHistory();
+    } catch (err: any) {
+      logError('Error setting up admin history listener:', err);
+      setHistoryError(err.message || 'Failed to initialize activity listener.');
+      setIsLoadingHistory(false);
+    }
+  }, [isAdmin]);
+
+  // User Inspector Profile Hook
   useEffect(() => {
     if (!inspectUser) {
       setInspectHistory([]);
@@ -137,6 +580,18 @@ export default function AdminPanel() {
     navigator.clipboard.writeText(wallet);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCopyTxSignature = (sig: string) => {
+    navigator.clipboard.writeText(sig);
+    setCopiedTxSig(sig);
+    setTimeout(() => setCopiedTxSig(null), 2000);
+  };
+
+  const handleCopyRawJson = (data: any) => {
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+    setCopiedJson(true);
+    setTimeout(() => setCopiedJson(false), 2000);
   };
 
   const handleOpponentClick = (e: MouseEvent, oppId: string | null, matchId: string) => {
@@ -246,6 +701,7 @@ export default function AdminPanel() {
     );
   }
 
+  // Telemetry KPI Calculations
   const totalUsers = users.length;
   const activeGames = games.filter((g) => g.status === 'active');
   const waitingGames = games.filter((g) => g.status === 'waiting');
@@ -255,6 +711,7 @@ export default function AdminPanel() {
     0
   );
 
+  // Active Users calculation
   const activeUserIds = new Set<string>();
   const fifteenMinutesAgo = Date.now() - 15 * 60 * 1000;
 
@@ -271,6 +728,7 @@ export default function AdminPanel() {
     }
   });
 
+  // Filtered Users
   const filteredUsers = users.filter((u) => {
     const q = searchTerm.toLowerCase();
     const matchesSearch =
@@ -284,6 +742,76 @@ export default function AdminPanel() {
     }
     return true;
   });
+
+  // Category counts for history tab
+  const categoryCounts = useMemo(() => {
+    const counts = {
+      all: historyEvents.length,
+      deposits: 0,
+      payouts: 0,
+      refunds: 0,
+      resignations: 0,
+      rooms: 0,
+      cron: 0,
+    };
+    for (const ev of historyEvents) {
+      const type = ev.eventType;
+      if (type === 'deposit_p1' || type === 'deposit_p2') counts.deposits++;
+      else if (type === 'paid_out') counts.payouts++;
+      else if (type === 'refunded' || type === 'draw_refunded') counts.refunds++;
+      else if (type === 'resigned' || type === 'timeout_win') counts.resignations++;
+      else if (type === 'created' || type === 'match_started' || type === 'cancelled' || type === 'game_finished') counts.rooms++;
+      else if (type === 'cron_recovery') counts.cron++;
+    }
+    return counts;
+  }, [historyEvents]);
+
+  // Filtered History Events (Requirement 3)
+  const filteredHistoryEvents = useMemo(() => {
+    return historyEvents.filter((ev) => {
+      // 1. Category Filter
+      if (categoryFilter === 'deposits') {
+        if (ev.eventType !== 'deposit_p1' && ev.eventType !== 'deposit_p2') return false;
+      } else if (categoryFilter === 'payouts') {
+        if (ev.eventType !== 'paid_out') return false;
+      } else if (categoryFilter === 'refunds') {
+        if (ev.eventType !== 'refunded' && ev.eventType !== 'draw_refunded') return false;
+      } else if (categoryFilter === 'resignations') {
+        if (ev.eventType !== 'resigned' && ev.eventType !== 'timeout_win') return false;
+      } else if (categoryFilter === 'rooms') {
+        if (!['created', 'match_started', 'cancelled', 'game_finished'].includes(ev.eventType)) return false;
+      } else if (categoryFilter === 'cron') {
+        if (ev.eventType !== 'cron_recovery') return false;
+      }
+
+      // 2. Status Filter
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'confirmed' && ev.status !== 'confirmed') return false;
+        if (statusFilter === 'processing' && ev.status !== 'processing' && ev.status !== 'pending') return false;
+        if (statusFilter === 'failed' && ev.status !== 'failed') return false;
+      }
+
+      // 3. Search Term Filter across Game ID, Username, User ID, Wallet, Tx Signature, Event Label
+      if (historySearchTerm.trim()) {
+        const q = historySearchTerm.toLowerCase().trim();
+        const matches =
+          (ev.gameId && ev.gameId.toLowerCase().includes(q)) ||
+          (ev.username && ev.username.toLowerCase().includes(q)) ||
+          (ev.userId && ev.userId.toLowerCase().includes(q)) ||
+          (ev.targetUsername && ev.targetUsername.toLowerCase().includes(q)) ||
+          (ev.targetUserId && ev.targetUserId.toLowerCase().includes(q)) ||
+          (ev.walletAddress && ev.walletAddress.toLowerCase().includes(q)) ||
+          (ev.targetWallet && ev.targetWallet.toLowerCase().includes(q)) ||
+          (ev.txSignature && ev.txSignature.toLowerCase().includes(q)) ||
+          (ev.eventLabel && ev.eventLabel.toLowerCase().includes(q)) ||
+          (ev.eventType && ev.eventType.toLowerCase().includes(q));
+
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [historyEvents, categoryFilter, statusFilter, historySearchTerm]);
 
   return (
     <div className="min-h-screen flex flex-col bg-black text-text-primary antialiased w-full overflow-y-auto">
@@ -300,12 +828,15 @@ export default function AdminPanel() {
               >
                 <ArrowLeft size={15} />
               </button>
-              <h1 className="font-headline-lg text-2xl sm:text-3xl text-white font-bold tracking-tight">
-                Admin Panel
+              <h1 className="font-headline-lg text-2xl sm:text-3xl text-white font-bold tracking-tight flex items-center gap-2.5">
+                <span>Admin Terminal</span>
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-mono font-bold uppercase tracking-wider">
+                  Devnet
+                </span>
               </h1>
             </div>
             <p className="text-xs text-text-muted font-mono">
-              Live user database and platform telemetry.
+              Live administrative history stream, Solscan transaction verification, and user management.
             </p>
           </div>
 
@@ -320,7 +851,7 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        {/* Telemetry KPI Cards */}
+        {/* Telemetry KPI Cards (Requirement 1) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           {/* Card 1: Total Users */}
@@ -380,210 +911,810 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        {/* Users Table Section */}
-        <section className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-          
-          {/* Table Toolbar */}
-          <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#181818]">
-            <div className="flex items-center gap-4">
-              <h2 className="font-headline-lg text-xl text-white font-bold">
-                Users
-              </h2>
+        {/* Tab Navigation System (Requirement 1) */}
+        <div className="flex items-center gap-2 border-b border-white/10 pb-1">
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-2.5 px-5 py-3 rounded-t-2xl font-mono text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              activeTab === 'history'
+                ? 'bg-neutral-900 text-white border-primary shadow-lg'
+                : 'text-text-muted hover:text-white border-transparent hover:bg-neutral-900/50'
+            }`}
+          >
+            <Lightning size={16} className={activeTab === 'history' ? 'text-primary' : 'text-text-muted'} weight="bold" />
+            <span>(⚡) Live Activity History</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+              activeTab === 'history' ? 'bg-primary/20 text-primary' : 'bg-neutral-800 text-text-muted'
+            }`}>
+              {historyEvents.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2.5 px-5 py-3 rounded-t-2xl font-mono text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              activeTab === 'users'
+                ? 'bg-neutral-900 text-white border-primary shadow-lg'
+                : 'text-text-muted hover:text-white border-transparent hover:bg-neutral-900/50'
+            }`}
+          >
+            <Users size={16} className={activeTab === 'users' ? 'text-primary' : 'text-text-muted'} weight="bold" />
+            <span>(👥) User Database & Permissions</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+              activeTab === 'users' ? 'bg-primary/20 text-primary' : 'bg-neutral-800 text-text-muted'
+            }`}>
+              {users.length}
+            </span>
+          </button>
+        </div>
+
+        {/* TAB 1: LIVE ACTIVITY HISTORY (Default View) */}
+        {activeTab === 'history' && (
+          <section className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-2xl space-y-0">
+            
+            {/* History Toolbar & Filtering (Requirement 3) */}
+            <div className="p-5 border-b border-white/10 space-y-4 bg-[#181818]">
               
-              {/* Sort / Filter Pills */}
-              <div className="flex bg-black p-1 rounded-full border border-white/10 text-xs font-mono">
-                <button
-                  onClick={() => setFilterMode('all')}
-                  className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
-                    filterMode === 'all'
-                      ? 'bg-white/15 text-white font-bold'
-                      : 'text-text-muted hover:text-white'
-                  }`}
-                >
-                  All ({users.length})
-                </button>
-                <button
-                  onClick={() => setFilterMode('active')}
-                  className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
-                    filterMode === 'active'
-                      ? 'bg-primary/20 text-primary font-bold'
-                      : 'text-text-muted hover:text-white'
-                  }`}
-                >
-                  Active ({activeUserIds.size})
-                </button>
+              {/* Search & Top Actions */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <h2 className="font-headline-lg text-lg text-white font-bold tracking-tight">
+                      Live Audit Stream
+                    </h2>
+                  </div>
+                  <span className="text-xs text-text-muted font-mono">
+                    Showing {filteredHistoryEvents.length} of {historyEvents.length} events
+                  </span>
+                </div>
+
+                {/* Real-time Text Search Bar */}
+                <div className="relative w-full sm:w-80">
+                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
+                  <input
+                    id="historySearchInput"
+                    name="historySearchQuery"
+                    autoComplete="off"
+                    type="text"
+                    placeholder="Search Game ID, User, Wallet, Tx..."
+                    value={historySearchTerm}
+                    onChange={(e) => setHistorySearchTerm(e.target.value)}
+                    className="w-full bg-black border border-white/10 focus:border-primary text-xs text-white pl-9 pr-8 py-2 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
+                  />
+                  {historySearchTerm && (
+                    <button
+                      onClick={() => setHistorySearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-white"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Controls Row */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-white/5">
+                
+                {/* Category Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+                  <button
+                    onClick={() => setCategoryFilter('all')}
+                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      categoryFilter === 'all'
+                        ? 'bg-white/20 text-white font-bold'
+                        : 'bg-black text-text-muted hover:text-white border border-white/5'
+                    }`}
+                  >
+                    All Events ({categoryCounts.all})
+                  </button>
+                  <button
+                    onClick={() => setCategoryFilter('deposits')}
+                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      categoryFilter === 'deposits'
+                        ? 'bg-sky-500/25 text-sky-300 font-bold border border-sky-500/40'
+                        : 'bg-black text-text-muted hover:text-sky-300 border border-white/5'
+                    }`}
+                  >
+                    Deposits ({categoryCounts.deposits})
+                  </button>
+                  <button
+                    onClick={() => setCategoryFilter('payouts')}
+                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      categoryFilter === 'payouts'
+                        ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/40'
+                        : 'bg-black text-text-muted hover:text-emerald-300 border border-white/5'
+                    }`}
+                  >
+                    Payouts ({categoryCounts.payouts})
+                  </button>
+                  <button
+                    onClick={() => setCategoryFilter('refunds')}
+                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      categoryFilter === 'refunds'
+                        ? 'bg-amber-500/25 text-amber-300 font-bold border border-amber-500/40'
+                        : 'bg-black text-text-muted hover:text-amber-300 border border-white/5'
+                    }`}
+                  >
+                    Refunds ({categoryCounts.refunds})
+                  </button>
+                  <button
+                    onClick={() => setCategoryFilter('resignations')}
+                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      categoryFilter === 'resignations'
+                        ? 'bg-red-500/25 text-red-300 font-bold border border-red-500/40'
+                        : 'bg-black text-text-muted hover:text-red-300 border border-white/5'
+                    }`}
+                  >
+                    Resignations ({categoryCounts.resignations})
+                  </button>
+                  <button
+                    onClick={() => setCategoryFilter('rooms')}
+                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      categoryFilter === 'rooms'
+                        ? 'bg-purple-500/25 text-purple-300 font-bold border border-purple-500/40'
+                        : 'bg-black text-text-muted hover:text-purple-300 border border-white/5'
+                    }`}
+                  >
+                    Room Events ({categoryCounts.rooms})
+                  </button>
+                  <button
+                    onClick={() => setCategoryFilter('cron')}
+                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                      categoryFilter === 'cron'
+                        ? 'bg-indigo-500/25 text-indigo-300 font-bold border border-indigo-500/40'
+                        : 'bg-black text-text-muted hover:text-indigo-300 border border-white/5'
+                    }`}
+                  >
+                    Cron Recovery ({categoryCounts.cron})
+                  </button>
+                </div>
+
+                {/* Status Filter & Reset */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-black px-2.5 py-1 rounded-full border border-white/10 text-xs font-mono">
+                    <Funnel size={12} className="text-text-muted" />
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as any)}
+                      aria-label="Filter events by status"
+                      className="bg-transparent text-text-secondary hover:text-white outline-none cursor-pointer text-xs"
+                    >
+                      <option value="all" className="bg-neutral-900 text-white">All Statuses</option>
+                      <option value="confirmed" className="bg-neutral-900 text-emerald-400">Confirmed</option>
+                      <option value="processing" className="bg-neutral-900 text-amber-400">Processing</option>
+                      <option value="failed" className="bg-neutral-900 text-red-400">Failed</option>
+                    </select>
+                  </div>
+
+                  {(categoryFilter !== 'all' || statusFilter !== 'all' || historySearchTerm) && (
+                    <button
+                      onClick={() => {
+                        setCategoryFilter('all');
+                        setStatusFilter('all');
+                        setHistorySearchTerm('');
+                      }}
+                      className="px-3 py-1 text-xs font-mono text-primary hover:text-white transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Search Input */}
-            <div className="relative w-full sm:w-72">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
-              <input
-                id="adminSearchInput"
-                name="adminSearchQuery"
-                autoComplete="off"
-                type="text"
-                placeholder="Search username or wallet..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-black border border-white/10 focus:border-primary text-xs text-white pl-9 pr-4 py-2 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
-              />
-            </div>
-          </div>
+            {/* History Table */}
+            {isLoadingHistory ? (
+              <div className="p-16 flex flex-col items-center justify-center gap-3">
+                <CircleNotch className="animate-spin text-primary" size={32} />
+                <p className="text-xs text-text-muted font-mono">Streaming on-chain activity from Firestore...</p>
+              </div>
+            ) : historyError ? (
+              <div className="p-12 text-center space-y-3">
+                <Warning size={32} className="text-red-400 mx-auto" />
+                <p className="text-sm font-bold text-white">Failed to load admin history</p>
+                <p className="text-xs text-text-muted font-mono">{historyError}</p>
+              </div>
+            ) : filteredHistoryEvents.length === 0 ? (
+              <div className="p-16 text-center space-y-2">
+                <Receipt size={32} className="text-text-muted mx-auto opacity-50" />
+                <p className="text-sm font-semibold text-white font-mono">No activity events recorded yet</p>
+                <p className="text-xs text-text-muted font-mono">
+                  {historySearchTerm || categoryFilter !== 'all' || statusFilter !== 'all'
+                    ? 'No events match your current filter criteria.'
+                    : 'Game creations, deposits, and settlement transactions will stream here in real-time.'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#111111] border-b border-white/10 text-text-muted text-[11px] uppercase tracking-wider font-mono">
+                      <th className="py-3.5 px-4 font-semibold">Time</th>
+                      <th className="py-3.5 px-4 font-semibold">Event Type</th>
+                      <th className="py-3.5 px-4 font-semibold">Game ID</th>
+                      <th className="py-3.5 px-4 font-semibold">Actor / User</th>
+                      <th className="py-3.5 px-4 font-semibold">Amount / Stake</th>
+                      <th className="py-3.5 px-4 font-semibold">Status</th>
+                      <th className="py-3.5 px-4 font-semibold">Solscan Devnet</th>
+                      <th className="py-3.5 px-4 font-semibold text-right">Inspect</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs divide-y divide-white/5 font-mono">
+                    {filteredHistoryEvents.map((ev) => {
+                      const badge = getEventBadgeProps(ev.eventType);
+                      const relativeTime = formatRelativeTime(ev.timestamp, ev.isoTimestamp);
+                      const fullTime = formatFullTimestamp(ev.timestamp, ev.isoTimestamp);
 
-          {/* Users Table */}
-          {isLoading ? (
-            <div className="p-12 flex justify-center">
-              <CircleNotch className="animate-spin text-primary" size={32} />
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="p-12 text-center text-text-muted text-sm font-mono">
-              No users matching your search.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-[#111111] border-b border-white/10 text-text-muted text-[11px] uppercase tracking-wider font-mono">
-                    <th className="py-3.5 px-5 font-semibold">User</th>
-                    <th className="py-3.5 px-5 font-semibold">Role</th>
-                    <th className="py-3.5 px-5 font-semibold">Wallet Address</th>
-                    <th className="py-3.5 px-5 font-semibold">Registered</th>
-                    <th className="py-3.5 px-5 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="text-xs divide-y divide-white/5 font-body-md">
-                  {filteredUsers.map((u) => {
-                    const regDate = u.createdAt?.toDate
-                      ? u.createdAt.toDate().toLocaleDateString()
-                      : 'Earlier';
-                    const walletStr = u.walletAddress || 'None';
-                    const isTargetOwner = u.role === 'owner' || (!!OWNER_WALLET && u.walletAddress === OWNER_WALLET);
-                    const isTargetAdmin = isTargetOwner || u.isAdmin || u.role === 'admin';
-                    const isTest = u.isTestUser || !u.walletAddress;
-                    const displayLabel = isTest ? (u.username || 'Guest') : `@${u.username}`;
-
-                    return (
-                      <tr
-                        key={u.id}
-                        onClick={() => setInspectUser(u)}
-                        className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
-                        title="Click to view profile"
-                      >
-                        {/* User Identity */}
-                        <td className="py-3.5 px-5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full border border-white/10 bg-surface-container overflow-hidden flex items-center justify-center font-bold text-xs text-primary shrink-0">
-                              {u.avatarUrl ? (
-                                <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                u.username ? u.username.substring(0, 2).toUpperCase() : 'U'
-                              )}
-                            </div>
+                      return (
+                        <tr
+                          key={ev.id}
+                          onClick={() => setSelectedEvent(ev)}
+                          className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
+                          title="Click to inspect event details"
+                        >
+                          {/* Time */}
+                          <td className="py-3.5 px-4 text-text-muted whitespace-nowrap" title={fullTime}>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-white group-hover:text-primary transition-colors">
-                                {displayLabel}
-                              </span>
-                              {isTest && (
-                                <span className="text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30">
-                                  Guest
-                                </span>
+                              <Clock size={12} className="text-text-muted shrink-0" />
+                              <span>{relativeTime}</span>
+                            </div>
+                          </td>
+
+                          {/* Event Type Badge */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badge.className}`}>
+                              {badge.icon}
+                              <span>{badge.label}</span>
+                            </span>
+                          </td>
+
+                          {/* Game ID */}
+                          <td className="py-3.5 px-4 text-white font-semibold whitespace-nowrap">
+                            <span className="bg-black/60 px-2 py-0.5 rounded border border-white/10 text-[11px] group-hover:border-primary/50 transition-colors">
+                              #{ev.gameId ? ev.gameId.substring(0, 6).toUpperCase() : 'N/A'}
+                            </span>
+                          </td>
+
+                          {/* Actor / User & Wallet */}
+                          <td className="py-3.5 px-4 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 font-semibold text-white truncate">
+                                <span>{ev.username ? `@${ev.username}` : (ev.userId || 'System')}</span>
+                                {ev.role && (
+                                  <span className="text-[9px] text-text-muted uppercase px-1.5 py-0.2 rounded bg-white/5 border border-white/10">
+                                    {ev.role}
+                                  </span>
+                                )}
+                              </div>
+                              {ev.walletAddress && (
+                                <div className="text-[10px]">
+                                  <SolscanAccountLink
+                                    walletAddress={ev.walletAddress}
+                                    onCopy={(addr) => handleCopyWallet(addr, `wallet_${ev.id}`)}
+                                    copied={copiedId === `wallet_${ev.id}`}
+                                  />
+                                </div>
                               )}
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Role Badge */}
-                        <td className="py-3.5 px-5 font-mono" onClick={(e) => e.stopPropagation()}>
-                          {isTargetOwner ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] uppercase">
-                              <Crown size={11} /> Owner
-                            </span>
-                          ) : isTargetAdmin ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/15 border border-primary/40 text-primary font-bold text-[10px] uppercase">
-                              <ShieldCheck size={11} /> Admin
-                            </span>
-                          ) : (
-                            <span className="text-text-muted text-[11px]">Player</span>
-                          )}
-                        </td>
-
-                        {/* Wallet Address */}
-                        <td className="py-3.5 px-5 font-mono text-text-secondary" onClick={(e) => e.stopPropagation()}>
-                          {u.walletAddress ? (
-                            <div className="flex items-center gap-2">
-                              <span>
-                                {walletStr.substring(0, 8)}...{walletStr.substring(walletStr.length - 8)}
-                              </span>
-                              <button
-                                onClick={() => handleCopyWallet(u.walletAddress, u.id)}
-                                className="text-text-muted hover:text-white transition-colors cursor-pointer"
-                                title="Copy full address"
-                              >
-                                {copiedId === u.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-text-muted italic">No wallet</span>
-                          )}
-                        </td>
-
-                        {/* Registered Date */}
-                        <td className="py-3.5 px-5 font-mono text-text-muted" onClick={(e) => e.stopPropagation()}>
-                          {regDate}
-                        </td>
-
-                        {/* Actions: Make Admin (Owner Only) & Delete */}
-                        <td className="py-3.5 px-5 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
-                            {isOwner && !isTargetOwner && (
-                              <button
-                                onClick={() => handleToggleAdminRole(u)}
-                                disabled={roleUpdatingId === u.id}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                                  isTargetAdmin
-                                    ? 'bg-neutral-800 hover:bg-neutral-700 text-text-secondary border-white/10'
-                                    : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30'
-                                }`}
-                                title={isTargetAdmin ? 'Revoke Admin Permissions' : 'Grant Admin Permissions'}
-                              >
-                                {roleUpdatingId === u.id ? (
-                                  <CircleNotch size={11} className="animate-spin" />
-                                ) : isTargetAdmin ? (
-                                  <>
-                                    <ShieldMinus size={11} /> Revoke
-                                  </>
-                                ) : (
-                                  <>
-                                    <ShieldCheck size={11} /> Make Admin
-                                  </>
-                                )}
-                              </button>
+                          {/* Amount / Stake */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {ev.amountSol !== undefined && ev.amountSol !== null && ev.amountSol > 0 ? (
+                              <div className="font-bold text-primary">
+                                <SolAmount amount={ev.amountSol} suffix=" SOL" />
+                              </div>
+                            ) : ev.wager && ev.wager > 0 ? (
+                              <div className="text-text-secondary">
+                                <SolAmount amount={ev.wager} suffix=" SOL" />
+                              </div>
+                            ) : (
+                              <span className="text-text-muted text-[11px] italic">Free (0 SOL)</span>
                             )}
+                          </td>
 
-                            {!isTargetOwner && (
-                              <button
-                                onClick={() => {
-                                  setUserToDelete(u);
-                                  setDeleteConfirmInput('');
-                                }}
-                                className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors cursor-pointer"
-                                title="Delete Account"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          {/* Status */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <StatusBadge status={ev.status} />
+                          </td>
+
+                          {/* Solscan Devnet Link */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <SolscanTxPill
+                              txSignature={ev.txSignature}
+                              solscanUrl={ev.solscanUrl}
+                              onCopy={handleCopyTxSignature}
+                              copied={copiedTxSig === ev.txSignature}
+                            />
+                          </td>
+
+                          {/* Action: Inspect */}
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setSelectedEvent(ev)}
+                              className="p-1.5 rounded-full text-text-muted hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/30 transition-all cursor-pointer"
+                              title="Inspect full event metadata"
+                            >
+                              <Eye size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* TAB 2: USER DATABASE & PERMISSIONS (Preserved Existing View) */}
+        {activeTab === 'users' && (
+          <section className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+            
+            {/* Table Toolbar */}
+            <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#181818]">
+              <div className="flex items-center gap-4">
+                <h2 className="font-headline-lg text-xl text-white font-bold">
+                  User Database
+                </h2>
+                
+                {/* Sort / Filter Pills */}
+                <div className="flex bg-black p-1 rounded-full border border-white/10 text-xs font-mono">
+                  <button
+                    onClick={() => setFilterMode('all')}
+                    className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
+                      filterMode === 'all'
+                        ? 'bg-white/15 text-white font-bold'
+                        : 'text-text-muted hover:text-white'
+                    }`}
+                  >
+                    All ({users.length})
+                  </button>
+                  <button
+                    onClick={() => setFilterMode('active')}
+                    className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
+                      filterMode === 'active'
+                        ? 'bg-primary/20 text-primary font-bold'
+                        : 'text-text-muted hover:text-white'
+                    }`}
+                  >
+                    Active ({activeUserIds.size})
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative w-full sm:w-72">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
+                <input
+                  id="adminSearchInput"
+                  name="adminSearchQuery"
+                  autoComplete="off"
+                  type="text"
+                  placeholder="Search username or wallet..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-black border border-white/10 focus:border-primary text-xs text-white pl-9 pr-4 py-2 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
+                />
+              </div>
             </div>
-          )}
-        </section>
+
+            {/* Users Table */}
+            {isLoadingUsers ? (
+              <div className="p-12 flex justify-center">
+                <CircleNotch className="animate-spin text-primary" size={32} />
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="p-12 text-center text-text-muted text-sm font-mono">
+                No users matching your search.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#111111] border-b border-white/10 text-text-muted text-[11px] uppercase tracking-wider font-mono">
+                      <th className="py-3.5 px-5 font-semibold">User</th>
+                      <th className="py-3.5 px-5 font-semibold">Role</th>
+                      <th className="py-3.5 px-5 font-semibold">Wallet Address</th>
+                      <th className="py-3.5 px-5 font-semibold">Registered</th>
+                      <th className="py-3.5 px-5 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs divide-y divide-white/5 font-body-md">
+                    {filteredUsers.map((u) => {
+                      const regDate = u.createdAt?.toDate
+                        ? u.createdAt.toDate().toLocaleDateString()
+                        : 'Earlier';
+                      const isTargetOwner = u.role === 'owner' || (!!OWNER_WALLET && u.walletAddress === OWNER_WALLET);
+                      const isTargetAdmin = isTargetOwner || u.isAdmin || u.role === 'admin';
+                      const isTest = u.isTestUser || !u.walletAddress;
+                      const displayLabel = isTest ? (u.username || 'Guest') : `@${u.username}`;
+
+                      return (
+                        <tr
+                          key={u.id}
+                          onClick={() => setInspectUser(u)}
+                          className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
+                          title="Click to view profile"
+                        >
+                          {/* User Identity */}
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full border border-white/10 bg-surface-container overflow-hidden flex items-center justify-center font-bold text-xs text-primary shrink-0">
+                                {u.avatarUrl ? (
+                                  <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  u.username ? u.username.substring(0, 2).toUpperCase() : 'U'
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-white group-hover:text-primary transition-colors">
+                                  {displayLabel}
+                                </span>
+                                {isTest && (
+                                  <span className="text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30">
+                                    Guest
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Role Badge */}
+                          <td className="py-3.5 px-5 font-mono" onClick={(e) => e.stopPropagation()}>
+                            {isTargetOwner ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] uppercase">
+                                <Crown size={11} /> Owner
+                              </span>
+                            ) : isTargetAdmin ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/15 border border-primary/40 text-primary font-bold text-[10px] uppercase">
+                                <ShieldCheck size={11} /> Admin
+                              </span>
+                            ) : (
+                              <span className="text-text-muted text-[11px]">Player</span>
+                            )}
+                          </td>
+
+                          {/* Wallet Address with Solscan Link */}
+                          <td className="py-3.5 px-5 font-mono text-text-secondary" onClick={(e) => e.stopPropagation()}>
+                            {u.walletAddress ? (
+                              <SolscanAccountLink
+                                walletAddress={u.walletAddress}
+                                onCopy={(addr) => handleCopyWallet(addr, `user_wallet_${u.id}`)}
+                                copied={copiedId === `user_wallet_${u.id}`}
+                              />
+                            ) : (
+                              <span className="text-text-muted italic">No wallet</span>
+                            )}
+                          </td>
+
+                          {/* Registered Date */}
+                          <td className="py-3.5 px-5 font-mono text-text-muted" onClick={(e) => e.stopPropagation()}>
+                            {regDate}
+                          </td>
+
+                          {/* Actions: Make Admin (Owner Only) & Delete */}
+                          <td className="py-3.5 px-5 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-2">
+                              {isOwner && !isTargetOwner && (
+                                <button
+                                  onClick={() => handleToggleAdminRole(u)}
+                                  disabled={roleUpdatingId === u.id}
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                                    isTargetAdmin
+                                      ? 'bg-neutral-800 hover:bg-neutral-700 text-text-secondary border-white/10'
+                                      : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30'
+                                  }`}
+                                  title={isTargetAdmin ? 'Revoke Admin Permissions' : 'Grant Admin Permissions'}
+                                >
+                                  {roleUpdatingId === u.id ? (
+                                    <CircleNotch size={11} className="animate-spin" />
+                                  ) : isTargetAdmin ? (
+                                    <>
+                                      <ShieldMinus size={11} /> Revoke
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ShieldCheck size={11} /> Make Admin
+                                    </>
+                                  )}
+                                </button>
+                              )}
+
+                              {!isTargetOwner && (
+                                <button
+                                  onClick={() => {
+                                    setUserToDelete(u);
+                                    setDeleteConfirmInput('');
+                                  }}
+                                  className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors cursor-pointer"
+                                  title="Delete Account"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </main>
+
+      {/* Expandable Event Inspector Modal / Drawer (Requirement 6) */}
+      <AnimatePresence>
+        {selectedEvent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedEvent(null)}
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl bg-[#141414] border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.9)] rounded-3xl overflow-hidden flex flex-col max-h-[88vh] relative"
+            >
+              {/* Header */}
+              <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between bg-neutral-900 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-primary/10 border border-primary/30 text-primary">
+                    <Lightning size={20} weight="bold" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-bold text-white font-headline-lg">
+                        {selectedEvent.eventLabel || selectedEvent.eventType}
+                      </h3>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider font-mono ${getEventBadgeProps(selectedEvent.eventType).className}`}>
+                        {getEventBadgeProps(selectedEvent.eventType).label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-text-muted font-mono mt-0.5">
+                      Event ID: {selectedEvent.id}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedEvent(null)}
+                  className="w-8 h-8 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center border border-white/10 transition-colors cursor-pointer"
+                  title="Close Inspector"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 p-5 sm:p-6 overflow-y-auto space-y-6 min-h-0 bg-[#121212]">
+                
+                {/* 1. Key Metrics 4-Box Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+                  <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[10px] uppercase text-text-muted block font-semibold">Game ID</span>
+                    <span className="text-sm font-bold text-white block truncate">
+                      #{selectedEvent.gameId ? selectedEvent.gameId.substring(0, 8).toUpperCase() : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[10px] uppercase text-text-muted block font-semibold">Status</span>
+                    <StatusBadge status={selectedEvent.status} />
+                  </div>
+                  <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[10px] uppercase text-text-muted block font-semibold">Wager Stake</span>
+                    <span className="text-sm font-bold text-primary block">
+                      {selectedEvent.wager && selectedEvent.wager > 0 ? `${selectedEvent.wager} SOL` : 'Free (0 SOL)'}
+                    </span>
+                  </div>
+                  <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[10px] uppercase text-text-muted block font-semibold">Network</span>
+                    <span className="text-xs font-bold text-sky-400 block uppercase">
+                      {selectedEvent.network || 'Solana Devnet'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. On-Chain Solscan Devnet Verification (Requirement 4 & 6) */}
+                <div className="bg-black p-4 sm:p-5 rounded-2xl border border-white/10 space-y-3 font-mono">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Receipt size={14} className="text-primary" />
+                      Solana On-Chain Transaction
+                    </span>
+                    {selectedEvent.txSignature && (
+                      <a
+                        href={selectedEvent.solscanUrl || `https://solscan.io/tx/${selectedEvent.txSignature}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary hover:bg-primary/90 text-white text-xs font-bold transition-all shadow-[0_0_12px_rgba(255,77,77,0.4)]"
+                      >
+                        <span>View on Solscan Devnet</span>
+                        <ArrowSquareOut size={12} />
+                      </a>
+                    )}
+                  </div>
+
+                  {selectedEvent.txSignature ? (
+                    <div className="space-y-2">
+                      <div className="p-3 bg-neutral-900 rounded-xl border border-white/5 flex items-center justify-between gap-2">
+                        <span className="text-xs text-text-secondary break-all select-all font-mono">
+                          {selectedEvent.txSignature}
+                        </span>
+                        <button
+                          onClick={() => handleCopyTxSignature(selectedEvent.txSignature!)}
+                          className="p-1.5 text-text-muted hover:text-white transition-colors shrink-0"
+                          title="Copy signature"
+                        >
+                          {copiedTxSig === selectedEvent.txSignature ? (
+                            <Check size={14} className="text-emerald-400" />
+                          ) : (
+                            <Copy size={14} />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Financial breakdown */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 text-xs">
+                        {selectedEvent.amountSol !== undefined && selectedEvent.amountSol !== null && (
+                          <div className="p-2.5 bg-neutral-950 rounded-xl border border-white/5">
+                            <span className="text-[10px] text-text-muted block uppercase">Amount Transferred</span>
+                            <span className="text-sm font-bold text-emerald-400">
+                              <SolAmount amount={selectedEvent.amountSol} suffix=" SOL" />
+                            </span>
+                          </div>
+                        )}
+                        {selectedEvent.totalPot !== undefined && selectedEvent.totalPot !== null && (
+                          <div className="p-2.5 bg-neutral-950 rounded-xl border border-white/5">
+                            <span className="text-[10px] text-text-muted block uppercase">Total Escrow Pot</span>
+                            <span className="text-sm font-bold text-white">
+                              {selectedEvent.totalPot} SOL
+                            </span>
+                          </div>
+                        )}
+                        {selectedEvent.houseFeeSol !== undefined && selectedEvent.houseFeeSol !== null && (
+                          <div className="p-2.5 bg-neutral-950 rounded-xl border border-white/5">
+                            <span className="text-[10px] text-text-muted block uppercase">1% House Fee</span>
+                            <span className="text-sm font-bold text-amber-400">
+                              {selectedEvent.houseFeeSol} SOL
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-muted italic py-1">
+                      Off-chain or free wager action. No Solana transaction signature generated for this event.
+                    </p>
+                  )}
+                </div>
+
+                {/* 3. Actors & Counterparties (Requirement 6) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono">
+                  
+                  {/* Primary Actor */}
+                  <div className="bg-black/60 p-4 rounded-2xl border border-white/5 space-y-2">
+                    <span className="text-[10px] uppercase text-text-muted font-bold block">
+                      Primary Actor ({selectedEvent.role || 'Initiator'})
+                    </span>
+                    <div className="text-sm font-bold text-white">
+                      @{selectedEvent.username || 'System'}
+                    </div>
+                    <div className="text-xs text-text-muted">
+                      User ID: <span className="text-text-secondary select-all">{selectedEvent.userId}</span>
+                    </div>
+                    {selectedEvent.walletAddress ? (
+                      <div className="pt-1 text-xs">
+                        <SolscanAccountLink
+                          walletAddress={selectedEvent.walletAddress}
+                          onCopy={(addr) => handleCopyWallet(addr, `inspector_p1_${selectedEvent.id}`)}
+                          copied={copiedId === `inspector_p1_${selectedEvent.id}`}
+                          truncate={false}
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-xs text-text-muted italic">No wallet address recorded</div>
+                    )}
+                  </div>
+
+                  {/* Counterparty / Target */}
+                  <div className="bg-black/60 p-4 rounded-2xl border border-white/5 space-y-2">
+                    <span className="text-[10px] uppercase text-text-muted font-bold block">
+                      Target / Opponent
+                    </span>
+                    <div className="text-sm font-bold text-white">
+                      {selectedEvent.targetUsername ? `@${selectedEvent.targetUsername}` : 'N/A'}
+                    </div>
+                    <div className="text-xs text-text-muted">
+                      Target ID: <span className="text-text-secondary select-all">{selectedEvent.targetUserId || 'N/A'}</span>
+                    </div>
+                    {selectedEvent.targetWallet ? (
+                      <div className="pt-1 text-xs">
+                        <SolscanAccountLink
+                          walletAddress={selectedEvent.targetWallet}
+                          onCopy={(addr) => handleCopyWallet(addr, `inspector_p2_${selectedEvent.id}`)}
+                          copied={copiedId === `inspector_p2_${selectedEvent.id}`}
+                          truncate={false}
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-xs text-text-muted italic">No counterparty wallet</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Connect-4 Board Snapshot View (if present) */}
+                {selectedEvent.metadata?.boardSnapshot && (
+                  <div className="space-y-3 font-mono">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                        <GameController size={14} className="text-primary" />
+                        Match Board Snapshot
+                      </span>
+                      {selectedEvent.metadata.winner && (
+                        <span className="text-xs font-bold text-primary">
+                          Winner: {selectedEvent.metadata.winner === 'draw' ? 'Draw (Tie)' : `@${selectedEvent.metadata.winner}`}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-center">
+                      <BoardSnapshotView board={selectedEvent.metadata.boardSnapshot} />
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. Raw Event JSON Inspector (Requirement 6) */}
+                <div className="space-y-2 font-mono">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Code size={14} className="text-primary" />
+                      Raw Event Payload (JSON)
+                    </span>
+                    <button
+                      onClick={() => handleCopyRawJson(selectedEvent)}
+                      className="px-3 py-1 rounded-full bg-neutral-800 hover:bg-neutral-700 text-text-secondary hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all border border-white/10 cursor-pointer"
+                    >
+                      {copiedJson ? (
+                        <>
+                          <Check size={12} className="text-emerald-400" />
+                          <span className="text-emerald-400">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>Copy JSON</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <pre className="bg-black p-4 rounded-2xl border border-white/10 text-[11px] font-mono text-emerald-400/90 overflow-x-auto select-all max-h-56 leading-relaxed">
+                    {JSON.stringify(selectedEvent, null, 2)}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-4 border-t border-white/10 bg-neutral-900 flex justify-end shrink-0">
+                <button
+                  onClick={() => setSelectedEvent(null)}
+                  className="px-6 py-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-mono font-semibold transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* In-App Custom Delete Account Modal */}
       <AnimatePresence>
@@ -691,7 +1822,7 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* Floating Inspect Profile Modal */}
+      {/* Floating Inspect Profile Modal (Users Tab) */}
       <AnimatePresence>
         {inspectUser && (
           <motion.div
@@ -728,7 +1859,7 @@ export default function AdminPanel() {
                 )}
               </div>
 
-              {/* Profile Header Content - Clean Separation without text overlapping banner */}
+              {/* Profile Header Content */}
               <div className="px-6 pb-4 pt-0 border-b border-white/10 relative">
                 
                 {/* Top row: Avatar & Full Page action */}
@@ -753,7 +1884,7 @@ export default function AdminPanel() {
                   </Link>
                 </div>
 
-                {/* Bottom row: Username and Metadata (sitting comfortably below avatar) */}
+                {/* Bottom row: Username and Metadata */}
                 <div className="space-y-0.5 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-xl font-bold text-white font-headline-lg truncate">
@@ -781,17 +1912,15 @@ export default function AdminPanel() {
                   </p>
                 </div>
 
-                {/* Wallet Address Pill */}
+                {/* Wallet Address Pill with Solscan Link */}
                 {inspectUser.walletAddress && (
                   <div className="text-xs font-mono text-text-secondary bg-black p-2.5 rounded-xl border border-white/5 flex items-center justify-between mt-2.5">
-                    <span className="truncate">{inspectUser.walletAddress}</span>
-                    <button
-                      onClick={() => handleCopyWallet(inspectUser.walletAddress, inspectUser.id)}
-                      className="ml-2 text-text-muted hover:text-white shrink-0 cursor-pointer"
-                      title="Copy wallet address"
-                    >
-                      {copiedId === inspectUser.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                    </button>
+                    <SolscanAccountLink
+                      walletAddress={inspectUser.walletAddress}
+                      onCopy={(addr) => handleCopyWallet(addr, `inspect_modal_${inspectUser.id}`)}
+                      copied={copiedId === `inspect_modal_${inspectUser.id}`}
+                      truncate={false}
+                    />
                   </div>
                 )}
               </div>
@@ -900,7 +2029,7 @@ export default function AdminPanel() {
                             </span>
                             <span className={`font-bold ${isWin && g.wager > 0 ? 'text-primary' : 'text-text-secondary'}`}>
                               {g.wager > 0 ? (
-                                <SolAmount amount={g.wager} suffix={` ${g.wagerCurrency}`} />
+                                <SolAmount amount={g.wager} suffix={` ${g.wagerCurrency || 'SOL'}`} />
                               ) : (
                                 'Free'
                               )}

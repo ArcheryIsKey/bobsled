@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, setDoc, collection, query } from 'firebase/firestore';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
@@ -12,6 +12,7 @@ import MatchInviteModal from './MatchInviteModal';
 import SolAmount from './SolAmount';
 import { depositMatchStake } from '../utils/solanaEscrow';
 import { logError, logWarn } from '../utils/logger';
+import { ComponentErrorBoundary, RouteErrorBoundary } from './common/ErrorBoundary';
 import { ArrowLeft, Copy, Check, Trophy, Flag, Warning as Warning, XCircle, ArrowRight, User, ChatSlash as ChatCircleOff, UserPlus, Eye, Sword as Swords, X, ArrowUpRight as ArrowUpRight, CircleNotch } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -89,33 +90,40 @@ export default function Game() {
       return;
     }
 
-    const unsub = onSnapshot(doc(db, 'games', gameId), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = { id: docSnap.id, ...docSnap.data() } as any;
-        setGame(data);
-        if (data.status === 'finished') {
-          setShowWinModal(true);
-          if (
-            data.wager > 0 &&
-            data.wagerCurrency !== 'FREE' &&
-            !data.payoutTx &&
-            data.payoutStatus !== 'completed' &&
-            data.payoutStatus !== 'processing'
-          ) {
-            fetch('/api/escrow/settle', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ gameId: data.id }),
-            }).catch((err) => logError('Auto-settle trigger failed:', err));
+    const unsub = onSnapshot(
+      doc(db, 'games', gameId),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = { id: docSnap.id, ...docSnap.data() } as any;
+          setGame(data);
+          if (data.status === 'finished') {
+            setShowWinModal(true);
+            if (
+              data.wager > 0 &&
+              data.wagerCurrency !== 'FREE' &&
+              !data.payoutTx &&
+              data.payoutStatus !== 'completed' &&
+              data.payoutStatus !== 'processing'
+            ) {
+              fetch('/api/escrow/settle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gameId: data.id }),
+              }).catch((err) => logError('Auto-settle trigger failed:', err));
+            }
           }
+        } else {
+          addToast('error', 'Match does not exist or has been cancelled.');
+          navigate('/');
         }
-      } else {
-        navigate('/');
+      },
+      (err) => {
+        logError('Game document snapshot error:', err);
       }
-    });
+    );
 
     return () => unsub();
-  }, [gameId, navigate]);
+  }, [gameId, navigate, addToast]);
 
   // Dynamic Browser Title for Matches
   useEffect(() => {
@@ -309,8 +317,11 @@ export default function Game() {
     }
   };
 
+  const isMoveSubmittingRef = useRef(false);
+
   const handleMove = async (newBoard: number[], winner: string | null) => {
-    if (!user || !game || game.status !== 'active') return;
+    if (!user || !game || game.status !== 'active' || isMoveSubmittingRef.current) return;
+    isMoveSubmittingRef.current = true;
     const nextTurn = game.turn === game.player1 ? game.player2 : game.player1;
     const updates: any = {
       board: newBoard,
@@ -334,6 +345,8 @@ export default function Game() {
       }
     } catch (err) {
       logError('Move failed:', err);
+    } finally {
+      isMoveSubmittingRef.current = false;
     }
   };
 
@@ -852,7 +865,9 @@ export default function Game() {
           </div>
 
           {/* Connect 4 Board Component - Touch Friendly & Bigger on Mobile */}
-          <Connect4 game={game} user={user} isSpectator={isSpectator} onMove={handleMove} />
+          <ComponentErrorBoundary title="Connect 4 Board Unavailable">
+            <Connect4 game={game} user={user} isSpectator={isSpectator} onMove={handleMove} />
+          </ComponentErrorBoundary>
 
           {/* Action Bar Beneath Board */}
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-1 sm:mt-2 w-full max-w-2xl">
@@ -924,7 +939,9 @@ export default function Game() {
                 </p>
               </div>
             ) : (
-              <Chat gameId={game.id} />
+              <ComponentErrorBoundary title="Chat Temporarily Offline">
+                <Chat gameId={game.id} />
+              </ComponentErrorBoundary>
             )}
           </div>
         </aside>

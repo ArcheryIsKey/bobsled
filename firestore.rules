@@ -137,6 +137,7 @@ service cloud.firestore {
             && (existing().wager == 0 || existing().escrowStatus == 'p1_funded')
             && incoming().status in ['waiting', 'active']
             && incoming().board == existing().board
+            && incoming().player2 != existing().player1
             && (
               ownsWallet(incoming().player2) ||
               ownsWallet(incoming().player1)
@@ -198,6 +199,15 @@ service cloud.firestore {
       allow read, list: if isSignedIn();
       allow create, update: if isSignedIn() && request.auth.uid == spectatorId;
       allow delete: if isSignedIn() && request.auth.uid == spectatorId;
+    }
+
+    match /admin_history/{historyId} {
+      // Only authorized administrators and owners can read or stream audit history
+      allow read, list: if isAdmin();
+      
+      // Immutability: Client applications cannot create, mutate, or delete history records
+      // All history documents are generated strictly on backend via Firebase Admin SDK
+      allow create, update, delete: if false;
     }
   }
 }

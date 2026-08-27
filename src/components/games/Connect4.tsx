@@ -118,35 +118,35 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[2px] bg-gradient-to-r from-transparent via-velocity-red to-transparent opacity-80" />
 
         {/* Turn & Status Header */}
-        <div className="mb-3 sm:mb-4 flex items-center justify-between px-1 sm:px-2">
+        <div className="mb-3 sm:mb-4 w-full flex items-center justify-center min-h-[34px] px-1 sm:px-2">
           {game.status === 'active' ? (
             isSpectator ? (
-              <div className="bg-[#1e1e1e] border border-white/10 text-text-secondary px-4 py-1.5 rounded-full text-xs tracking-wider flex items-center gap-2 font-mono">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <div className="bg-[#1e1e1e] border border-white/10 text-text-secondary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-mono shadow-sm leading-none">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
                 <span>Spectating Live Game</span>
               </div>
             ) : isMyTurn ? (
               <motion.div
                 initial={{ scale: 0.95 }}
                 animate={{ scale: 1 }}
-                className={`border px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono whitespace-nowrap shadow-md ${
+                className={`border px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-bold uppercase font-mono whitespace-nowrap shadow-md leading-none ${
                   myDiscIsRed
                     ? 'bg-primary/15 border-primary text-primary shadow-[0_0_20px_rgba(255,77,77,0.4)]'
                     : 'bg-white/15 border-white text-white shadow-[0_0_20px_rgba(255,255,255,0.3)]'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full animate-ping ${myDiscIsRed ? 'bg-primary' : 'bg-white'}`} />
+                <span className={`w-2 h-2 rounded-full animate-ping shrink-0 ${myDiscIsRed ? 'bg-primary' : 'bg-white'}`} />
                 <span>Your Turn to Move ({myDiscIsRed ? 'Red' : 'White'})</span>
               </motion.div>
             ) : (
-              <div className="bg-[#1a1a1a] border border-white/10 text-text-muted px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-sm whitespace-nowrap">
-                <span className="w-2 h-2 bg-text-muted rounded-full animate-pulse" />
+              <div className="bg-[#1a1a1a] border border-white/10 text-text-muted px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-semibold uppercase font-mono shadow-sm whitespace-nowrap leading-none">
+                <span className="w-2 h-2 bg-text-muted rounded-full animate-pulse shrink-0" />
                 <span>Opponent's Turn ({myDiscIsRed ? 'White' : 'Red'})</span>
               </div>
             )
           ) : game.status === 'waiting' ? (
-            <div className="bg-[#1e1e1e] border border-primary/40 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap">
-              <span className="w-2 h-2 bg-primary rounded-full animate-ping" />
+            <div className="bg-[#1e1e1e] border border-primary/40 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-semibold uppercase font-mono shadow-md whitespace-nowrap leading-none">
+              <span className="w-2 h-2 bg-primary rounded-full animate-ping shrink-0" />
               <span>Waiting for Opponent</span>
             </div>
           ) : (
@@ -154,9 +154,9 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
               initial={{ scale: 0.95 }}
               animate={{ scale: [1, 1.03, 1] }}
               transition={{ repeat: Infinity, duration: 2 }}
-              className="bg-[#1e1e1e] border border-primary/60 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center gap-2 font-bold uppercase font-mono shadow-[0_0_20px_rgba(255,77,77,0.4)] whitespace-nowrap"
+              className="bg-[#1e1e1e] border border-primary/60 text-primary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-bold uppercase font-mono shadow-[0_0_20px_rgba(255,77,77,0.4)] whitespace-nowrap leading-none"
             >
-              <Sparkle size={13} className="text-primary animate-spin" />
+              <Sparkle size={13} className="text-primary animate-spin shrink-0" />
               <span>{game.winner === 'draw' ? 'Match Draw' : 'Match Finished'}</span>
             </motion.div>
           )}

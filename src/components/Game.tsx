@@ -475,16 +475,8 @@ export default function Game() {
         />
       )}
 
-      {/* Spectator Mode Banner */}
-      {isSpectator && !showMatchInviteModal && (
-        <div className="w-full bg-white/5 border-b border-white/10 py-2.5 text-center text-text-secondary text-xs tracking-wider z-40 flex items-center justify-center gap-2 font-mono pt-20">
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <span>Watching Match <strong className="text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>
-        </div>
-      )}
-
       {/* Main Game Page Container */}
-      <main className={`flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 ${isSpectator && !showMatchInviteModal ? 'pt-6' : 'pt-24 sm:pt-28'} pb-8 flex flex-col gap-5`}>
+      <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 pt-24 sm:pt-28 pb-8 flex flex-col gap-5">
         
         {/* Prominent Top Match Header Bar */}
         <div className="w-full flex items-center justify-between gap-4 pb-2 border-b border-white/5">
@@ -800,6 +792,18 @@ export default function Game() {
 
         {/* Center Column: Game Board & Actions (col-span-6) */}
         <section className="lg:col-span-6 flex flex-col items-center justify-start gap-4 order-1 lg:order-2 w-full">
+
+          {/* Floating Spectator Badge above game board */}
+          {isSpectator && !showMatchInviteModal && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#181818] border border-white/10 text-text-secondary text-xs tracking-wider font-mono shadow-md backdrop-blur-md"
+            >
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+              <span>Watching Match <strong className="text-white">#{game.id.substring(0, 8).toUpperCase()}</strong> as Spectator</span>
+            </motion.div>
+          )}
 
           {/* Mobile-Only Player Summary Bar Above Board */}
           <div className="lg:hidden w-full bg-white/5 border border-white/10 rounded-2xl p-2.5 flex items-center justify-between shadow-md font-mono text-xs">

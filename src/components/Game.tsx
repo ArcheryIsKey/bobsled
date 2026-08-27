@@ -578,32 +578,33 @@ export default function Game() {
             </div>
 
             {/* Player VS Player */}
-            <div className="bg-background rounded-xl p-3 border border-white/5 space-y-2.5">
+            <div className="bg-background rounded-xl p-3 border border-white/5 space-y-2">
               
               {/* Player 1 */}
-              <div
-                onClick={() => !isP1Guest && game.player1 && setSelectedProfileId(game.player1)}
-                className={`flex items-center justify-between p-1 -m-1 rounded-xl transition-colors ${!isP1Guest ? 'group cursor-pointer hover:bg-white/5' : ''}`}
-                title={!isP1Guest ? 'View Profile' : 'Guest Player'}
+              <button
+                type="button"
+                onClick={() => game.player1 && setSelectedProfileId(game.player1)}
+                className="w-full flex items-center justify-between p-2 rounded-xl transition-colors group cursor-pointer hover:bg-white/5 text-left"
+                title="View Player 1 Profile"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`w-8 h-8 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
                     p1IsRed ? 'border-primary shadow-[0_0_8px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
                   }`}>
                     {game.player1Avatar ? (
                       <img src={game.player1Avatar} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <span className={`w-3 h-3 rounded-full ${p1IsRed ? 'bg-primary' : 'bg-white'}`} />
+                      <span className={`w-3.5 h-3.5 rounded-full ${p1IsRed ? 'bg-primary' : 'bg-white'}`} />
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-display text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1 group-hover:text-primary transition-colors truncate">
+                  <div className="min-w-0 flex flex-col justify-center gap-0.5">
+                    <p className="font-display text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-primary transition-colors truncate leading-tight">
                       <span className="truncate">{p1DisplayName}</span>
                       <span className={`text-[10px] font-semibold font-mono tracking-normal shrink-0 ${p1IsRed ? 'text-primary' : 'text-text-secondary'}`}>
                         ({p1ColorLabel})
                       </span>
                     </p>
-                    <p className="text-[10px] text-text-muted font-mono">
+                    <p className="text-[10px] text-text-muted font-mono leading-tight">
                       {game.turn === game.player1 && game.status === 'active' ? 'Thinking...' : 'Ready'}
                     </p>
                   </div>
@@ -611,7 +612,7 @@ export default function Game() {
                 {game.status === 'active' && game.turn === game.player1 && (
                   <span className={`w-2 h-2 rounded-full animate-ping shrink-0 ${p1IsRed ? 'bg-primary' : 'bg-white'}`} />
                 )}
-              </div>
+              </button>
 
               {/* Minimal Divider */}
               <div className="relative flex items-center justify-center my-0.5">
@@ -620,37 +621,42 @@ export default function Game() {
               </div>
 
               {/* Player 2 */}
-              <div
-                onClick={() => !isP2Guest && game.player2 && setSelectedProfileId(game.player2)}
-                className={`flex items-center justify-between ${!isP2Guest && game.player2 ? 'group cursor-pointer hover:bg-white/5' : ''} p-1 -m-1 rounded-xl transition-colors`}
-                title={!isP2Guest && game.player2 ? 'View Profile' : ''}
+              <button
+                type="button"
+                onClick={() => game.player2 && setSelectedProfileId(game.player2)}
+                className={`w-full flex items-center justify-between p-2 rounded-xl transition-colors text-left ${
+                  game.player2 ? 'group cursor-pointer hover:bg-white/5' : 'opacity-70 cursor-default'
+                }`}
+                title={game.player2 ? 'View Player 2 Profile' : 'Waiting for Player 2'}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`w-8 h-8 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-full bg-[#181818] border-2 flex items-center justify-center shrink-0 overflow-hidden ${
                     p2IsRed ? 'border-primary shadow-[0_0_8px_rgba(255,77,77,0.35)]' : 'border-white shadow-[0_0_8px_rgba(255,255,255,0.25)]'
                   }`}>
                     {game.player2Avatar && game.player2 ? (
                       <img src={game.player2Avatar} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <span className={`w-3 h-3 rounded-full ${p2IsRed ? 'bg-primary' : 'bg-white'}`} />
+                      <span className={`w-3.5 h-3.5 rounded-full ${p2IsRed ? 'bg-primary' : 'bg-white'}`} />
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-display text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1 group-hover:text-primary transition-colors truncate">
-                      <span className="truncate">{game.player2 ? p2DisplayName : '...'}</span>
-                      <span className={`text-[10px] font-semibold font-mono tracking-normal shrink-0 ${p2IsRed ? 'text-primary' : 'text-text-secondary'}`}>
-                        ({p2ColorLabel})
-                      </span>
+                  <div className="min-w-0 flex flex-col justify-center gap-0.5">
+                    <p className="font-display text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1.5 group-hover:text-primary transition-colors truncate leading-tight">
+                      <span className="truncate">{game.player2 ? p2DisplayName : 'Waiting for Player 2...'}</span>
+                      {game.player2 && (
+                        <span className={`text-[10px] font-semibold font-mono tracking-normal shrink-0 ${p2IsRed ? 'text-primary' : 'text-text-secondary'}`}>
+                          ({p2ColorLabel})
+                        </span>
+                      )}
                     </p>
-                    <p className="text-[10px] text-text-muted font-mono">
-                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : '...'}
+                    <p className="text-[10px] text-text-muted font-mono leading-tight">
+                      {game.player2 ? (game.turn === game.player2 && game.status === 'active' ? 'Thinking...' : 'Ready') : 'Waiting to join'}
                     </p>
                   </div>
                 </div>
                 {game.status === 'active' && game.turn === game.player2 && (
                   <span className={`w-2 h-2 rounded-full animate-ping shrink-0 ${p2IsRed ? 'bg-primary' : 'bg-white'}`} />
                 )}
-              </div>
+              </button>
             </div>
 
             {/* Inactivity warning (Desktop) */}
@@ -806,30 +812,43 @@ export default function Game() {
           )}
 
           {/* Mobile-Only Player Summary Bar Above Board */}
-          <div className="lg:hidden w-full bg-white/5 border border-white/10 rounded-2xl p-2.5 flex items-center justify-between shadow-md font-mono text-xs">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className={`w-3 h-3 rounded-full shrink-0 ${p1IsRed ? 'bg-primary shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
-              <div className="min-w-0">
-                <p className={`truncate font-semibold text-xs ${game.turn === game.player1 && game.status === 'active' ? 'text-primary font-bold' : 'text-white'}`}>
+          <div className="lg:hidden w-full bg-white/5 border border-white/10 rounded-2xl p-3 flex items-center justify-between shadow-md font-mono text-xs">
+            {/* Player 1 Mobile Button */}
+            <button
+              type="button"
+              onClick={() => game.player1 && setSelectedProfileId(game.player1)}
+              className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer group hover:opacity-80 transition-opacity"
+              title="View Player 1 Profile"
+            >
+              <span className={`w-3.5 h-3.5 rounded-full shrink-0 ${p1IsRed ? 'bg-primary shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
+              <div className="min-w-0 flex flex-col justify-center gap-0.5">
+                <p className={`truncate font-semibold text-xs leading-tight ${game.turn === game.player1 && game.status === 'active' ? 'text-primary font-bold' : 'text-white'}`}>
                   {p1DisplayName}
                 </p>
-                <p className="text-[10px] text-text-muted">{p1ColorLabel}</p>
+                <p className="text-[10px] text-text-muted leading-tight">{p1ColorLabel}</p>
               </div>
-            </div>
+            </button>
 
-            <div className="px-2.5 py-1 rounded-full bg-background border border-white/10 text-[10px] text-text-secondary font-bold shrink-0 mx-2">
+            {/* Stakes center pill */}
+            <div className="px-3 py-1 rounded-full bg-background border border-white/10 text-[11px] text-text-secondary font-bold shrink-0 mx-2 shadow-sm">
               {isFreeGame ? 'FREE' : <SolAmount amount={game.wager} />}
             </div>
 
-            <div className="flex items-center gap-2 min-w-0 flex-1 justify-end text-right">
-              <div className="min-w-0">
-                <p className={`truncate font-semibold text-xs ${game.turn === game.player2 && game.status === 'active' ? 'text-primary font-bold' : 'text-white'}`}>
+            {/* Player 2 Mobile Button */}
+            <button
+              type="button"
+              onClick={() => game.player2 && setSelectedProfileId(game.player2)}
+              className={`flex items-center gap-2.5 min-w-0 flex-1 justify-end text-right ${game.player2 ? 'cursor-pointer group hover:opacity-80' : 'opacity-70 cursor-default'} transition-opacity`}
+              title={game.player2 ? 'View Player 2 Profile' : 'Waiting for Player 2'}
+            >
+              <div className="min-w-0 flex flex-col justify-center items-end gap-0.5">
+                <p className={`truncate font-semibold text-xs leading-tight ${game.turn === game.player2 && game.status === 'active' ? 'text-primary font-bold' : 'text-white'}`}>
                   {game.player2 ? p2DisplayName : '...'}
                 </p>
-                <p className="text-[10px] text-text-muted">{p2ColorLabel}</p>
+                <p className="text-[10px] text-text-muted leading-tight">{p2ColorLabel}</p>
               </div>
-              <span className={`w-3 h-3 rounded-full shrink-0 ${p2IsRed ? 'bg-primary shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
-            </div>
+              <span className={`w-3.5 h-3.5 rounded-full shrink-0 ${p2IsRed ? 'bg-primary shadow-[0_0_8px_rgba(255,77,77,0.6)]' : 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.4)]'}`} />
+            </button>
           </div>
 
           {/* Connect 4 Board Component - Touch Friendly & Bigger on Mobile */}

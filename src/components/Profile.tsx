@@ -13,624 +13,624 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 
 export default function Profile() {
-  const { userId: paramUserId } = useParams<{ userId?: string }>();
-  const navigate = useNavigate();
-  const { user: currentUser, solBalance } = useGameStore();
+ const { userId: paramUserId } = useParams<{ userId?: string }>();
+ const navigate = useNavigate();
+ const { user: currentUser, solBalance } = useGameStore();
 
-  const isOwnProfile = !paramUserId || paramUserId === currentUser?.id;
-  const targetUserId = paramUserId || currentUser?.id;
-  const isTestUser = (isOwnProfile && currentUser?.isTestUser) || targetUserId?.startsWith('test_');
+ const isOwnProfile = !paramUserId || paramUserId === currentUser?.id;
+ const targetUserId = paramUserId || currentUser?.id;
+ const isTestUser = (isOwnProfile && currentUser?.isTestUser) || targetUserId?.startsWith('test_');
 
-  const [profileData, setProfileData] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
+ const [profileData, setProfileData] = useState<any>(null);
+ const [history, setHistory] = useState<any[]>([]);
+ const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+ const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+ const [copied, setCopied] = useState(false);
+ const [isLoading, setIsLoading] = useState(true);
+ const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+ const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
+ const avatarInputRef = useRef<HTMLInputElement>(null);
+ const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch profile user document
-  useEffect(() => {
-    if (!targetUserId) {
-      setIsLoading(false);
-      return;
-    }
+ // Fetch profile user document
+ useEffect(() => {
+ if (!targetUserId) {
+ setIsLoading(false);
+ return;
+ }
 
-    if (isOwnProfile && currentUser) {
-      setProfileData(currentUser);
-      setIsLoading(false);
-    } else {
-      const fetchTargetProfile = async () => {
-        setIsLoading(true);
-        try {
-          const docSnap = await getDoc(doc(db, 'users', targetUserId));
-          if (docSnap.exists() && docSnap.data()?.walletAddress) {
-            setProfileData({ id: docSnap.id, ...docSnap.data() });
-          } else {
-            setProfileData(null);
-          }
-        } catch (e) {
-          logError('Error fetching profile:', e);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchTargetProfile();
-    }
-  }, [targetUserId, isOwnProfile, currentUser]);
+ if (isOwnProfile && currentUser) {
+ setProfileData(currentUser);
+ setIsLoading(false);
+ } else {
+ const fetchTargetProfile = async () => {
+ setIsLoading(true);
+ try {
+ const docSnap = await getDoc(doc(db, 'users', targetUserId));
+ if (docSnap.exists() && docSnap.data()?.walletAddress) {
+ setProfileData({ id: docSnap.id, ...docSnap.data() });
+ } else {
+ setProfileData(null);
+ }
+ } catch (e) {
+ logError('Error fetching profile:', e);
+ } finally {
+ setIsLoading(false);
+ }
+ };
+ fetchTargetProfile();
+ }
+ }, [targetUserId, isOwnProfile, currentUser]);
 
-  useEffect(() => {
-    if (isOwnProfile && currentUser) {
-      setProfileData(currentUser);
-    }
-  }, [currentUser, isOwnProfile]);
+ useEffect(() => {
+ if (isOwnProfile && currentUser) {
+ setProfileData(currentUser);
+ }
+ }, [currentUser, isOwnProfile]);
 
-  useEffect(() => {
-    if (profileData) {
-      document.title = isOwnProfile
-        ? 'bobsled.gg - Profile'
-        : `bobsled.gg - @${profileData.username || 'Player'}`;
-    } else {
-      document.title = 'bobsled.gg - Profile';
-    }
+ useEffect(() => {
+ if (profileData) {
+ document.title = isOwnProfile
+ ? 'bobsled.gg - Profile'
+ : `bobsled.gg - @${profileData.username || 'Player'}`;
+ } else {
+ document.title = 'bobsled.gg - Profile';
+ }
 
-    return () => {
-      document.title = 'bobsled.gg - Connect 4';
-    };
-  }, [profileData, isOwnProfile]);
+ return () => {
+ document.title = 'bobsled.gg - Connect 4';
+ };
+ }, [profileData, isOwnProfile]);
 
-  useEffect(() => {
-    if (!targetUserId) return;
+ useEffect(() => {
+ if (!targetUserId) return;
 
-    const q = query(
-      collection(db, 'games'),
-      where('players', 'array-contains', targetUserId),
-      where('status', '==', 'finished')
-    );
+ const q = query(
+ collection(db, 'games'),
+ where('players', 'array-contains', targetUserId),
+ where('status', '==', 'finished')
+ );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      let games = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-      games.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-      setHistory(games);
-    });
+ const unsub = onSnapshot(q, (snapshot) => {
+ let games = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+ games.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+ setHistory(games);
+ });
 
-    return () => unsub();
-  }, [targetUserId]);
+ return () => unsub();
+ }, [targetUserId]);
 
-  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isTestUser) return;
-    const file = e.target.files?.[0];
-    if (!file || !currentUser?.id || !isOwnProfile) return;
+ const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ if (isTestUser) return;
+ const file = e.target.files?.[0];
+ if (!file || !currentUser?.id || !isOwnProfile) return;
 
-    setIsUploadingAvatar(true);
-    try {
-      const dataUrl = await processImageFile(file, 256, 0.8);
-      await updateDoc(doc(db, 'users', currentUser.id), {
-        avatarUrl: dataUrl,
-      });
-    } catch (err) {
-      logError('Failed to upload avatar:', err);
-      alert('Failed to process image. Please try a standard image file.');
-    } finally {
-      setIsUploadingAvatar(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = '';
-    }
-  };
+ setIsUploadingAvatar(true);
+ try {
+ const dataUrl = await processImageFile(file, 256, 0.8);
+ await updateDoc(doc(db, 'users', currentUser.id), {
+ avatarUrl: dataUrl,
+ });
+ } catch (err) {
+ logError('Failed to upload avatar:', err);
+ alert('Failed to process image. Please try a standard image file.');
+ } finally {
+ setIsUploadingAvatar(false);
+ if (avatarInputRef.current) avatarInputRef.current.value = '';
+ }
+ };
 
-  const handleBannerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isTestUser) return;
-    const file = e.target.files?.[0];
-    if (!file || !currentUser?.id || !isOwnProfile) return;
+ const handleBannerSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ if (isTestUser) return;
+ const file = e.target.files?.[0];
+ if (!file || !currentUser?.id || !isOwnProfile) return;
 
-    setIsUploadingBanner(true);
-    try {
-      const dataUrl = await processBannerFile(file, 1000, 300, 0.8);
-      await updateDoc(doc(db, 'users', currentUser.id), {
-        bannerUrl: dataUrl,
-      });
-    } catch (err) {
-      logError('Failed to upload banner:', err);
-      alert('Failed to process banner image. Please try a standard image file.');
-    } finally {
-      setIsUploadingBanner(false);
-      if (bannerInputRef.current) bannerInputRef.current.value = '';
-    }
-  };
+ setIsUploadingBanner(true);
+ try {
+ const dataUrl = await processBannerFile(file, 1000, 300, 0.8);
+ await updateDoc(doc(db, 'users', currentUser.id), {
+ bannerUrl: dataUrl,
+ });
+ } catch (err) {
+ logError('Failed to upload banner:', err);
+ alert('Failed to process banner image. Please try a standard image file.');
+ } finally {
+ setIsUploadingBanner(false);
+ if (bannerInputRef.current) bannerInputRef.current.value = '';
+ }
+ };
 
-  const handleCopyWallet = () => {
-    const wallet = profileData?.walletAddress;
-    if (!wallet) return;
-    navigator.clipboard.writeText(wallet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+ const handleCopyWallet = () => {
+ const wallet = profileData?.walletAddress;
+ if (!wallet) return;
+ navigator.clipboard.writeText(wallet);
+ setCopied(true);
+ setTimeout(() => setCopied(false), 2000);
+ };
 
-  const handleOpponentClick = async (e: React.MouseEvent, oppId: string | null, game: any) => {
-    e.stopPropagation();
-    const isOppP1 = game.player1 !== targetUserId;
-    const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || !oppId || oppId.startsWith('test_');
+ const handleOpponentClick = async (e: React.MouseEvent, oppId: string | null, game: any) => {
+ e.stopPropagation();
+ const isOppP1 = game.player1 !== targetUserId;
+ const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || !oppId || oppId.startsWith('test_');
 
-    if (isOppTest) {
-      setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
-      setTimeout(() => {
-        setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
-      }, 2500);
-      return;
-    }
+ if (isOppTest) {
+ setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
+ setTimeout(() => {
+ setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
+ }, 2500);
+ return;
+ }
 
-    try {
-      const oppDoc = await getDoc(doc(db, 'users', oppId));
-      if (!oppDoc.exists() || oppDoc.data()?.isTestUser || !oppDoc.data()?.walletAddress) {
-        setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
-        setTimeout(() => {
-          setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
-        }, 2500);
-        return;
-      }
-    } catch {
-      // ignore
-    }
+ try {
+ const oppDoc = await getDoc(doc(db, 'users', oppId));
+ if (!oppDoc.exists() || oppDoc.data()?.isTestUser || !oppDoc.data()?.walletAddress) {
+ setTestUserToast({ matchId: game.id, message: 'Guest User (Temporary Account)' });
+ setTimeout(() => {
+ setTestUserToast((prev) => (prev?.matchId === game.id ? null : prev));
+ }, 2500);
+ return;
+ }
+ } catch {
+ // ignore
+ }
 
-    setSelectedProfileId(oppId);
-  };
+ setSelectedProfileId(oppId);
+ };
 
-  if (isLoading) {
-    return (
-      <div className="bg-black text-text-primary min-h-screen flex flex-col font-body-md antialiased w-full overflow-y-auto">
-        <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-12 space-y-6">
-          <div className="mb-4">
-            <div className="h-9 w-32 rounded-full skeleton-shimmer" />
-          </div>
+ if (isLoading) {
+ return (
+ <div className="bg-black text-text-primary min-h-screen flex flex-col font-body-md antialiased w-full overflow-y-auto">
+ <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-12 space-y-6">
+ <div className="mb-4">
+ <div className="h-9 w-32 rounded-full skeleton-shimmer"/>
+ </div>
 
-          {/* Banner & Avatar Skeleton */}
-          <div className="rounded-2xl bg-[#0e0e0e] border border-white/10 overflow-hidden space-y-4">
-            <div className="w-full h-40 skeleton-shimmer rounded-none" />
-            <div className="px-8 pb-6 flex items-end gap-6">
-              <div className="-mt-14 w-24 h-24 rounded-full border-4 border-black skeleton-shimmer shrink-0" />
-              <div className="space-y-2 flex-1">
-                <div className="h-6 w-44 rounded skeleton-shimmer" />
-                <div className="h-4 w-32 rounded skeleton-shimmer" />
-              </div>
-            </div>
-          </div>
+ {/* Banner & Avatar Skeleton */}
+ <div className="rounded-2xl bg-[#0e0e0e] border border-white/10 overflow-hidden space-y-4">
+ <div className="w-full h-40 skeleton-shimmer rounded-none"/>
+ <div className="px-8 pb-6 flex items-end gap-6">
+ <div className="-mt-14 w-24 h-24 rounded-full border-4 border-black skeleton-shimmer shrink-0"/>
+ <div className="space-y-2 flex-1">
+ <div className="h-6 w-44 rounded skeleton-shimmer"/>
+ <div className="h-4 w-32 rounded skeleton-shimmer"/>
+ </div>
+ </div>
+ </div>
 
-          {/* Stats Skeleton */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-[#0e0e0e] border border-white/10 p-5 rounded-2xl space-y-3">
-                <div className="h-3 w-16 rounded skeleton-shimmer" />
-                <div className="h-8 w-20 rounded skeleton-shimmer" />
-                <div className="h-3 w-24 rounded skeleton-shimmer" />
-              </div>
-            ))}
-          </div>
+ {/* Stats Skeleton */}
+ <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+ {[1, 2, 3, 4].map((i) => (
+ <div key={i} className="bg-[#0e0e0e] border border-white/10 p-5 rounded-2xl space-y-3">
+ <div className="h-3 w-16 rounded skeleton-shimmer"/>
+ <div className="h-8 w-20 rounded skeleton-shimmer"/>
+ <div className="h-3 w-24 rounded skeleton-shimmer"/>
+ </div>
+ ))}
+ </div>
 
-          {/* History Table Skeleton */}
-          <div className="rounded-2xl bg-[#0e0e0e] border border-white/10 p-6 space-y-4">
-            <div className="h-5 w-32 rounded skeleton-shimmer" />
-            <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-12 rounded-xl border border-white/5 skeleton-shimmer" />
-              ))}
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
+ {/* History Table Skeleton */}
+ <div className="rounded-2xl bg-[#0e0e0e] border border-white/10 p-6 space-y-4">
+ <div className="h-5 w-32 rounded skeleton-shimmer"/>
+ <div className="space-y-3">
+ {[1, 2, 3, 4].map((i) => (
+ <div key={i} className="h-12 rounded-xl border border-white/5 skeleton-shimmer"/>
+ ))}
+ </div>
+ </div>
+ </main>
+ </div>
+ );
+ }
 
-  if (!profileData) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <h2 className="text-xl font-bold text-white">User not found</h2>
-        <p className="text-xs text-text-muted">This profile does not exist or was a temporary guest session.</p>
-        <button
-          onClick={() => navigate('/')}
-          className="px-5 py-2 bg-background border border-white/10 rounded-full text-xs font-semibold hover:border-primary transition-colors cursor-pointer"
-        >
-          Back to Lobby
-        </button>
-      </div>
-    );
-  }
+ if (!profileData) {
+ return (
+ <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-4">
+ <h2 className="text-xl font-bold text-white">User not found</h2>
+ <p className="text-xs text-text-muted">This profile does not exist or was a temporary guest session.</p>
+ <button
+ onClick={() => navigate('/')}
+ className="px-5 py-2 bg-background border border-white/10 rounded-full text-xs font-semibold hover:border-primary transition-colors cursor-pointer"
+ >
+ Back to Lobby
+ </button>
+ </div>
+ );
+ }
 
-  const totalGames = history.length;
-  const wins = history.filter((g) => g.winner === targetUserId).length;
-  const losses = history.filter((g) => g.winner && g.winner !== targetUserId && g.winner !== 'draw').length;
-  const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
-  const lossRate = totalGames > 0 ? Math.round((losses / totalGames) * 100) : 0;
+ const totalGames = history.length;
+ const wins = history.filter((g) => g.winner === targetUserId).length;
+ const losses = history.filter((g) => g.winner && g.winner !== targetUserId && g.winner !== 'draw').length;
+ const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+ const lossRate = totalGames > 0 ? Math.round((losses / totalGames) * 100) : 0;
 
-  const isOwner = profileData.role === 'owner' || (!!OWNER_WALLET && profileData.walletAddress === OWNER_WALLET);
-  const isAdmin = isOwner || profileData.isAdmin || profileData.role === 'admin';
+ const isOwner = profileData.role === 'owner' || (!!OWNER_WALLET && profileData.walletAddress === OWNER_WALLET);
+ const isAdmin = isOwner || profileData.isAdmin || profileData.role === 'admin';
 
-  const userDisplayName = isTestUser
-    ? (profileData.username || 'Guest Player')
-    : `@${profileData.username || 'Player'}`;
+ const userDisplayName = isTestUser
+ ? (profileData.username || 'Guest Player')
+ : `@${profileData.username || 'Player'}`;
 
-  const walletDisplay = profileData.walletAddress
-    ? `${profileData.walletAddress.substring(0, 6)}...${profileData.walletAddress.substring(profileData.walletAddress.length - 6)}`
-    : 'No Wallet Connected';
+ const walletDisplay = profileData.walletAddress
+ ? `${profileData.walletAddress.substring(0, 6)}...${profileData.walletAddress.substring(profileData.walletAddress.length - 6)}`
+ : 'No Wallet Connected';
 
-  return (
-    <div className="bg-black text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
-      
-      {/* Floating User Profile Modal for inspected opponents */}
-      {selectedProfileId && (
-        <UserProfileModal
-          userId={selectedProfileId}
-          onClose={() => setSelectedProfileId(null)}
-        />
-      )}
+ return (
+ <div className="bg-black text-text-primary min-h-[calc(100vh-64px)] flex flex-col font-body-md antialiased w-full overflow-y-auto">
+ 
+ {/* Floating User Profile Modal for inspected opponents */}
+ {selectedProfileId && (
+ <UserProfileModal
+ userId={selectedProfileId}
+ onClose={() => setSelectedProfileId(null)}
+ />
+ )}
 
-      {/* Hidden File Inputs */}
-      {isOwnProfile && !isTestUser && (
-        <>
-          <input
-            id="profileAvatarFileInput"
-            name="profileAvatar"
-            type="file"
-            ref={avatarInputRef}
-            onChange={handleAvatarSelect}
-            accept="image/*"
-            className="hidden"
-          />
-          <input
-            id="profileBannerFileInput"
-            name="profileBanner"
-            type="file"
-            ref={bannerInputRef}
-            onChange={handleBannerSelect}
-            accept="image/*"
-            className="hidden"
-          />
-        </>
-      )}
+ {/* Hidden File Inputs */}
+ {isOwnProfile && !isTestUser && (
+ <>
+ <input
+ id="profileAvatarFileInput"
+ name="profileAvatar"
+ type="file"
+ ref={avatarInputRef}
+ onChange={handleAvatarSelect}
+ accept="image/*"
+ className="hidden"
+ />
+ <input
+ id="profileBannerFileInput"
+ name="profileBanner"
+ type="file"
+ ref={bannerInputRef}
+ onChange={handleBannerSelect}
+ accept="image/*"
+ className="hidden"
+ />
+ </>
+ )}
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-12">
-        
-        {/* Top Back Link */}
-        <div className="mb-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-background border border-white/10 hover:border-primary cursor-pointer"
-          >
-            <ArrowLeft size={14} /> Back to Lobby
-          </button>
-        </div>
+ <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-12">
+ 
+ {/* Top Back Link */}
+ <div className="mb-4 flex items-center justify-between">
+ <button
+ onClick={() => navigate('/')}
+ className="flex items-center gap-2 text-xs text-text-secondary hover:text-white transition-colors py-2 px-3.5 rounded-full bg-background border border-white/10 hover:border-primary cursor-pointer"
+ >
+ <ArrowLeft size={14} /> Back to Lobby
+ </button>
+ </div>
 
-        {/* Profile Card with Banner */}
-        <section className="mb-5 rounded-2xl bg-background border border-white/10 overflow-hidden shadow-2xl relative">
-          
-          {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
-          <div className="relative w-full h-36 sm:h-44 md:h-48 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
-            {profileData.bannerUrl ? (
-              <img
-                src={profileData.bannerUrl}
-                alt="Banner"
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#0a0a0a_100%)]">
-                <div className="w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-              </div>
-            )}
+ {/* Profile Card with Banner */}
+ <section className="mb-5 rounded-2xl bg-background border border-white/10 overflow-hidden shadow-2xl relative">
+ 
+ {/* Banner Container: Natural aspect ratio with black background (no stretch) */}
+ <div className="relative w-full h-36 sm:h-44 md:h-48 bg-black border-b border-white/10 overflow-hidden group flex items-center justify-center">
+ {profileData.bannerUrl ? (
+ <img
+ src={profileData.bannerUrl}
+ alt="Banner"
+ className="w-full h-full object-contain"
+ />
+ ) : (
+ <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_#262626_0%,_#0a0a0a_100%)]">
+ <div className="w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none"/>
+ </div>
+ )}
 
-            {/* Banner edit button for own profile */}
-            {isOwnProfile && !isTestUser && (
-              <button
-                onClick={() => bannerInputRef.current?.click()}
-                disabled={isUploadingBanner}
-                className="absolute top-3 right-3 bg-black/80 hover:bg-black border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md cursor-pointer"
-              >
-                {isUploadingBanner ? (
-                  <CircleNotch size={13} className="animate-spin text-primary" />
-                ) : (
-                  <ImageIcon size={13} />
-                )}
-                <span>Change Banner</span>
-              </button>
-            )}
-          </div>
+ {/* Banner edit button for own profile */}
+ {isOwnProfile && !isTestUser && (
+ <button
+ onClick={() => bannerInputRef.current?.click()}
+ disabled={isUploadingBanner}
+ className="absolute top-3 right-3 bg-black/80 hover:bg-black border border-white/15 text-white text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all opacity-90 backdrop-blur-md shadow-md cursor-pointer"
+ >
+ {isUploadingBanner ? (
+ <CircleNotch size={13} className="animate-spin text-primary"/>
+ ) : (
+ <ImageIcon size={13} />
+ )}
+ <span>Change Banner</span>
+ </button>
+ )}
+ </div>
 
-          {/* Profile Header Content */}
-          <div className="px-6 md:px-8 pb-4 pt-0 relative z-10">
-            
-            <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 text-center sm:text-left">
-              
-              {/* Avatar */}
-              <div
-                onClick={() => isOwnProfile && !isTestUser && avatarInputRef.current?.click()}
-                className={`-mt-12 sm:-mt-14 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
-                  isOwnProfile && !isTestUser ? 'cursor-pointer hover:border-primary transition-all' : ''
-                }`}
-                title={isOwnProfile && !isTestUser ? 'Click to change profile picture' : ''}
-              >
-                {profileData.avatarUrl ? (
-                  <img
-                    src={profileData.avatarUrl}
-                    alt={profileData.username}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-black flex items-center justify-center">
-                    <span className="text-3xl sm:text-4xl font-headline-lg font-bold text-white">
-                      {profileData.username ? profileData.username.substring(0, 2).toUpperCase() : 'U'}
-                    </span>
-                  </div>
-                )}
+ {/* Profile Header Content */}
+ <div className="px-6 md:px-8 pb-4 pt-0 relative z-10">
+ 
+ <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 text-center sm:text-left">
+ 
+ {/* Avatar */}
+ <div
+ onClick={() => isOwnProfile && !isTestUser && avatarInputRef.current?.click()}
+ className={`-mt-12 sm:-mt-14 w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-[#141414] bg-surface-elevated relative group shrink-0 shadow-2xl ${
+ isOwnProfile && !isTestUser ? 'cursor-pointer hover:border-primary transition-all' : ''
+ }`}
+ title={isOwnProfile && !isTestUser ? 'Click to change profile picture' : ''}
+ >
+ {profileData.avatarUrl ? (
+ <img
+ src={profileData.avatarUrl}
+ alt={profileData.username}
+ className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+ />
+ ) : (
+ <div className="w-full h-full bg-black flex items-center justify-center">
+ <span className="text-3xl sm:text-4xl font-headline-lg font-bold text-white">
+ {profileData.username ? profileData.username.substring(0, 2).toUpperCase() : 'U'}
+ </span>
+ </div>
+ )}
 
-                {/* Avatar hover camera overlay */}
-                {isOwnProfile && !isTestUser && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] cursor-pointer">
-                    {isUploadingAvatar ? (
-                      <CircleNotch size={20} className="animate-spin text-primary" />
-                    ) : (
-                      <>
-                        <Camera size={18} className="text-white mb-0.5" />
-                        <span className="text-[10px] text-white font-medium">Edit</span>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+ {/* Avatar hover camera overlay */}
+ {isOwnProfile && !isTestUser && (
+ <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] cursor-pointer">
+ {isUploadingAvatar ? (
+ <CircleNotch size={20} className="animate-spin text-primary"/>
+ ) : (
+ <>
+ <Camera size={18} className="text-white mb-0.5"/>
+ <span className="text-[12px] text-white font-medium">Edit</span>
+ </>
+ )}
+ </div>
+ )}
+ </div>
 
-              {/* Names & Role Badges */}
-              <div className="space-y-1 pt-1 sm:pt-2">
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
-                    {userDisplayName}
-                  </h1>
-                  {isOwner && (
-                    <span className="text-[11px] font-mono text-amber-400 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 font-bold">
-                      <Crown size={12} />
-                      <span>Owner</span>
-                    </span>
-                  )}
-                  {isAdmin && !isOwner && (
-                    <span className="text-[11px] font-mono text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold">
-                      <ShieldCheck size={12} />
-                      <span>Admin</span>
-                    </span>
-                  )}
-                  {isTestUser && (
-                    <span className="text-[11px] font-mono text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold">
-                      <Flask size={11} />
-                      <span>Guest Mode</span>
-                    </span>
-                  )}
-                </div>
+ {/* Names & Role Badges */}
+ <div className="space-y-1 pt-1 sm:pt-2">
+ <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+ <h1 className="font-headline-lg text-2xl sm:text-3xl md:text-4xl text-white font-bold tracking-tight">
+ {userDisplayName}
+ </h1>
+ {isOwner && (
+ <span className="text-xs text-amber-400 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center gap-1 font-bold">
+ <Crown size={12} />
+ <span>Owner</span>
+ </span>
+ )}
+ {isAdmin && !isOwner && (
+ <span className="text-xs text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold">
+ <ShieldCheck size={12} />
+ <span>Admin</span>
+ </span>
+ )}
+ {isTestUser && (
+ <span className="text-xs text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/30 flex items-center gap-1 font-bold">
+ <Flask size={11} />
+ <span>Guest Mode</span>
+ </span>
+ )}
+ </div>
 
-                {profileData.walletAddress && (
-                  <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <button
-                      onClick={handleCopyWallet}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black border border-white/10 hover:border-primary text-xs text-text-secondary hover:text-white font-mono transition-colors cursor-pointer"
-                      title="Copy wallet address"
-                    >
-                      <span>{walletDisplay}</span>
-                      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                    </button>
-                    {copied && (
-                      <span className="text-xs text-emerald-400 font-mono">Copied!</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+ {profileData.walletAddress && (
+ <div className="flex items-center justify-center sm:justify-start gap-2">
+ <button
+ onClick={handleCopyWallet}
+ className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black border border-white/10 hover:border-primary text-xs text-text-secondary hover:text-white transition-colors cursor-pointer"
+ title="Copy wallet address"
+ >
+ <span>{walletDisplay}</span>
+ {copied ? <Check size={12} className="text-emerald-400"/> : <Copy size={12} />}
+ </button>
+ {copied && (
+ <span className="text-xs text-emerald-400">Copied!</span>
+ )}
+ </div>
+ )}
+ </div>
+ </div>
 
-          </div>
-        </section>
+ </div>
+ </section>
 
-        {/* Stats Grid */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          
-          {/* Card 1: Matches */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
-              <Swords size={16} className="text-text-muted group-hover:text-primary transition-colors" />
-            </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5">
-              {totalGames}
-            </div>
-            <div className="text-xs text-text-muted">
-              Total games played
-            </div>
-          </div>
+ {/* Stats Grid */}
+ <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+ 
+ {/* Card 1: Matches */}
+ <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
+ <div className="flex justify-between items-start mb-2">
+ <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Matches</span>
+ <Swords size={16} className="text-text-muted group-hover:text-primary transition-colors"/>
+ </div>
+ <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5">
+ {totalGames}
+ </div>
+ <div className="text-xs text-text-muted">
+ Total games played
+ </div>
+ </div>
 
-          {/* Card 2: Wins */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
-              <Trophy size={16} className="text-primary transition-colors" />
-            </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-primary font-bold mb-0.5">
-              {wins}
-            </div>
-            <div className="text-xs text-primary font-medium">
-              {winRate}% win rate
-            </div>
-          </div>
+ {/* Card 2: Wins */}
+ <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
+ <div className="flex justify-between items-start mb-2">
+ <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Wins</span>
+ <Trophy size={16} className="text-primary transition-colors"/>
+ </div>
+ <div className="font-headline-lg text-2xl md:text-3xl text-primary font-bold mb-0.5">
+ {wins}
+ </div>
+ <div className="text-xs text-primary font-medium">
+ {winRate}% win rate
+ </div>
+ </div>
 
-          {/* Card 3: Losses */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
-              <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-            </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 text-text-secondary">
-              {losses}
-            </div>
-            <div className="text-xs text-text-muted">
-              {lossRate}% loss rate
-            </div>
-          </div>
+ {/* Card 3: Losses */}
+ <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy">
+ <div className="flex justify-between items-start mb-2">
+ <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Losses</span>
+ <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors"/>
+ </div>
+ <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 text-text-secondary">
+ {losses}
+ </div>
+ <div className="text-xs text-text-muted">
+ {lossRate}% loss rate
+ </div>
+ </div>
 
-          {/* Card 4: SOL Holdings */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy z-10">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">SOL Balance</span>
-              <span className="text-xs font-mono font-bold text-primary">SOL</span>
-            </div>
-            <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5 font-mono">
-              {isOwnProfile && solBalance !== null ? (
-                <SolAmount amount={parseFloat(solBalance.toFixed(3))} suffix="" />
-              ) : isTestUser ? (
-                '—'
-              ) : (
-                '0.000'
-              )}
-            </div>
-            <div className="text-xs text-text-muted">
-              {isOwnProfile ? 'In connected wallet' : 'Solana network'}
-            </div>
-          </div>
-        </section>
+ {/* Card 4: SOL Holdings */}
+ <div className="bg-background border border-white/10 p-5 rounded-2xl relative group card-flashy z-10">
+ <div className="flex justify-between items-start mb-2">
+ <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">SOL Balance</span>
+ <span className="text-xs font-bold text-primary">SOL</span>
+ </div>
+ <div className="font-headline-lg text-2xl md:text-3xl text-white font-bold mb-0.5">
+ {isOwnProfile && solBalance !== null ? (
+ <SolAmount amount={parseFloat(solBalance.toFixed(3))} suffix=""/>
+ ) : isTestUser ? (
+ '—'
+ ) : (
+ '0.000'
+ )}
+ </div>
+ <div className="text-xs text-text-muted">
+ {isOwnProfile ? 'In connected wallet' : 'Solana network'}
+ </div>
+ </div>
+ </section>
 
-        {/* Match History Table */}
-        <section>
-          <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
-            <h2 className="font-headline-lg text-xl text-white font-bold">
-              Match History
-            </h2>
-            <span className="text-xs text-text-muted font-mono">
-              {history.length} Matches
-            </span>
-          </div>
+ {/* Match History Table */}
+ <section>
+ <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+ <h2 className="font-headline-lg text-xl text-white font-bold">
+ Match History
+ </h2>
+ <span className="text-xs text-text-muted">
+ {history.length} Matches
+ </span>
+ </div>
 
-          <div className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-xl">
-            {history.length === 0 ? (
-              <div className="p-10 text-center text-text-muted text-sm font-mono">
-                No match history recorded yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#181818] border-b border-white/10">
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Match ID</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Opponent</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Date</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Result</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right font-mono">Stakes</th>
-                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right font-mono">Explorer</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-sm divide-y divide-white/5 font-body-sm">
-                    {history.map((game) => {
-                      const isWin = game.winner === targetUserId;
-                      const isDraw = game.winner === 'draw';
-                      const opponentId = game.player1 === targetUserId ? game.player2 : game.player1;
-                      const opponentName = game.player1 === targetUserId ? game.player2Name : game.player1Name;
-                      const isOppP1 = game.player1 !== targetUserId;
-                      const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || opponentId?.startsWith('test_');
-                      const opponentDisplay = isOppTest ? (opponentName || 'Guest') : `@${opponentName || 'Opponent'}`;
-                      const matchDate = game.createdAt?.toDate
-                        ? game.createdAt.toDate().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
-                        : 'Recent';
+ <div className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+ {history.length === 0 ? (
+ <div className="p-10 text-center text-text-muted text-sm">
+ No match history recorded yet.
+ </div>
+ ) : (
+ <div className="overflow-x-auto">
+ <table className="w-full text-left border-collapse">
+ <thead>
+ <tr className="bg-[#181818] border-b border-white/10">
+ <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Match ID</th>
+ <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Opponent</th>
+ <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Date</th>
+ <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider">Result</th>
+ <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right">Stakes</th>
+ <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right">Explorer</th>
+ </tr>
+ </thead>
+ <tbody className="text-sm divide-y divide-white/5 font-body-sm">
+ {history.map((game) => {
+ const isWin = game.winner === targetUserId;
+ const isDraw = game.winner === 'draw';
+ const opponentId = game.player1 === targetUserId ? game.player2 : game.player1;
+ const opponentName = game.player1 === targetUserId ? game.player2Name : game.player1Name;
+ const isOppP1 = game.player1 !== targetUserId;
+ const isOppTest = (isOppP1 ? game.player1IsTest : game.player2IsTest) || opponentId?.startsWith('test_');
+ const opponentDisplay = isOppTest ? (opponentName || 'Guest') : `@${opponentName || 'Opponent'}`;
+ const matchDate = game.createdAt?.toDate
+ ? game.createdAt.toDate().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+ : 'Recent';
 
-                      return (
-                        <tr key={game.id} className="hover:bg-[#1c1c1c] transition-colors">
-                          <td className="py-3.5 px-5 text-xs text-text-secondary font-mono">
-                            #{game.id.substring(0, 8).toUpperCase()}
-                          </td>
-                          <td className="py-3.5 px-5 relative">
-                            {/* Small fading popup for test user click */}
-                            <AnimatePresence>
-                              {testUserToast?.matchId === game.id && (
-                                <motion.div
-                                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
-                                  animate={{ opacity: 1, y: -4, scale: 1 }}
-                                  exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                                  className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-primary border border-primary/40 rounded-full text-[10px] font-mono font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
-                                >
-                                  <Flask size={11} className="shrink-0" />
-                                  <span>{testUserToast.message}</span>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+ return (
+ <tr key={game.id} className="hover:bg-[#1c1c1c] transition-colors">
+ <td className="py-3.5 px-5 text-xs text-text-secondary">
+ #{game.id.substring(0, 8).toUpperCase()}
+ </td>
+ <td className="py-3.5 px-5 relative">
+ {/* Small fading popup for test user click */}
+ <AnimatePresence>
+ {testUserToast?.matchId === game.id && (
+ <motion.div
+ initial={{ opacity: 0, y: 6, scale: 0.95 }}
+ animate={{ opacity: 1, y: -4, scale: 1 }}
+ exit={{ opacity: 0, y: -4, scale: 0.95 }}
+ className="absolute -top-7 left-4 z-30 px-3 py-1 bg-black/95 text-primary border border-primary/40 rounded-full text-[12px] font-bold shadow-lg flex items-center gap-1.5 pointer-events-none whitespace-nowrap"
+ >
+ <Flask size={11} className="shrink-0"/>
+ <span>{testUserToast.message}</span>
+ </motion.div>
+ )}
+ </AnimatePresence>
 
-                            <button
-                              onClick={(e) => handleOpponentClick(e, opponentId, game)}
-                              className="text-white hover:text-primary font-medium transition-colors cursor-pointer text-left flex items-center gap-1.5"
-                            >
-                              <span>{opponentDisplay}</span>
-                            </button>
-                          </td>
-                          <td className="py-3.5 px-5 text-text-muted text-xs font-mono">
-                            {matchDate}
-                          </td>
-                          <td className="py-3.5 px-5">
-                            {isWin ? (
-                              <span className="bg-primary/10 text-primary border border-primary/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
-                                Win
-                              </span>
-                            ) : isDraw ? (
-                              <span className="bg-[#222] text-text-secondary border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
-                                Draw
-                              </span>
-                            ) : (
-                              <span className="bg-black text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase font-mono">
-                                Loss
-                              </span>
-                            )}
-                          </td>
-                          <td className={`py-3.5 px-5 text-right font-mono text-xs ${isWin ? 'text-primary font-bold' : 'text-text-muted'}`}>
-                            {game.wager > 0 ? (
-                              <SolAmount
-                                amount={game.wager}
-                                prefix={isWin ? '+' : '-'}
-                                className={isWin ? 'text-primary font-bold' : 'text-text-muted'}
-                              />
-                            ) : (
-                              'Free'
-                            )}
-                          </td>
-                          <td className="py-3.5 px-5 text-right font-mono text-xs">
-                            {game.wager > 0 ? (
-                              game.payoutTx ? (
-                                <a
-                                  href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 hover:border-primary text-[11px] font-mono font-medium transition-all group/tx hover:shadow-[0_0_12px_rgba(255,77,77,0.3)]"
-                                  title="View on-chain payout transaction on Solscan"
-                                >
-                                  <span>Payout</span>
-                                  <ArrowUpRight size={11} className="transition-transform group-hover/tx:translate-x-0.5 group-hover/tx:-translate-y-0.5" />
-                                </a>
-                              ) : (game.p1DepositTx || game.p2DepositTx) ? (
-                                <a
-                                  href={`https://solscan.io/tx/${(game.player1 === targetUserId ? game.p1DepositTx : game.p2DepositTx) || game.p1DepositTx}?cluster=devnet`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-text-muted hover:text-white border border-white/10 text-[11px] font-mono transition-all group/tx"
-                                  title="View match stake deposit on Solscan"
-                                >
-                                  <span>Stake</span>
-                                  <ArrowUpRight size={11} className="transition-transform group-hover/tx:translate-x-0.5 group-hover/tx:-translate-y-0.5" />
-                                </a>
-                              ) : (
-                                <span className="text-text-muted text-xs">—</span>
-                              )
-                            ) : (
-                              <span className="text-text-muted text-xs">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      </main>
-    </div>
-  );
+ <button
+ onClick={(e) => handleOpponentClick(e, opponentId, game)}
+ className="text-white hover:text-primary font-medium transition-colors cursor-pointer text-left flex items-center gap-1.5"
+ >
+ <span>{opponentDisplay}</span>
+ </button>
+ </td>
+ <td className="py-3.5 px-5 text-text-muted text-xs">
+ {matchDate}
+ </td>
+ <td className="py-3.5 px-5">
+ {isWin ? (
+ <span className="bg-primary/10 text-primary border border-primary/30 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase">
+ Win
+ </span>
+ ) : isDraw ? (
+ <span className="bg-[#222] text-text-secondary border border-white/10 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase">
+ Draw
+ </span>
+ ) : (
+ <span className="bg-black text-text-muted border border-white/10 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase">
+ Loss
+ </span>
+ )}
+ </td>
+ <td className={`py-3.5 px-5 text-right text-xs ${isWin ? 'text-primary font-bold' : 'text-text-muted'}`}>
+ {game.wager > 0 ? (
+ <SolAmount
+ amount={game.wager}
+ prefix={isWin ? '+' : '-'}
+ className={isWin ? 'text-primary font-bold' : 'text-text-muted'}
+ />
+ ) : (
+ 'Free'
+ )}
+ </td>
+ <td className="py-3.5 px-5 text-right text-xs">
+ {game.wager > 0 ? (
+ game.payoutTx ? (
+ <a
+ href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+ target="_blank"
+ rel="noreferrer"
+ className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 hover:border-primary text-xs font-medium transition-all group/tx hover:shadow-[0_0_12px_rgba(255,77,77,0.3)]"
+ title="View on-chain payout transaction on Solscan"
+ >
+ <span>Payout</span>
+ <ArrowUpRight size={11} className="transition-transform group-hover/tx:translate-x-0.5 group-hover/tx:-translate-y-0.5"/>
+ </a>
+ ) : (game.p1DepositTx || game.p2DepositTx) ? (
+ <a
+ href={`https://solscan.io/tx/${(game.player1 === targetUserId ? game.p1DepositTx : game.p2DepositTx) || game.p1DepositTx}?cluster=devnet`}
+ target="_blank"
+ rel="noreferrer"
+ className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-text-muted hover:text-white border border-white/10 text-xs transition-all group/tx"
+ title="View match stake deposit on Solscan"
+ >
+ <span>Stake</span>
+ <ArrowUpRight size={11} className="transition-transform group-hover/tx:translate-x-0.5 group-hover/tx:-translate-y-0.5"/>
+ </a>
+ ) : (
+ <span className="text-text-muted text-xs">—</span>
+ )
+ ) : (
+ <span className="text-text-muted text-xs">—</span>
+ )}
+ </td>
+ </tr>
+ );
+ })}
+ </tbody>
+ </table>
+ </div>
+ )}
+ </div>
+ </section>
+ </main>
+ </div>
+ );
 }

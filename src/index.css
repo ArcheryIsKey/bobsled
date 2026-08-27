@@ -43,30 +43,103 @@ code, pre, .font-mono {
   font-family: 'JetBrains Mono', monospace;
 }
 
+:root {
+  /* Motion Tokens: Durations */
+  --duration-stagger: 40ms;
+  --duration-micro: 80ms;
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --duration-medium: 350ms;
+  --duration-slow: 400ms;
+  --duration-very-slow: 500ms;
+
+  /* Motion Tokens: Easings */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: ease-in-out;
+  --ease-out: ease-out;
+  --ease-linear: linear;
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
+
+  /* Motion Tokens: Distances */
+  --distance-micro: 4px;
+  --distance-small: 6px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --distance-large: 30px;
+
+  /* Motion Tokens: Scales */
+  --scale-large: 0.96;
+  --scale-medium: 0.97;
+  --scale-small: 0.98;
+  --scale-tiny: 0.99;
+
+  /* Motion Tokens: Blur */
+  --blur-small: 2px;
+  --blur-medium: 3px;
+  --blur-large: 8px;
+}
+
 /* Double-Bezel Architectural Core */
 .double-bezel-outer {
   background-color: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   padding: 0.375rem;
   border-radius: 2rem;
+  transition: border-color var(--duration-fast) var(--ease-smooth-out), background-color var(--duration-fast) var(--ease-smooth-out), transform var(--duration-fast) var(--ease-smooth-out);
 }
 
 .double-bezel-inner {
   background-color: #0a0a0a;
   border-radius: calc(2rem - 0.375rem);
   box-shadow: inset 0 1px 1px rgba(255,255,255,0.08);
+  transition: background-color var(--duration-fast) var(--ease-smooth-out);
 }
 
 /* Fluid Dynamics & Custom Easing */
 .ease-premium {
-  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  transition-timing-function: var(--ease-smooth-out);
 }
 
 .hover-magnetic {
-  transition: transform 700ms cubic-bezier(0.32, 0.72, 0, 1), background-color 300ms ease;
+  transition: transform var(--duration-fast) var(--ease-smooth-out), background-color var(--duration-quick) ease, box-shadow var(--duration-fast) var(--ease-smooth-out);
 }
 .hover-magnetic:active {
-  transform: scale(0.98);
+  transform: scale(var(--scale-small));
+}
+
+/* Premium Interactive Button Flashiness */
+.btn-flashy {
+  position: relative;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-smooth-out);
+}
+.btn-flashy:active {
+  transform: scale(var(--scale-small));
+}
+.btn-flashy::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 80%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.75s var(--ease-smooth-out);
+  pointer-events: none;
+}
+.btn-flashy:hover::after {
+  left: 140%;
+}
+
+.card-flashy {
+  transition: transform var(--duration-fast) var(--ease-smooth-out), border-color var(--duration-fast) var(--ease-smooth-out), box-shadow var(--duration-fast) var(--ease-smooth-out);
+}
+.card-flashy:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 77, 77, 0.3);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 77, 77, 0.1);
 }
 
 .glass-panel {

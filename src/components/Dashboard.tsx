@@ -521,7 +521,7 @@ export default function Dashboard() {
                   <button
                     onClick={handleCreateMatch}
                     disabled={isCreating}
-                    className="group relative flex cursor-pointer items-center justify-between w-full rounded-full h-14 pl-8 pr-2 bg-primary hover:bg-red-500 hover-magnetic text-white font-semibold shadow-[0_0_30px_rgba(255,77,77,0.3)] uppercase tracking-widest text-xs disabled:opacity-50 font-sans"
+                    className="group relative flex cursor-pointer items-center justify-between w-full rounded-full h-14 pl-8 pr-2 bg-primary hover:bg-red-500 hover-magnetic btn-flashy text-white font-semibold shadow-[0_0_30px_rgba(255,77,77,0.3)] uppercase tracking-widest text-xs disabled:opacity-50 font-sans"
                   >
                     <span>
                       {isCreating ? creationStatus || 'Processing...' : (`Create ${user?.isTestUser ? 'Free' : wagerType} Game`)}
@@ -545,7 +545,7 @@ export default function Dashboard() {
                   <div className="flex gap-4">
                     <button
                       onClick={() => navigate(`/game/${myWaitingGame.id}`)}
-                      className="group flex items-center justify-between rounded-full h-12 pl-6 pr-2 bg-primary hover:bg-red-500 hover-magnetic text-white font-semibold text-xs uppercase tracking-widest cursor-pointer"
+                      className="group flex items-center justify-between rounded-full h-12 pl-6 pr-2 bg-primary hover:bg-red-500 hover-magnetic btn-flashy text-white font-semibold text-xs uppercase tracking-widest cursor-pointer"
                     >
                       <span className="mr-6">Open Game</span>
                       <div className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
@@ -574,11 +574,11 @@ export default function Dashboard() {
                   </div>
                   <button
                     onClick={() => navigate(`/game/${myActiveGame.id}`)}
-                    className="group flex items-center justify-between rounded-full h-14 pl-8 pr-2 bg-primary hover:bg-red-500 hover-magnetic text-white font-semibold text-xs uppercase tracking-widest cursor-pointer shadow-[0_0_30px_rgba(255,77,77,0.3)]"
+                    className="group flex items-center justify-between rounded-full h-14 pl-8 pr-2 bg-primary hover:bg-red-500 hover-magnetic btn-flashy text-white font-semibold text-xs uppercase tracking-widest cursor-pointer shadow-[0_0_30px_rgba(255,77,77,0.3)]"
                   >
                     <span className="mr-8">Resume Game</span>
                     <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center group-hover:translate-x-1 transition-transform ease-premium">
-                      <Play size={16} weight="fill" />
+                      <Play size={18} weight="fill" />
                     </div>
                   </button>
                 </div>
@@ -721,12 +721,12 @@ export default function Dashboard() {
                               navigate(`/game/${game.id}`);
                             }
                           }}
-                          className={`group/btn flex items-center justify-between rounded-full h-10 pl-5 pr-1 text-[10px] font-bold uppercase tracking-widest transition-all ease-premium cursor-pointer ${
+                          className={`group/btn flex items-center justify-between rounded-full h-10 pl-5 pr-1 text-[10px] font-bold uppercase tracking-widest transition-all ease-premium cursor-pointer hover-magnetic ${
                             game.status === 'active'
                               ? 'bg-white/5 text-white border border-white/10 hover:bg-white/10'
                               : isMyGame
                               ? 'bg-white/5 text-white border border-white/10 hover:bg-white/10'
-                              : 'bg-primary hover:bg-red-500 text-white shadow-[0_0_20px_rgba(255,77,77,0.3)] hover:shadow-[0_0_30px_rgba(255,77,77,0.5)]'
+                              : 'bg-primary hover:bg-red-500 text-white shadow-[0_0_20px_rgba(255,77,77,0.3)] hover:shadow-[0_0_30px_rgba(255,77,77,0.5)] btn-flashy'
                           }`}
                         >
                           <span className="mr-4">{game.status === 'active' ? 'Watch' : isMyGame ? 'Your Game' : 'Join Game'}</span>

@@ -8,7 +8,7 @@ import UserProfileModal from './UserProfileModal';
 import SolAmount from './SolAmount';
 import { OWNER_WALLET } from '../constants';
 import { logError } from '../utils/logger';
-import { Camera, Check, Copy, ArrowLeft, CircleNotch as CircleNotch, Trophy, Sword as Swords, XCircle, Image as ImageIcon, Flask, Crown, ShieldCheck } from '@phosphor-icons/react';
+import { Camera, Check, Copy, ArrowLeft, ArrowUpRight, CircleNotch as CircleNotch, Trophy, Sword as Swords, XCircle, Image as ImageIcon, Flask, Crown, ShieldCheck } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
@@ -429,7 +429,7 @@ export default function Profile() {
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           
           {/* Card 1: Matches */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Matches</span>
               <Swords size={16} className="text-text-muted group-hover:text-primary transition-colors" />
@@ -443,7 +443,7 @@ export default function Profile() {
           </div>
 
           {/* Card 2: Wins */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Wins</span>
               <Trophy size={16} className="text-primary transition-colors" />
@@ -457,7 +457,7 @@ export default function Profile() {
           </div>
 
           {/* Card 3: Losses */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Losses</span>
               <XCircle size={16} className="text-text-muted group-hover:text-text-secondary transition-colors" />
@@ -471,7 +471,7 @@ export default function Profile() {
           </div>
 
           {/* Card 4: SOL Holdings */}
-          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group hover:border-white/20 transition-colors">
+          <div className="bg-background border border-white/10 p-5 rounded-2xl relative overflow-hidden group card-flashy">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">SOL Balance</span>
               <span className="text-xs font-mono font-bold text-primary">SOL</span>
@@ -517,6 +517,7 @@ export default function Profile() {
                       <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Date</th>
                       <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider font-mono">Result</th>
                       <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right font-mono">Stakes</th>
+                      <th className="py-3 px-5 text-xs text-text-secondary font-medium uppercase tracking-wider text-right font-mono">Explorer</th>
                     </tr>
                   </thead>
                   <tbody className="text-sm divide-y divide-white/5 font-body-sm">
@@ -587,6 +588,37 @@ export default function Profile() {
                               />
                             ) : (
                               'Free'
+                            )}
+                          </td>
+                          <td className="py-3.5 px-5 text-right font-mono text-xs">
+                            {game.wager > 0 ? (
+                              game.payoutTx ? (
+                                <a
+                                  href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 hover:border-primary text-[11px] font-mono font-medium transition-all group/tx hover:shadow-[0_0_12px_rgba(255,77,77,0.3)]"
+                                  title="View on-chain payout transaction on Solscan"
+                                >
+                                  <span>Payout</span>
+                                  <ArrowUpRight size={11} className="transition-transform group-hover/tx:translate-x-0.5 group-hover/tx:-translate-y-0.5" />
+                                </a>
+                              ) : (game.p1DepositTx || game.p2DepositTx) ? (
+                                <a
+                                  href={`https://solscan.io/tx/${(game.player1 === targetUserId ? game.p1DepositTx : game.p2DepositTx) || game.p1DepositTx}?cluster=devnet`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 text-text-muted hover:text-white border border-white/10 text-[11px] font-mono transition-all group/tx"
+                                  title="View match stake deposit on Solscan"
+                                >
+                                  <span>Stake</span>
+                                  <ArrowUpRight size={11} className="transition-transform group-hover/tx:translate-x-0.5 group-hover/tx:-translate-y-0.5" />
+                                </a>
+                              ) : (
+                                <span className="text-text-muted text-xs">—</span>
+                              )
+                            ) : (
+                              <span className="text-text-muted text-xs">—</span>
                             )}
                           </td>
                         </tr>

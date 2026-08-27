@@ -112,13 +112,13 @@ export default function Connect4({ game, user, isSpectator, onMove }: Connect4Pr
   return (
     <div className="w-full flex flex-col items-center">
       {/* Board Container - Responsive & Optimized for Mobile Screens */}
-      <div className="bg-[#121212] p-2.5 sm:p-5 md:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative w-full max-w-2xl overflow-visible">
+      <div className="bg-[#121212] px-2.5 sm:px-5 md:px-6 pb-2.5 sm:pb-5 md:pb-6 pt-0 rounded-2xl sm:rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative w-full max-w-2xl overflow-visible">
         
         {/* Subtle Top Accent Glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[2px] bg-gradient-to-r from-transparent via-velocity-red to-transparent opacity-80" />
 
-        {/* Turn & Status Header */}
-        <div className="mb-3 sm:mb-4 w-full flex items-center justify-center min-h-[34px] px-1 sm:px-2">
+        {/* Turn & Status Header - Perfectly Vertically Centered */}
+        <div className="w-full flex items-center justify-center py-3.5 sm:py-4 px-1 sm:px-2">
           {game.status === 'active' ? (
             isSpectator ? (
               <div className="bg-[#1e1e1e] border border-white/10 text-text-secondary px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs tracking-wider flex items-center justify-center gap-2 font-mono shadow-sm leading-none">

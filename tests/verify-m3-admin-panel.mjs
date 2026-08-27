@@ -12,14 +12,13 @@ const adminPanelPath = path.join(projectRoot, 'src', 'components', 'AdminPanel.t
 assert(fs.existsSync(adminPanelPath), 'src/components/AdminPanel.tsx must exist');
 const code = fs.readFileSync(adminPanelPath, 'utf8');
 
-// 1. Tab Navigation System
-console.log('▶ Requirement 1: Tab Navigation System & Telemetry KPI Cards');
-assert(code.includes("activeTab === 'history'"), 'Must maintain activeTab state with history default');
-assert(code.includes("Live Activity History"), 'Must render Live Activity History tab');
-assert(code.includes("User Database & Permissions"), 'Must render User Database & Permissions tab');
+// 1. User Database Default & Live Activity Stream Layout
+console.log('▶ Requirement 1: User Database Default & Telemetry KPI Cards');
+assert(code.includes("User Database"), 'Must render User Database as default view');
+assert(code.includes("Live Activity Stream"), 'Must render Live Activity Stream chatbox');
 assert(code.includes("Registered Users") && code.includes("Live Matches") && code.includes("Finished Matches") && code.includes("Total Stakes"),
   'Must preserve all 4 KPI telemetry cards');
-console.log('  ✔ Tab navigation & KPI cards verified.');
+console.log('  ✔ Layout & KPI cards verified.');
 
 // 2. Live Administrative History Stream
 console.log('\n▶ Requirement 2: Real-time Firestore History Stream');

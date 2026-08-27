@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type MouseEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, type MouseEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   collection, 
@@ -41,16 +41,15 @@ import {
   Lightning,
   ArrowSquareOut,
   Clock,
-  Funnel,
   Receipt,
   Code,
   Cpu,
-  ArrowsLeftRight,
   Eye,
-  Database,
   Info,
   ArrowsClockwise,
-  Cube
+  Cube,
+  ChatCircleText,
+  Broadcast
 } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -153,7 +152,7 @@ function formatFullTimestamp(timestamp: any, isoTimestamp?: string): string {
   return date.toLocaleString();
 }
 
-// Event Type Color Badges per Requirement 5
+// Event Type Color Badges
 function getEventBadgeProps(eventType: string) {
   switch (eventType) {
     case 'paid_out':
@@ -272,7 +271,7 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-// Solscan Devnet Transaction Pill (Requirement 4)
+// Solscan Transaction Pill
 function SolscanTxPill({
   txSignature,
   solscanUrl,
@@ -285,7 +284,7 @@ function SolscanTxPill({
   copied?: boolean;
 }) {
   if (!txSignature) {
-    return <span className="text-text-muted text-[11px] font-mono italic">No Tx (Free)</span>;
+    return <span className="text-text-muted text-[11px] font-mono italic">No Tx</span>;
   }
 
   const url = solscanUrl || `https://solscan.io/tx/${txSignature}?cluster=devnet`;
@@ -297,11 +296,11 @@ function SolscanTxPill({
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        title={`Inspect Transaction on Solana Devnet Solscan: ${txSignature}`}
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 hover:border-primary text-[11px] font-mono transition-all hover:scale-105"
+        title={`Inspect Transaction on Solscan: ${txSignature}`}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 hover:border-primary text-[10px] font-mono transition-all hover:scale-105"
       >
         <span>{truncated}</span>
-        <ArrowSquareOut size={11} className="shrink-0" />
+        <ArrowSquareOut size={10} className="shrink-0" />
       </a>
       {onCopy && (
         <button
@@ -309,14 +308,14 @@ function SolscanTxPill({
           className="p-1 text-text-muted hover:text-white transition-colors cursor-pointer"
           title="Copy full transaction signature"
         >
-          {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+          {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
         </button>
       )}
     </div>
   );
 }
 
-// Solscan Devnet Account Link (Requirement 4)
+// Solscan Account Link
 function SolscanAccountLink({
   walletAddress,
   onCopy,
@@ -339,7 +338,7 @@ function SolscanAccountLink({
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        title={`Inspect Account on Solscan Devnet: ${walletAddress}`}
+        title={`Inspect Account on Solscan: ${walletAddress}`}
         className="inline-flex items-center gap-1 text-text-secondary hover:text-primary transition-colors font-mono"
       >
         <span>{label}</span>
@@ -410,9 +409,6 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const { user: currentUser } = useGameStore();
 
-  // Navigation Tabs: 'history' (Default / Primary) | 'users'
-  const [activeTab, setActiveTab] = useState<'history' | 'users'>('history');
-
   // Firestore Collections State
   const [users, setUsers] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
@@ -423,11 +419,11 @@ export default function AdminPanel() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  // Users Tab Filters & Search
+  // Users Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'active'>('all');
 
-  // Live History Tab Filters & Search
+  // Live Activity Stream Filters & Search
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<
     'all' | 'deposits' | 'payouts' | 'refunds' | 'resignations' | 'rooms' | 'cron'
@@ -439,11 +435,11 @@ export default function AdminPanel() {
   const [copiedTxSig, setCopiedTxSig] = useState<string | null>(null);
   const [copiedJson, setCopiedJson] = useState(false);
 
-  // Purge Games Modal State
+  // Purge Games Modal State (Caution-styled)
   const [isPurging, setIsPurging] = useState(false);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
 
-  // Floating Inspect Profile Modal (Users Tab)
+  // Floating Inspect Profile Modal (Users & Activity History)
   const [inspectUser, setInspectUser] = useState<any | null>(null);
   const [inspectHistory, setInspectHistory] = useState<any[]>([]);
   const [inspectSolBalance, setInspectSolBalance] = useState<number | null>(null);
@@ -451,7 +447,7 @@ export default function AdminPanel() {
   const [isLoadingInspectBalance, setIsLoadingInspectBalance] = useState(false);
   const [testUserToast, setTestUserToast] = useState<{ matchId: string; message: string } | null>(null);
 
-  // Floating Event Inspector Modal (History Tab)
+  // Floating Event Inspector Modal
   const [selectedEvent, setSelectedEvent] = useState<AdminHistoryRecord | null>(null);
 
   // In-App Custom Delete Modal State
@@ -461,6 +457,9 @@ export default function AdminPanel() {
 
   // Admin Role Toggle State
   const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
+
+  // Activity Feed scroll container ref
+  const activityFeedEndRef = useRef<HTMLDivElement>(null);
 
   const isOwner = currentUser?.role === 'owner' || (!!OWNER_WALLET && currentUser?.walletAddress === OWNER_WALLET);
   const isAdmin = isOwner || currentUser?.isAdmin || currentUser?.role === 'admin';
@@ -496,7 +495,7 @@ export default function AdminPanel() {
     };
   }, [isAdmin, currentUser, navigate]);
 
-  // Live Admin History Stream Listener (Requirement 2)
+  // Live Admin History Stream Listener
   useEffect(() => {
     if (!isAdmin) return;
     setIsLoadingHistory(true);
@@ -592,6 +591,31 @@ export default function AdminPanel() {
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
     setCopiedJson(true);
     setTimeout(() => setCopiedJson(false), 2000);
+  };
+
+  // Click handler to inspect a user from anywhere (User List or Activity History)
+  const handleUserClick = (userId: string, username?: string, wallet?: string | null) => {
+    if (!userId) return;
+    if (userId.startsWith('test_')) {
+      setInspectUser({
+        id: userId,
+        username: username || 'Guest User',
+        walletAddress: null,
+        isTestUser: true,
+      });
+      return;
+    }
+    const foundUser = users.find((u) => u.id === userId);
+    if (foundUser) {
+      setInspectUser(foundUser);
+    } else {
+      setInspectUser({
+        id: userId,
+        username: username || 'User',
+        walletAddress: wallet || null,
+        isTestUser: false,
+      });
+    }
   };
 
   const handleOpponentClick = (e: MouseEvent, oppId: string | null, matchId: string) => {
@@ -743,30 +767,7 @@ export default function AdminPanel() {
     return true;
   });
 
-  // Category counts for history tab
-  const categoryCounts = useMemo(() => {
-    const counts = {
-      all: historyEvents.length,
-      deposits: 0,
-      payouts: 0,
-      refunds: 0,
-      resignations: 0,
-      rooms: 0,
-      cron: 0,
-    };
-    for (const ev of historyEvents) {
-      const type = ev.eventType;
-      if (type === 'deposit_p1' || type === 'deposit_p2') counts.deposits++;
-      else if (type === 'paid_out') counts.payouts++;
-      else if (type === 'refunded' || type === 'draw_refunded') counts.refunds++;
-      else if (type === 'resigned' || type === 'timeout_win') counts.resignations++;
-      else if (type === 'created' || type === 'match_started' || type === 'cancelled' || type === 'game_finished') counts.rooms++;
-      else if (type === 'cron_recovery') counts.cron++;
-    }
-    return counts;
-  }, [historyEvents]);
-
-  // Filtered History Events (Requirement 3)
+  // Filtered History Events
   const filteredHistoryEvents = useMemo(() => {
     return historyEvents.filter((ev) => {
       // 1. Category Filter
@@ -815,7 +816,7 @@ export default function AdminPanel() {
 
   return (
     <div className="min-h-screen flex flex-col bg-black text-text-primary antialiased w-full overflow-y-auto">
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-16 space-y-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 pt-24 sm:pt-28 md:pt-32 pb-16 space-y-6">
         
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
@@ -828,30 +829,29 @@ export default function AdminPanel() {
               >
                 <ArrowLeft size={15} />
               </button>
-              <h1 className="font-headline-lg text-2xl sm:text-3xl text-white font-bold tracking-tight flex items-center gap-2.5">
-                <span>Admin Terminal</span>
-                <span className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-mono font-bold uppercase tracking-wider">
-                  Devnet
-                </span>
+              <h1 className="font-headline-lg text-2xl sm:text-3xl text-white font-bold tracking-tight">
+                Admin Terminal
               </h1>
             </div>
             <p className="text-xs text-text-muted font-mono">
-              Live administrative history stream, Solscan transaction verification, and user management.
+              User database, permissions, live activity stream, and on-chain Solscan transaction verification.
             </p>
           </div>
 
+          {/* Caution-styled Purge Finished Games Button */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowPurgeModal(true)}
-              className="px-4 py-2 bg-background hover:bg-red-950/40 border border-white/10 hover:border-red-900/60 text-text-secondary hover:text-red-400 text-xs font-semibold rounded-full transition-all flex items-center gap-2 font-mono cursor-pointer"
+              className="px-4 py-2 bg-red-950/30 hover:bg-red-900/50 border border-red-500/40 hover:border-red-500/70 text-red-400 hover:text-red-300 text-xs font-semibold rounded-full transition-all flex items-center gap-2 font-mono cursor-pointer shadow-[0_0_12px_rgba(239,68,68,0.15)] hover:shadow-[0_0_16px_rgba(239,68,68,0.35)]"
+              title="Caution: Permanently deletes all completed games from the database"
             >
-              <Trash2 size={13} />
+              <Warning size={14} className="text-amber-400 animate-pulse shrink-0" />
               <span>Purge Finished Games</span>
             </button>
           </div>
         </div>
 
-        {/* Telemetry KPI Cards (Requirement 1) */}
+        {/* Telemetry KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           {/* Card 1: Total Users */}
@@ -864,7 +864,7 @@ export default function AdminPanel() {
               {totalUsers}
             </div>
             <div className="text-xs text-text-muted flex items-center gap-1.5 font-mono">
-              <Activity size={12} className="text-emerald-400" /> On-chain database
+              <Activity size={12} className="text-emerald-400" /> Platform accounts
             </div>
           </div>
 
@@ -911,544 +911,519 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        {/* Tab Navigation System (Requirement 1) */}
-        <div className="flex items-center gap-2 border-b border-white/10 pb-1">
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-2.5 px-5 py-3 rounded-t-2xl font-mono text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'history'
-                ? 'bg-neutral-900 text-white border-primary shadow-lg'
-                : 'text-text-muted hover:text-white border-transparent hover:bg-neutral-900/50'
-            }`}
-          >
-            <Lightning size={16} className={activeTab === 'history' ? 'text-primary' : 'text-text-muted'} weight="bold" />
-            <span>(⚡) Live Activity History</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-              activeTab === 'history' ? 'bg-primary/20 text-primary' : 'bg-neutral-800 text-text-muted'
-            }`}>
-              {historyEvents.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2.5 px-5 py-3 rounded-t-2xl font-mono text-xs font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === 'users'
-                ? 'bg-neutral-900 text-white border-primary shadow-lg'
-                : 'text-text-muted hover:text-white border-transparent hover:bg-neutral-900/50'
-            }`}
-          >
-            <Users size={16} className={activeTab === 'users' ? 'text-primary' : 'text-text-muted'} weight="bold" />
-            <span>(👥) User Database & Permissions</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-              activeTab === 'users' ? 'bg-primary/20 text-primary' : 'bg-neutral-800 text-text-muted'
-            }`}>
-              {users.length}
-            </span>
-          </button>
-        </div>
-
-        {/* TAB 1: LIVE ACTIVITY HISTORY (Default View) */}
-        {activeTab === 'history' && (
-          <section className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-2xl space-y-0">
-            
-            {/* History Toolbar & Filtering (Requirement 3) */}
-            <div className="p-5 border-b border-white/10 space-y-4 bg-[#181818]">
+        {/* 2-Column Responsive Layout: Default User Database (Left) + Live Activity Chat Box (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* LEFT / MAIN COLUMN: User Database & Permissions (Default View) */}
+          <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+            <section className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
               
-              {/* Search & Top Actions */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              {/* Table Toolbar */}
+              <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#181818]">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <h2 className="font-headline-lg text-lg text-white font-bold tracking-tight">
-                      Live Audit Stream
-                    </h2>
+                  <div className="p-2 rounded-xl bg-primary/10 border border-primary/30 text-primary">
+                    <Users size={18} weight="bold" />
                   </div>
-                  <span className="text-xs text-text-muted font-mono">
-                    Showing {filteredHistoryEvents.length} of {historyEvents.length} events
+                  <div>
+                    <h2 className="font-headline-lg text-lg text-white font-bold tracking-tight">
+                      User Database
+                    </h2>
+                    <p className="text-[11px] text-text-muted font-mono">
+                      Showing {filteredUsers.length} of {users.length} accounts
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                  {/* Sort / Filter Pills */}
+                  <div className="flex bg-black p-1 rounded-full border border-white/10 text-xs font-mono">
+                    <button
+                      onClick={() => setFilterMode('all')}
+                      className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                        filterMode === 'all'
+                          ? 'bg-white/15 text-white font-bold'
+                          : 'text-text-muted hover:text-white'
+                      }`}
+                    >
+                      All ({users.length})
+                    </button>
+                    <button
+                      onClick={() => setFilterMode('active')}
+                      className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                        filterMode === 'active'
+                          ? 'bg-primary/20 text-primary font-bold'
+                          : 'text-text-muted hover:text-white'
+                      }`}
+                    >
+                      Active ({activeUserIds.size})
+                    </button>
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative flex-1 sm:w-60">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                    <input
+                      id="adminSearchInput"
+                      name="adminSearchQuery"
+                      autoComplete="off"
+                      type="text"
+                      placeholder="Search username or wallet..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-black border border-white/10 focus:border-primary text-xs text-white pl-8 pr-3 py-1.5 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Users Table */}
+              {isLoadingUsers ? (
+                <div className="p-16 flex flex-col items-center justify-center gap-3">
+                  <CircleNotch className="animate-spin text-primary" size={32} />
+                  <p className="text-xs text-text-muted font-mono">Loading user database...</p>
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="p-16 text-center text-text-muted text-sm font-mono space-y-1">
+                  <p className="text-white font-semibold">No users matching search</p>
+                  <p className="text-xs">Try clearing the search query or changing filters.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#111111] border-b border-white/10 text-text-muted text-[11px] uppercase tracking-wider font-mono">
+                        <th className="py-3.5 px-4 font-semibold">User</th>
+                        <th className="py-3.5 px-4 font-semibold">Role</th>
+                        <th className="py-3.5 px-4 font-semibold">Wallet Address</th>
+                        <th className="py-3.5 px-4 font-semibold">Registered</th>
+                        <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-xs divide-y divide-white/5 font-body-md">
+                      {filteredUsers.map((u) => {
+                        const regDate = u.createdAt?.toDate
+                          ? u.createdAt.toDate().toLocaleDateString()
+                          : 'Earlier';
+                        const isTargetOwner = u.role === 'owner' || (!!OWNER_WALLET && u.walletAddress === OWNER_WALLET);
+                        const isTargetAdmin = isTargetOwner || u.isAdmin || u.role === 'admin';
+                        const isTest = u.isTestUser || !u.walletAddress;
+                        const displayLabel = isTest ? (u.username || 'Guest') : `@${u.username}`;
+
+                        return (
+                          <tr
+                            key={u.id}
+                            onClick={() => setInspectUser(u)}
+                            className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
+                            title="Click to view full user profile & match history"
+                          >
+                            {/* User Identity */}
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-full border border-white/10 bg-surface-container overflow-hidden flex items-center justify-center font-bold text-[11px] text-primary shrink-0">
+                                  {u.avatarUrl ? (
+                                    <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    u.username ? u.username.substring(0, 2).toUpperCase() : 'U'
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-semibold text-white group-hover:text-primary transition-colors truncate">
+                                    {displayLabel}
+                                  </span>
+                                  {isTest && (
+                                    <span className="text-[9px] font-mono text-primary px-1.5 py-0.2 rounded-full bg-primary/10 border border-primary/30 shrink-0">
+                                      Guest
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Role Badge */}
+                            <td className="py-3.5 px-4 font-mono whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              {isTargetOwner ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] uppercase">
+                                  <Crown size={10} /> Owner
+                                </span>
+                              ) : isTargetAdmin ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 border border-primary/40 text-primary font-bold text-[10px] uppercase">
+                                  <ShieldCheck size={10} /> Admin
+                                </span>
+                              ) : (
+                                <span className="text-text-muted text-[11px]">Player</span>
+                              )}
+                            </td>
+
+                            {/* Wallet Address with Solscan Link */}
+                            <td className="py-3.5 px-4 font-mono text-text-secondary whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              {u.walletAddress ? (
+                                <SolscanAccountLink
+                                  walletAddress={u.walletAddress}
+                                  onCopy={(addr) => handleCopyWallet(addr, `user_wallet_${u.id}`)}
+                                  copied={copiedId === `user_wallet_${u.id}`}
+                                />
+                              ) : (
+                                <span className="text-text-muted italic text-[11px]">No wallet</span>
+                              )}
+                            </td>
+
+                            {/* Registered Date */}
+                            <td className="py-3.5 px-4 font-mono text-text-muted whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              {regDate}
+                            </td>
+
+                            {/* Actions: Make Admin (Owner Only) & Delete */}
+                            <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {isOwner && !isTargetOwner && (
+                                  <button
+                                    onClick={() => handleToggleAdminRole(u)}
+                                    disabled={roleUpdatingId === u.id}
+                                    className={`px-2 py-1 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1 border transition-all cursor-pointer shrink-0 ${
+                                      isTargetAdmin
+                                        ? 'bg-neutral-800 hover:bg-neutral-700 text-text-secondary border-white/10'
+                                        : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30'
+                                    }`}
+                                    title={isTargetAdmin ? 'Revoke Admin Permissions' : 'Grant Admin Permissions'}
+                                  >
+                                    {roleUpdatingId === u.id ? (
+                                      <CircleNotch size={10} className="animate-spin" />
+                                    ) : isTargetAdmin ? (
+                                      <>
+                                        <ShieldMinus size={10} /> Revoke
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ShieldCheck size={10} /> Make Admin
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+
+                                {!isTargetOwner && (
+                                  <button
+                                    onClick={() => {
+                                      setUserToDelete(u);
+                                      setDeleteConfirmInput('');
+                                    }}
+                                    className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors cursor-pointer"
+                                    title="Delete Account"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* RIGHT COLUMN: Live Activity History (Chat-like Box constantly streaming events) */}
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col space-y-4">
+            <section className="bg-background border border-white/10 rounded-2xl flex flex-col h-[750px] shadow-2xl overflow-hidden">
+              
+              {/* Chat-like Header */}
+              <div className="p-4 border-b border-white/10 bg-[#181818] flex flex-col gap-3 shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+                    <h3 className="font-headline-lg text-sm text-white font-bold tracking-tight flex items-center gap-1.5">
+                      <Broadcast size={15} className="text-primary" />
+                      <span>Live Activity Stream</span>
+                    </h3>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-black/60 border border-white/10 text-[10px] font-mono text-text-muted">
+                    {filteredHistoryEvents.length} events
                   </span>
                 </div>
 
-                {/* Real-time Text Search Bar */}
-                <div className="relative w-full sm:w-80">
-                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
-                  <input
-                    id="historySearchInput"
-                    name="historySearchQuery"
-                    autoComplete="off"
-                    type="text"
-                    placeholder="Search Game ID, User, Wallet, Tx..."
-                    value={historySearchTerm}
-                    onChange={(e) => setHistorySearchTerm(e.target.value)}
-                    className="w-full bg-black border border-white/10 focus:border-primary text-xs text-white pl-9 pr-8 py-2 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
-                  />
-                  {historySearchTerm && (
-                    <button
-                      onClick={() => setHistorySearchTerm('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-white"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Filter Controls Row */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-white/5">
-                
-                {/* Category Pills */}
-                <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
-                  <button
-                    onClick={() => setCategoryFilter('all')}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      categoryFilter === 'all'
-                        ? 'bg-white/20 text-white font-bold'
-                        : 'bg-black text-text-muted hover:text-white border border-white/5'
-                    }`}
-                  >
-                    All Events ({categoryCounts.all})
-                  </button>
-                  <button
-                    onClick={() => setCategoryFilter('deposits')}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      categoryFilter === 'deposits'
-                        ? 'bg-sky-500/25 text-sky-300 font-bold border border-sky-500/40'
-                        : 'bg-black text-text-muted hover:text-sky-300 border border-white/5'
-                    }`}
-                  >
-                    Deposits ({categoryCounts.deposits})
-                  </button>
-                  <button
-                    onClick={() => setCategoryFilter('payouts')}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      categoryFilter === 'payouts'
-                        ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/40'
-                        : 'bg-black text-text-muted hover:text-emerald-300 border border-white/5'
-                    }`}
-                  >
-                    Payouts ({categoryCounts.payouts})
-                  </button>
-                  <button
-                    onClick={() => setCategoryFilter('refunds')}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      categoryFilter === 'refunds'
-                        ? 'bg-amber-500/25 text-amber-300 font-bold border border-amber-500/40'
-                        : 'bg-black text-text-muted hover:text-amber-300 border border-white/5'
-                    }`}
-                  >
-                    Refunds ({categoryCounts.refunds})
-                  </button>
-                  <button
-                    onClick={() => setCategoryFilter('resignations')}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      categoryFilter === 'resignations'
-                        ? 'bg-red-500/25 text-red-300 font-bold border border-red-500/40'
-                        : 'bg-black text-text-muted hover:text-red-300 border border-white/5'
-                    }`}
-                  >
-                    Resignations ({categoryCounts.resignations})
-                  </button>
-                  <button
-                    onClick={() => setCategoryFilter('rooms')}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      categoryFilter === 'rooms'
-                        ? 'bg-purple-500/25 text-purple-300 font-bold border border-purple-500/40'
-                        : 'bg-black text-text-muted hover:text-purple-300 border border-white/5'
-                    }`}
-                  >
-                    Room Events ({categoryCounts.rooms})
-                  </button>
-                  <button
-                    onClick={() => setCategoryFilter('cron')}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      categoryFilter === 'cron'
-                        ? 'bg-indigo-500/25 text-indigo-300 font-bold border border-indigo-500/40'
-                        : 'bg-black text-text-muted hover:text-indigo-300 border border-white/5'
-                    }`}
-                  >
-                    Cron Recovery ({categoryCounts.cron})
-                  </button>
-                </div>
-
-                {/* Status Filter & Reset */}
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-black px-2.5 py-1 rounded-full border border-white/10 text-xs font-mono">
-                    <Funnel size={12} className="text-text-muted" />
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value as any)}
-                      aria-label="Filter events by status"
-                      className="bg-transparent text-text-secondary hover:text-white outline-none cursor-pointer text-xs"
-                    >
-                      <option value="all" className="bg-neutral-900 text-white">All Statuses</option>
-                      <option value="confirmed" className="bg-neutral-900 text-emerald-400">Confirmed</option>
-                      <option value="processing" className="bg-neutral-900 text-amber-400">Processing</option>
-                      <option value="failed" className="bg-neutral-900 text-red-400">Failed</option>
-                    </select>
+                {/* Stream Controls: Search & Category Chips */}
+                <div className="space-y-2">
+                  <div className="relative w-full">
+                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                    <input
+                      id="activityStreamSearch"
+                      name="activityStreamSearchQuery"
+                      autoComplete="off"
+                      type="text"
+                      placeholder="Filter activity stream..."
+                      value={historySearchTerm}
+                      onChange={(e) => setHistorySearchTerm(e.target.value)}
+                      className="w-full bg-black border border-white/10 focus:border-primary text-[11px] text-white pl-8 pr-7 py-1.5 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
+                    />
+                    {historySearchTerm && (
+                      <button
+                        onClick={() => setHistorySearchTerm('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-white"
+                      >
+                        <X size={11} />
+                      </button>
+                    )}
                   </div>
 
-                  {(categoryFilter !== 'all' || statusFilter !== 'all' || historySearchTerm) && (
+                  {/* Quick Category Filter Bar */}
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px] font-mono no-scrollbar">
                     <button
-                      onClick={() => {
-                        setCategoryFilter('all');
-                        setStatusFilter('all');
-                        setHistorySearchTerm('');
-                      }}
-                      className="px-3 py-1 text-xs font-mono text-primary hover:text-white transition-colors"
+                      onClick={() => setCategoryFilter('all')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'all'
+                          ? 'bg-white/20 text-white font-bold'
+                          : 'bg-black text-text-muted hover:text-white border border-white/5'
+                      }`}
                     >
-                      Reset
+                      All
                     </button>
-                  )}
+                    <button
+                      onClick={() => setCategoryFilter('rooms')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'rooms'
+                          ? 'bg-purple-500/25 text-purple-300 font-bold border border-purple-500/40'
+                          : 'bg-black text-text-muted hover:text-purple-300 border border-white/5'
+                      }`}
+                    >
+                      Rooms
+                    </button>
+                    <button
+                      onClick={() => setCategoryFilter('deposits')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'deposits'
+                          ? 'bg-sky-500/25 text-sky-300 font-bold border border-sky-500/40'
+                          : 'bg-black text-text-muted hover:text-sky-300 border border-white/5'
+                      }`}
+                    >
+                      Deposits
+                    </button>
+                    <button
+                      onClick={() => setCategoryFilter('payouts')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'payouts'
+                          ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/40'
+                          : 'bg-black text-text-muted hover:text-emerald-300 border border-white/5'
+                      }`}
+                    >
+                      Payouts
+                    </button>
+                    <button
+                      onClick={() => setCategoryFilter('refunds')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'refunds'
+                          ? 'bg-amber-500/25 text-amber-300 font-bold border border-amber-500/40'
+                          : 'bg-black text-text-muted hover:text-amber-300 border border-white/5'
+                      }`}
+                    >
+                      Refunds
+                    </button>
+                    <button
+                      onClick={() => setCategoryFilter('resignations')}
+                      className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                        categoryFilter === 'resignations'
+                          ? 'bg-red-500/25 text-red-300 font-bold border border-red-500/40'
+                          : 'bg-black text-text-muted hover:text-red-300 border border-white/5'
+                      }`}
+                    >
+                      Resigns
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* History Table */}
-            {isLoadingHistory ? (
-              <div className="p-16 flex flex-col items-center justify-center gap-3">
-                <CircleNotch className="animate-spin text-primary" size={32} />
-                <p className="text-xs text-text-muted font-mono">Streaming on-chain activity from Firestore...</p>
-              </div>
-            ) : historyError ? (
-              <div className="p-12 text-center space-y-3">
-                <Warning size={32} className="text-red-400 mx-auto" />
-                <p className="text-sm font-bold text-white">Failed to load admin history</p>
-                <p className="text-xs text-text-muted font-mono">{historyError}</p>
-              </div>
-            ) : filteredHistoryEvents.length === 0 ? (
-              <div className="p-16 text-center space-y-2">
-                <Receipt size={32} className="text-text-muted mx-auto opacity-50" />
-                <p className="text-sm font-semibold text-white font-mono">No activity events recorded yet</p>
-                <p className="text-xs text-text-muted font-mono">
-                  {historySearchTerm || categoryFilter !== 'all' || statusFilter !== 'all'
-                    ? 'No events match your current filter criteria.'
-                    : 'Game creations, deposits, and settlement transactions will stream here in real-time.'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#111111] border-b border-white/10 text-text-muted text-[11px] uppercase tracking-wider font-mono">
-                      <th className="py-3.5 px-4 font-semibold">Time</th>
-                      <th className="py-3.5 px-4 font-semibold">Event Type</th>
-                      <th className="py-3.5 px-4 font-semibold">Game ID</th>
-                      <th className="py-3.5 px-4 font-semibold">Actor / User</th>
-                      <th className="py-3.5 px-4 font-semibold">Amount / Stake</th>
-                      <th className="py-3.5 px-4 font-semibold">Status</th>
-                      <th className="py-3.5 px-4 font-semibold">Solscan Devnet</th>
-                      <th className="py-3.5 px-4 font-semibold text-right">Inspect</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-xs divide-y divide-white/5 font-mono">
-                    {filteredHistoryEvents.map((ev) => {
-                      const badge = getEventBadgeProps(ev.eventType);
-                      const relativeTime = formatRelativeTime(ev.timestamp, ev.isoTimestamp);
-                      const fullTime = formatFullTimestamp(ev.timestamp, ev.isoTimestamp);
+              {/* Chat Message / Event Feed List */}
+              <div className="flex-1 p-3 overflow-y-auto space-y-2.5 bg-[#121212] min-h-0">
+                {isLoadingHistory ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 p-6 text-center">
+                    <CircleNotch className="animate-spin text-primary" size={24} />
+                    <p className="text-xs text-text-muted font-mono">Listening for live events...</p>
+                  </div>
+                ) : historyError ? (
+                  <div className="p-6 text-center space-y-2">
+                    <Warning size={24} className="text-red-400 mx-auto" />
+                    <p className="text-xs font-bold text-white">Stream Error</p>
+                    <p className="text-[11px] text-text-muted font-mono">{historyError}</p>
+                  </div>
+                ) : filteredHistoryEvents.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-2">
+                    <ChatCircleText size={32} className="text-text-muted opacity-40 mx-auto" />
+                    <p className="text-xs font-semibold text-white font-mono">No activity events recorded yet</p>
+                    <p className="text-[11px] text-text-muted font-mono">
+                      {historySearchTerm || categoryFilter !== 'all' || statusFilter !== 'all'
+                        ? 'No events match the current filter.'
+                        : 'Game creations, deposits, and settlement events will stream here live.'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredHistoryEvents.map((ev) => {
+                    const badge = getEventBadgeProps(ev.eventType);
+                    const relativeTime = formatRelativeTime(ev.timestamp, ev.isoTimestamp);
+                    const hasGameId = !!ev.gameId;
 
-                      return (
-                        <tr
-                          key={ev.id}
-                          onClick={() => setSelectedEvent(ev)}
-                          className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
-                          title="Click to inspect event details"
-                        >
-                          {/* Time */}
-                          <td className="py-3.5 px-4 text-text-muted whitespace-nowrap" title={fullTime}>
-                            <div className="flex items-center gap-1.5">
-                              <Clock size={12} className="text-text-muted shrink-0" />
-                              <span>{relativeTime}</span>
-                            </div>
-                          </td>
-
-                          {/* Event Type Badge */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badge.className}`}>
+                    return (
+                      <div
+                        key={ev.id}
+                        onClick={() => setSelectedEvent(ev)}
+                        className="p-3 rounded-xl bg-[#181818] hover:bg-[#202020] border border-white/5 hover:border-white/15 transition-all text-xs font-mono space-y-2 cursor-pointer group"
+                      >
+                        {/* Event Card Top Row: Badge + Timestamp + Inspect Action */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider ${badge.className}`}>
                               {badge.icon}
                               <span>{badge.label}</span>
                             </span>
-                          </td>
-
-                          {/* Game ID */}
-                          <td className="py-3.5 px-4 text-white font-semibold whitespace-nowrap">
-                            <span className="bg-black/60 px-2 py-0.5 rounded border border-white/10 text-[11px] group-hover:border-primary/50 transition-colors">
-                              #{ev.gameId ? ev.gameId.substring(0, 6).toUpperCase() : 'N/A'}
-                            </span>
-                          </td>
-
-                          {/* Actor / User & Wallet */}
-                          <td className="py-3.5 px-4 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5 font-semibold text-white truncate">
-                                <span>{ev.username ? `@${ev.username}` : (ev.userId || 'System')}</span>
-                                {ev.role && (
-                                  <span className="text-[9px] text-text-muted uppercase px-1.5 py-0.2 rounded bg-white/5 border border-white/10">
-                                    {ev.role}
-                                  </span>
-                                )}
-                              </div>
-                              {ev.walletAddress && (
-                                <div className="text-[10px]">
-                                  <SolscanAccountLink
-                                    walletAddress={ev.walletAddress}
-                                    onCopy={(addr) => handleCopyWallet(addr, `wallet_${ev.id}`)}
-                                    copied={copiedId === `wallet_${ev.id}`}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Amount / Stake */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            {ev.amountSol !== undefined && ev.amountSol !== null && ev.amountSol > 0 ? (
-                              <div className="font-bold text-primary">
-                                <SolAmount amount={ev.amountSol} suffix=" SOL" />
-                              </div>
-                            ) : ev.wager && ev.wager > 0 ? (
-                              <div className="text-text-secondary">
-                                <SolAmount amount={ev.wager} suffix=" SOL" />
-                              </div>
-                            ) : (
-                              <span className="text-text-muted text-[11px] italic">Free (0 SOL)</span>
-                            )}
-                          </td>
-
-                          {/* Status */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
                             <StatusBadge status={ev.status} />
-                          </td>
+                          </div>
 
-                          {/* Solscan Devnet Link */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            <SolscanTxPill
-                              txSignature={ev.txSignature}
-                              solscanUrl={ev.solscanUrl}
-                              onCopy={handleCopyTxSignature}
-                              copied={copiedTxSig === ev.txSignature}
-                            />
-                          </td>
+                          <div className="flex items-center gap-1.5 text-text-muted text-[10px] shrink-0">
+                            <Clock size={10} />
+                            <span>{relativeTime}</span>
+                          </div>
+                        </div>
 
-                          {/* Action: Inspect */}
-                          <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {/* Event Details: Clickable Users & Action Description */}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap text-text-secondary">
+                            {/* Clickable Actor User */}
                             <button
-                              onClick={() => setSelectedEvent(ev)}
-                              className="p-1.5 rounded-full text-text-muted hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/30 transition-all cursor-pointer"
-                              title="Inspect full event metadata"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUserClick(ev.userId, ev.username, ev.walletAddress);
+                              }}
+                              className="font-bold text-white hover:text-primary transition-colors cursor-pointer underline-offset-2 hover:underline"
+                              title={`View @${ev.username || ev.userId} profile`}
                             >
-                              <Eye size={15} />
+                              @{ev.username || ev.userId || 'System'}
                             </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
 
-        {/* TAB 2: USER DATABASE & PERMISSIONS (Preserved Existing View) */}
-        {activeTab === 'users' && (
-          <section className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-            
-            {/* Table Toolbar */}
-            <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#181818]">
-              <div className="flex items-center gap-4">
-                <h2 className="font-headline-lg text-xl text-white font-bold">
-                  User Database
-                </h2>
-                
-                {/* Sort / Filter Pills */}
-                <div className="flex bg-black p-1 rounded-full border border-white/10 text-xs font-mono">
-                  <button
-                    onClick={() => setFilterMode('all')}
-                    className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
-                      filterMode === 'all'
-                        ? 'bg-white/15 text-white font-bold'
-                        : 'text-text-muted hover:text-white'
-                    }`}
-                  >
-                    All ({users.length})
-                  </button>
-                  <button
-                    onClick={() => setFilterMode('active')}
-                    className={`px-3.5 py-1 rounded-full transition-all cursor-pointer ${
-                      filterMode === 'active'
-                        ? 'bg-primary/20 text-primary font-bold'
-                        : 'text-text-muted hover:text-white'
-                    }`}
-                  >
-                    Active ({activeUserIds.size})
-                  </button>
-                </div>
-              </div>
+                            {/* Action Context Text */}
+                            {ev.eventType === 'created' && <span className="text-text-muted">created room</span>}
+                            {ev.eventType === 'deposit_p1' && <span className="text-text-muted">deposited stake</span>}
+                            {ev.eventType === 'deposit_p2' && <span className="text-text-muted">accepted & deposited</span>}
+                            {ev.eventType === 'match_started' && <span className="text-text-muted">started match with</span>}
+                            {ev.eventType === 'paid_out' && <span className="text-emerald-400 font-semibold">won pot against</span>}
+                            {ev.eventType === 'refunded' && <span className="text-amber-400">received refund for</span>}
+                            {ev.eventType === 'draw_refunded' && <span className="text-amber-400">draw refund with</span>}
+                            {ev.eventType === 'resigned' && <span className="text-red-400">resigned from</span>}
+                            {ev.eventType === 'timeout_win' && <span className="text-red-400">won on timeout vs</span>}
+                            {ev.eventType === 'cancelled' && <span className="text-text-muted">cancelled room</span>}
 
-              {/* Search Input */}
-              <div className="relative w-full sm:w-72">
-                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
-                <input
-                  id="adminSearchInput"
-                  name="adminSearchQuery"
-                  autoComplete="off"
-                  type="text"
-                  placeholder="Search username or wallet..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-black border border-white/10 focus:border-primary text-xs text-white pl-9 pr-4 py-2 rounded-full outline-none transition-all placeholder:text-text-muted font-mono"
-                />
-              </div>
-            </div>
+                            {/* Clickable Target User (if applicable) */}
+                            {ev.targetUsername && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUserClick(ev.targetUserId || '', ev.targetUsername || '', ev.targetWallet);
+                                }}
+                                className="font-bold text-white hover:text-primary transition-colors cursor-pointer underline-offset-2 hover:underline"
+                                title={`View @${ev.targetUsername} profile`}
+                              >
+                                @{ev.targetUsername}
+                              </button>
+                            )}
 
-            {/* Users Table */}
-            {isLoadingUsers ? (
-              <div className="p-12 flex justify-center">
-                <CircleNotch className="animate-spin text-primary" size={32} />
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="p-12 text-center text-text-muted text-sm font-mono">
-                No users matching your search.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#111111] border-b border-white/10 text-text-muted text-[11px] uppercase tracking-wider font-mono">
-                      <th className="py-3.5 px-5 font-semibold">User</th>
-                      <th className="py-3.5 px-5 font-semibold">Role</th>
-                      <th className="py-3.5 px-5 font-semibold">Wallet Address</th>
-                      <th className="py-3.5 px-5 font-semibold">Registered</th>
-                      <th className="py-3.5 px-5 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-xs divide-y divide-white/5 font-body-md">
-                    {filteredUsers.map((u) => {
-                      const regDate = u.createdAt?.toDate
-                        ? u.createdAt.toDate().toLocaleDateString()
-                        : 'Earlier';
-                      const isTargetOwner = u.role === 'owner' || (!!OWNER_WALLET && u.walletAddress === OWNER_WALLET);
-                      const isTargetAdmin = isTargetOwner || u.isAdmin || u.role === 'admin';
-                      const isTest = u.isTestUser || !u.walletAddress;
-                      const displayLabel = isTest ? (u.username || 'Guest') : `@${u.username}`;
+                            {/* Game ID Badge */}
+                            {hasGameId && (
+                              <span className="text-[10px] text-text-muted bg-black/60 px-1.5 py-0.5 rounded border border-white/5">
+                                #{ev.gameId.substring(0, 6).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
 
-                      return (
-                        <tr
-                          key={u.id}
-                          onClick={() => setInspectUser(u)}
-                          className="hover:bg-[#1c1c1c] transition-colors group cursor-pointer"
-                          title="Click to view profile"
-                        >
-                          {/* User Identity */}
-                          <td className="py-3.5 px-5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full border border-white/10 bg-surface-container overflow-hidden flex items-center justify-center font-bold text-xs text-primary shrink-0">
-                                {u.avatarUrl ? (
-                                  <img src={u.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                  u.username ? u.username.substring(0, 2).toUpperCase() : 'U'
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-white group-hover:text-primary transition-colors">
-                                  {displayLabel}
+                          {/* Stake / Amount Display */}
+                          <div className="flex items-center justify-between gap-2 pt-0.5">
+                            <div>
+                              {ev.amountSol !== undefined && ev.amountSol !== null && ev.amountSol > 0 ? (
+                                <span className="text-primary font-bold text-[11px]">
+                                  <SolAmount amount={ev.amountSol} suffix=" SOL" />
                                 </span>
-                                {isTest && (
-                                  <span className="text-[10px] font-mono text-primary px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30">
-                                    Guest
-                                  </span>
-                                )}
+                              ) : ev.wager && ev.wager > 0 ? (
+                                <span className="text-text-secondary text-[11px]">
+                                  Stake: <SolAmount amount={ev.wager} suffix=" SOL" />
+                                </span>
+                              ) : (
+                                <span className="text-text-muted text-[10px] italic">Free (0 SOL)</span>
+                              )}
+                            </div>
+
+                            {/* On-Chain Solscan Pill */}
+                            {ev.txSignature && (
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <SolscanTxPill
+                                  txSignature={ev.txSignature}
+                                  solscanUrl={ev.solscanUrl}
+                                  onCopy={handleCopyTxSignature}
+                                  copied={copiedTxSig === ev.txSignature}
+                                />
                               </div>
-                            </div>
-                          </td>
-
-                          {/* Role Badge */}
-                          <td className="py-3.5 px-5 font-mono" onClick={(e) => e.stopPropagation()}>
-                            {isTargetOwner ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-[10px] uppercase">
-                                <Crown size={11} /> Owner
-                              </span>
-                            ) : isTargetAdmin ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/15 border border-primary/40 text-primary font-bold text-[10px] uppercase">
-                                <ShieldCheck size={11} /> Admin
-                              </span>
-                            ) : (
-                              <span className="text-text-muted text-[11px]">Player</span>
                             )}
-                          </td>
+                          </div>
+                        </div>
 
-                          {/* Wallet Address with Solscan Link */}
-                          <td className="py-3.5 px-5 font-mono text-text-secondary" onClick={(e) => e.stopPropagation()}>
-                            {u.walletAddress ? (
-                              <SolscanAccountLink
-                                walletAddress={u.walletAddress}
-                                onCopy={(addr) => handleCopyWallet(addr, `user_wallet_${u.id}`)}
-                                copied={copiedId === `user_wallet_${u.id}`}
-                              />
-                            ) : (
-                              <span className="text-text-muted italic">No wallet</span>
-                            )}
-                          </td>
+                        {/* Interactive Footer Row: Spectate Game Button (for Game Creation/Room events) & Inspect Button */}
+                        <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                          {/* "Game creation" Spectate Button */}
+                          {hasGameId ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/game/${ev.gameId}`);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/15 hover:bg-primary/30 text-primary border border-primary/30 hover:border-primary text-[10px] font-bold transition-all cursor-pointer shadow-[0_0_8px_rgba(255,77,77,0.2)] hover:scale-105"
+                              title={`Spectate Match #${ev.gameId.substring(0, 6).toUpperCase()}`}
+                            >
+                              <Eye size={11} className="shrink-0" />
+                              <span>Spectate Match</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-text-muted italic">System Log</span>
+                          )}
 
-                          {/* Registered Date */}
-                          <td className="py-3.5 px-5 font-mono text-text-muted" onClick={(e) => e.stopPropagation()}>
-                            {regDate}
-                          </td>
-
-                          {/* Actions: Make Admin (Owner Only) & Delete */}
-                          <td className="py-3.5 px-5 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-2">
-                              {isOwner && !isTargetOwner && (
-                                <button
-                                  onClick={() => handleToggleAdminRole(u)}
-                                  disabled={roleUpdatingId === u.id}
-                                  className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                                    isTargetAdmin
-                                      ? 'bg-neutral-800 hover:bg-neutral-700 text-text-secondary border-white/10'
-                                      : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/30'
-                                  }`}
-                                  title={isTargetAdmin ? 'Revoke Admin Permissions' : 'Grant Admin Permissions'}
-                                >
-                                  {roleUpdatingId === u.id ? (
-                                    <CircleNotch size={11} className="animate-spin" />
-                                  ) : isTargetAdmin ? (
-                                    <>
-                                      <ShieldMinus size={11} /> Revoke
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ShieldCheck size={11} /> Make Admin
-                                    </>
-                                  )}
-                                </button>
-                              )}
-
-                              {!isTargetOwner && (
-                                <button
-                                  onClick={() => {
-                                    setUserToDelete(u);
-                                    setDeleteConfirmInput('');
-                                  }}
-                                  className="p-1.5 rounded-full text-text-muted hover:text-red-400 hover:bg-red-950/40 border border-transparent hover:border-red-900/50 transition-colors cursor-pointer"
-                                  title="Delete Account"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          {/* Quick Inspect Details */}
+                          <button
+                            onClick={() => setSelectedEvent(ev)}
+                            className="text-text-muted hover:text-white text-[10px] flex items-center gap-1 transition-colors"
+                            title="Inspect full payload & board snapshot"
+                          >
+                            <span>Inspect</span>
+                            <ArrowUpRight size={10} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={activityFeedEndRef} />
               </div>
-            )}
-          </section>
-        )}
+
+              {/* Chat-like Footer Bar */}
+              <div className="p-2.5 border-t border-white/10 bg-[#161616] text-[10px] font-mono text-text-muted flex items-center justify-between shrink-0">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Streaming on-chain & room updates
+                </span>
+                {historyEvents.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setHistorySearchTerm('');
+                    }}
+                    className="text-primary hover:text-white transition-colors cursor-pointer"
+                  >
+                    Reset Filter
+                  </button>
+                )}
+              </div>
+            </section>
+          </div>
+
+        </div>
       </main>
 
-      {/* Expandable Event Inspector Modal / Drawer (Requirement 6) */}
+      {/* Expandable Event Inspector Modal */}
       <AnimatePresence>
         {selectedEvent && (
           <motion.div
@@ -1517,14 +1492,25 @@ export default function AdminPanel() {
                     </span>
                   </div>
                   <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1">
-                    <span className="text-[10px] uppercase text-text-muted block font-semibold">Network</span>
-                    <span className="text-xs font-bold text-sky-400 block uppercase">
-                      {selectedEvent.network || 'Solana Devnet'}
-                    </span>
+                    <span className="text-[10px] uppercase text-text-muted block font-semibold">Spectate</span>
+                    {selectedEvent.gameId ? (
+                      <button
+                        onClick={() => {
+                          setSelectedEvent(null);
+                          navigate(`/game/${selectedEvent.gameId}`);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline cursor-pointer"
+                      >
+                        <span>Open Game</span>
+                        <Eye size={12} />
+                      </button>
+                    ) : (
+                      <span className="text-xs text-text-muted">N/A</span>
+                    )}
                   </div>
                 </div>
 
-                {/* 2. On-Chain Solscan Devnet Verification (Requirement 4 & 6) */}
+                {/* 2. On-Chain Solscan Verification */}
                 <div className="bg-black p-4 sm:p-5 rounded-2xl border border-white/10 space-y-3 font-mono">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -1538,7 +1524,7 @@ export default function AdminPanel() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary hover:bg-primary/90 text-white text-xs font-bold transition-all shadow-[0_0_12px_rgba(255,77,77,0.4)]"
                       >
-                        <span>View on Solscan Devnet</span>
+                        <span>View on Solscan</span>
                         <ArrowSquareOut size={12} />
                       </a>
                     )}
@@ -1598,7 +1584,7 @@ export default function AdminPanel() {
                   )}
                 </div>
 
-                {/* 3. Actors & Counterparties (Requirement 6) */}
+                {/* 3. Actors & Counterparties */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono">
                   
                   {/* Primary Actor */}
@@ -1606,9 +1592,15 @@ export default function AdminPanel() {
                     <span className="text-[10px] uppercase text-text-muted font-bold block">
                       Primary Actor ({selectedEvent.role || 'Initiator'})
                     </span>
-                    <div className="text-sm font-bold text-white">
+                    <button
+                      onClick={() => {
+                        setSelectedEvent(null);
+                        handleUserClick(selectedEvent.userId, selectedEvent.username, selectedEvent.walletAddress);
+                      }}
+                      className="text-sm font-bold text-white hover:text-primary transition-colors cursor-pointer text-left block"
+                    >
                       @{selectedEvent.username || 'System'}
-                    </div>
+                    </button>
                     <div className="text-xs text-text-muted">
                       User ID: <span className="text-text-secondary select-all">{selectedEvent.userId}</span>
                     </div>
@@ -1631,9 +1623,19 @@ export default function AdminPanel() {
                     <span className="text-[10px] uppercase text-text-muted font-bold block">
                       Target / Opponent
                     </span>
-                    <div className="text-sm font-bold text-white">
-                      {selectedEvent.targetUsername ? `@${selectedEvent.targetUsername}` : 'N/A'}
-                    </div>
+                    {selectedEvent.targetUsername ? (
+                      <button
+                        onClick={() => {
+                          setSelectedEvent(null);
+                          handleUserClick(selectedEvent.targetUserId || '', selectedEvent.targetUsername || '', selectedEvent.targetWallet);
+                        }}
+                        className="text-sm font-bold text-white hover:text-primary transition-colors cursor-pointer text-left block"
+                      >
+                        @{selectedEvent.targetUsername}
+                      </button>
+                    ) : (
+                      <div className="text-sm font-bold text-white">N/A</div>
+                    )}
                     <div className="text-xs text-text-muted">
                       Target ID: <span className="text-text-secondary select-all">{selectedEvent.targetUserId || 'N/A'}</span>
                     </div>
@@ -1672,7 +1674,7 @@ export default function AdminPanel() {
                   </div>
                 )}
 
-                {/* 5. Raw Event JSON Inspector (Requirement 6) */}
+                {/* 5. Raw Event JSON Inspector */}
                 <div className="space-y-2 font-mono">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -1703,7 +1705,20 @@ export default function AdminPanel() {
               </div>
 
               {/* Footer Actions */}
-              <div className="p-4 border-t border-white/10 bg-neutral-900 flex justify-end shrink-0">
+              <div className="p-4 border-t border-white/10 bg-neutral-900 flex justify-between items-center shrink-0">
+                {selectedEvent.gameId ? (
+                  <button
+                    onClick={() => {
+                      setSelectedEvent(null);
+                      navigate(`/game/${selectedEvent.gameId}`);
+                    }}
+                    className="px-4 py-2 rounded-full bg-primary hover:bg-primary/90 text-white text-xs font-mono font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-[0_0_12px_rgba(255,77,77,0.3)]"
+                  >
+                    <Eye size={13} />
+                    <span>Spectate Match</span>
+                  </button>
+                ) : <div />}
+
                 <button
                   onClick={() => setSelectedEvent(null)}
                   className="px-6 py-2 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-mono font-semibold transition-colors cursor-pointer"
@@ -1744,7 +1759,7 @@ export default function AdminPanel() {
               </div>
 
               <div className="bg-black p-3.5 rounded-xl border border-white/5 text-xs text-text-secondary space-y-2">
-                <p>Deleting <strong className="text-white">@{userToDelete.username}</strong> will erase their account data, username reservation, and active matches.</p>
+                <p>Deleting <strong className="text-white">@${userToDelete.username}</strong> will erase their account data, username reservation, and active matches.</p>
                 <p className="text-text-muted">Type <span className="font-mono text-primary font-bold">{userToDelete.username}</span> below to confirm:</p>
               </div>
 
@@ -1780,7 +1795,7 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* In-App Custom Purge Modal */}
+      {/* Caution-styled In-App Custom Purge Modal */}
       <AnimatePresence>
         {showPurgeModal && (
           <motion.div
@@ -1788,33 +1803,63 @@ export default function AdminPanel() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowPurgeModal(false)}
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
           >
             <motion.div
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-background border border-white/10 shadow-2xl rounded-3xl p-6 sm:p-8 space-y-5"
+              className="w-full max-w-lg bg-[#141414] border-2 border-red-500/60 shadow-[0_20px_70px_rgba(239,68,68,0.25)] rounded-3xl p-6 sm:p-8 space-y-6 relative overflow-hidden"
             >
-              <h3 className="text-lg font-bold text-white">Purge Finished Games</h3>
-              <p className="text-xs text-text-secondary">
-                Are you sure you want to delete all <strong className="text-white font-mono">{finishedGames.length}</strong> completed games from the database? This will clear historical match records.
-              </p>
-              <div className="flex gap-3 justify-end pt-2">
+              {/* Caution Emblem & Header */}
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/20 border-2 border-red-500/50 flex items-center justify-center text-red-400 shrink-0 shadow-[0_0_20px_rgba(239,68,68,0.4)]">
+                  <Warning size={26} weight="fill" className="text-amber-400 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-mono font-bold uppercase tracking-wider">
+                      Hazardous Action
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white font-headline-lg tracking-tight">
+                    Purge Finished Games
+                  </h3>
+                  <p className="text-xs text-text-muted font-mono">
+                    Permanently clears all completed match records from Firestore.
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning Content Card */}
+              <div className="bg-black/80 p-4 rounded-2xl border border-red-900/40 space-y-3 text-xs font-mono">
+                <div className="flex items-center justify-between text-text-secondary">
+                  <span>Completed Matches to Purge:</span>
+                  <span className="text-sm font-bold text-white bg-red-950/60 px-2.5 py-0.5 rounded border border-red-900/60 text-red-300">
+                    {finishedGames.length} games
+                  </span>
+                </div>
+                <div className="p-3 bg-red-950/30 rounded-xl border border-red-900/50 text-red-300 text-[11px] leading-relaxed">
+                  <strong>Warning:</strong> This operation permanently deletes game documents, board move histories, and player match states. Active games and live audit event logs will remain preserved.
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end pt-2 font-mono">
                 <button
                   onClick={() => setShowPurgeModal(false)}
-                  className="px-5 py-2 rounded-full bg-[#202020] text-white text-xs font-medium cursor-pointer"
+                  className="px-5 py-2.5 rounded-full bg-[#202020] hover:bg-[#282828] text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handlePurgeOldGames}
-                  disabled={isPurging}
-                  className="px-6 py-2 rounded-full bg-primary hover:bg-red-600 text-white text-xs font-semibold transition-all shadow-[0_0_15px_rgba(255,77,77,0.4)] flex items-center gap-2 cursor-pointer font-mono"
+                  disabled={isPurging || finishedGames.length === 0}
+                  className="px-6 py-2.5 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold transition-all shadow-[0_0_20px_rgba(239,68,68,0.5)] flex items-center gap-2 cursor-pointer"
                 >
-                  {isPurging ? <CircleNotch size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                  <span>Confirm Purge</span>
+                  {isPurging ? <CircleNotch size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  <span>Confirm Permanent Purge ({finishedGames.length})</span>
                 </button>
               </div>
             </motion.div>
@@ -1822,7 +1867,7 @@ export default function AdminPanel() {
         )}
       </AnimatePresence>
 
-      {/* Floating Inspect Profile Modal (Users Tab) */}
+      {/* Floating Inspect Profile Modal (Users Tab & Activity Stream) */}
       <AnimatePresence>
         {inspectUser && (
           <motion.div
@@ -2012,7 +2057,7 @@ export default function AdminPanel() {
                           </AnimatePresence>
 
                           <div className="flex items-center gap-2">
-                            <span className="text-text-muted">#{g.id.substring(0, 6).toUpperCase()}</span>
+                            <span className="text-text-muted">#${g.id.substring(0, 6).toUpperCase()}</span>
                             <button
                               onClick={(e) => handleOpponentClick(e, oppId, g.id)}
                               className="text-white hover:text-primary transition-colors cursor-pointer text-left font-medium"

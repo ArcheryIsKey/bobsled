@@ -33,16 +33,25 @@ interface ErrorBoundaryState {
   copied: boolean;
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+const ComponentBase = Component as any as {
+  new (props: ErrorBoundaryProps): {
+    props: ErrorBoundaryProps;
+    state: ErrorBoundaryState;
+    setState(state: Partial<ErrorBoundaryState> | ((prevState: ErrorBoundaryState) => Partial<ErrorBoundaryState>), callback?: () => void): void;
+  };
+};
+
+export class ErrorBoundary extends ComponentBase {
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+    errorInfo: null,
+    showDetailsAccordion: false,
+    copied: false,
+  };
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-      errorInfo: null,
-      showDetailsAccordion: false,
-      copied: false,
-    };
   }
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {

@@ -179,7 +179,25 @@ export default function Dashboard() {
       const player1Color = isHostRed ? 'red' : 'white';
       const player2Color = isHostRed ? 'white' : 'red';
 
-      // 1. Create the match in the database FIRST
+      // 1. If it's a SOL staked match, deposit into Escrow FIRST before creating the match
+      if (finalCurrency === 'SOL' && finalWager > 0 && publicKey) {
+        setCreationStatus(`Approve ${finalWager} SOL deposit in your wallet...`);
+        
+        const depositSig = await depositMatchStake({
+          connection,
+          signTransaction,
+          publicKey,
+          amountSol: finalWager,
+          onSigned: async (signature) => {
+            broadcastTxHash = signature;
+            setCreationStatus('Registering match on platform...');
+          }
+        });
+        broadcastTxHash = depositSig;
+      }
+
+      // 2. Create the match in the database only AFTER the transaction has been signed
+      setCreationStatus('Registering match...');
       const docRef = await addDoc(collection(db, 'games'), {
         player1: user.id,
         player1Name: user.username,
@@ -200,41 +218,16 @@ export default function Dashboard() {
         winner: null,
         gameType: 'connect4',
         inviteCode,
-        escrowStatus: finalWager > 0 ? 'pending_deposit' : 'free',
-        p1DepositTx: null,
+        escrowStatus: finalWager > 0 ? 'verifying_deposit' : 'free',
+        p1DepositTx: broadcastTxHash,
         p1Wallet: publicKey ? publicKey.toBase58() : null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
       createdDocId = docRef.id;
 
-      // 2. If it's a SOL staked match, deposit into Escrow
-      if (finalCurrency === 'SOL' && finalWager > 0 && publicKey) {
-        setCreationStatus(`Approve ${finalWager} SOL deposit in your wallet...`);
-        
-        const depositSig = await depositMatchStake({
-          connection,
-          signTransaction,
-          publicKey,
-          amountSol: finalWager,
-          onSigned: async (signature) => {
-            broadcastTxHash = signature;
-            // As soon as the transaction is broadcast, save the signature to the database.
-            try {
-              await updateDoc(docRef, {
-                p1DepositTx: signature,
-                escrowStatus: 'verifying_deposit',
-                updatedAt: serverTimestamp(),
-              });
-            } catch (err) {
-              // Non-blocking: backend verify-deposit will update the document with server authority
-            }
-            setCreationStatus('Verifying on-chain...');
-          }
-        });
-        broadcastTxHash = depositSig;
-
-        // 3. Once fully confirmed, verify on backend
+      // 3. Once created, verify on backend server to transition escrowStatus -> 'p1_funded'
+      if (finalCurrency === 'SOL' && finalWager > 0 && publicKey && broadcastTxHash) {
         setCreationStatus('Verifying deposit on backend...');
         const verifyRes = await fetch('/api/escrow/verify-deposit', {
           method: 'POST',
@@ -298,20 +291,26 @@ export default function Dashboard() {
       return;
     }
 
+    if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
+      if (game.escrowStatus !== 'p1_funded' || !game.p1DepositTx) {
+        addToast('error', 'Cannot join match: host stake deposit has not been confirmed on-chain yet.');
+        return;
+      }
+      if (!publicKey || !signTransaction) {
+        addToast('warning', 'Please connect your Solana wallet to join this staked match.');
+        return;
+      }
+    }
+
     try {
       let p2DepositTx: string | null = null;
 
-      // If it's a SOL staked game, deposit stake
+      // If it's a SOL staked game, deposit stake FIRST
       if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
-        if (!publicKey || !signTransaction) {
-          addToast('warning', 'Please connect your Solana wallet to join this staked match.');
-          return;
-        }
-
         p2DepositTx = await depositMatchStake({
           connection,
           signTransaction,
-          publicKey,
+          publicKey: publicKey!,
           amountSol: game.wager,
         });
       }
@@ -400,7 +399,12 @@ export default function Dashboard() {
   };
 
   
-  const myWaitingGame = waitingGames.find((g) => g.player1 === user?.id);
+  const availableWaitingGames = waitingGames.filter(
+    (g) => g.wagerCurrency === 'FREE' || g.wager === 0 || g.escrowStatus === 'p1_funded'
+  );
+  const myWaitingGame = waitingGames.find(
+    (g) => g.player1 === user?.id && (g.wagerCurrency === 'FREE' || g.wager === 0 || g.escrowStatus === 'p1_funded' || g.escrowStatus === 'verifying_deposit')
+  );
   const myActiveGame = activeGames.find((g) => g.player1 === user?.id || g.player2 === user?.id);
 
   return (
@@ -594,7 +598,7 @@ export default function Dashboard() {
                 </h2>
               </div>
               <span className="text-xs sm:text-sm text-text-muted font-mono">
-                {loadingGames ? 'Loading...' : `${activeGames.length + waitingGames.length} Open`}
+                {loadingGames ? 'Loading...' : `${activeGames.length + availableWaitingGames.length} Open`}
               </span>
             </div>
 
@@ -622,14 +626,14 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            ) : [...activeGames, ...waitingGames].length > 0 ? (
+            ) : [...activeGames, ...availableWaitingGames].length > 0 ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
                 className="space-y-4"
               >
-                {[...activeGames, ...waitingGames].map((game, idx) => {
+                {[...activeGames, ...availableWaitingGames].map((game, idx) => {
                 const isWaiting = game.status === 'waiting' || game.status === 'joining';
                 const isMyGame = game.player1 === user?.id;
 

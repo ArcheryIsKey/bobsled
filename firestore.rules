@@ -121,7 +121,8 @@ service cloud.firestore {
       allow create: if ownsWallet(incoming().player1)
         && isValidId(gameId)
         && isValidGame(incoming())
-        && incoming().status == 'waiting';
+        && incoming().status == 'waiting'
+        && (incoming().wager == 0 || (incoming().p1DepositTx is string && incoming().escrowStatus in ['verifying_deposit', 'p1_funded']));
 
       allow update: if isSignedIn()
         && isValidId(gameId)
@@ -133,6 +134,7 @@ service cloud.firestore {
           // Action: Join game
           (
             existing().status == 'waiting'
+            && (existing().wager == 0 || existing().escrowStatus == 'p1_funded')
             && incoming().status in ['waiting', 'active']
             && incoming().board == existing().board
             && (

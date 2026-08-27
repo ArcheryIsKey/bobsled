@@ -124,8 +124,13 @@ export default function Game() {
     setJoiningStatus('Preparing stake...');
 
     try {
-      // If it's a SOL staked match, deposit into Escrow
+      // If it's a SOL staked match, verify host deposit and then deposit into Escrow
       if (game.wager > 0 && game.wagerCurrency !== 'FREE') {
+        if (game.escrowStatus !== 'p1_funded' || !game.p1DepositTx) {
+          addToast('error', 'Cannot join match: host stake deposit has not been confirmed on-chain yet.');
+          return;
+        }
+
         if (!publicKey || !signTransaction) {
           setWalletModalVisible(true);
           return;
@@ -884,16 +889,23 @@ export default function Game() {
                     isFreeGame ? (
                       <div>Free game</div>
                     ) : (
-                      <div className="flex flex-col items-center gap-1.5">
+                      <div className="flex flex-col items-center gap-2">
                         <div className="inline-flex items-center gap-1">
                           <span>Prize:</span>
                           <SolAmount amount={game.wager * 2} className="font-bold text-primary font-mono" />
                         </div>
                         {game.payoutTx ? (
-                          <div className="flex flex-col items-center gap-1 pt-1">
-                            <span className="text-xs text-emerald-400 font-mono">
-                              ✓ Disbursed to your wallet
-                            </span>
+                          <div className="flex flex-col items-center gap-1.5 pt-1">
+                            {game.payoutStatus === 'completed' ? (
+                              <span className="text-xs text-emerald-400 font-mono font-semibold">
+                                ✓ Disbursed to your wallet
+                              </span>
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-mono">
+                                <CircleNotch size={13} className="animate-spin text-primary" />
+                                <span>Disbursing winnings to wallet...</span>
+                              </div>
+                            )}
                             <a
                               href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
                               target="_blank"
@@ -905,9 +917,22 @@ export default function Game() {
                             </a>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-mono pt-1">
-                            <CircleNotch size={13} className="animate-spin text-primary" />
-                            <span>Disbursing winnings to wallet...</span>
+                          <div className="flex flex-col items-center gap-1.5 pt-1">
+                            <div className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-mono">
+                              <CircleNotch size={13} className="animate-spin text-primary" />
+                              <span>Disbursing winnings to wallet...</span>
+                            </div>
+                            {(game.p1DepositTx || game.p2DepositTx) && (
+                              <a
+                                href={`https://solscan.io/tx/${(game.winner === game.player1 ? game.p1DepositTx : game.p2DepositTx) || game.p1DepositTx}?cluster=devnet`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                              >
+                                <span>View match stake on Solscan</span>
+                                <ArrowUpRight size={11} />
+                              </a>
+                            )}
                           </div>
                         )}
                       </div>
@@ -916,15 +941,58 @@ export default function Game() {
                     <div>
                       The match ended in a draw.
                       {!isFreeGame && (
-                        <p className="text-xs text-emerald-400 font-mono mt-1">
-                          Deposit returned to your wallet.
-                        </p>
+                        <div className="flex flex-col items-center gap-1 mt-1">
+                          <p className="text-xs text-emerald-400 font-mono">
+                            Deposit returned to your wallet.
+                          </p>
+                          {game.payoutTx && (
+                            <a
+                              href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                            >
+                              <span>View refund on Solscan</span>
+                              <ArrowUpRight size={11} />
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
                   ) : isSpectator ? (
-                    <div>Winner: {game.winner === game.player1 ? 'Player 1' : 'Player 2'}</div>
+                    <div>
+                      <div>Winner: {game.winner === game.player1 ? 'Player 1' : 'Player 2'}</div>
+                      {!isFreeGame && game.payoutTx && (
+                        <div className="pt-2">
+                          <a
+                            href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                          >
+                            <span>View payout on Solscan</span>
+                            <ArrowUpRight size={11} />
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <div>Match completed. Better luck next time!</div>
+                    <div>
+                      <div>Match completed. Better luck next time!</div>
+                      {!isFreeGame && game.payoutTx && (
+                        <div className="pt-2">
+                          <a
+                            href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                          >
+                            <span>View payout on Solscan</span>
+                            <ArrowUpRight size={11} />
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

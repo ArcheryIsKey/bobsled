@@ -193,5 +193,11 @@ service cloud.firestore {
         );
       allow update: if false;
     }
+
+    match /games/{gameId}/spectators/{spectatorId} {
+      allow read, list: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == spectatorId;
+      allow delete: if isSignedIn() && request.auth.uid == spectatorId;
+    }
   }
 }

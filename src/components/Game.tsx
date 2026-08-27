@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, deleteDoc, setDoc, collection, query } from 'firebase/firestore';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { db } from '../firebase';
@@ -11,7 +11,7 @@ import UserProfileModal from './UserProfileModal';
 import MatchInviteModal from './MatchInviteModal';
 import SolAmount from './SolAmount';
 import { depositMatchStake } from '../utils/solanaEscrow';
-import { logError } from '../utils/logger';
+import { logError, logWarn } from '../utils/logger';
 import { ArrowLeft, Copy, Check, Trophy, Flag, Warning as Warning, XCircle, ArrowRight, User, ChatSlash as ChatCircleOff, UserPlus, Eye, Sword as Swords, X, ArrowUpRight as ArrowUpRight, CircleNotch } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,6 +25,7 @@ export default function Game() {
   const { setVisible: setWalletModalVisible } = useWalletModal();
 
   const [game, setGame] = useState<any>(null);
+  const [spectators, setSpectators] = useState<any[]>([]);
   const [now, setNow] = useState(Date.now());
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [copiedSpectate, setCopiedSpectate] = useState(false);
@@ -41,6 +42,45 @@ export default function Game() {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Register spectator presence
+  useEffect(() => {
+    if (!gameId || !user?.id || !game) return;
+
+    const isP1 = user.id === game.player1;
+    const isP2 = user.id === game.player2;
+    const isSpec = (!isP1 && !isP2) || isExplicitWatchRoute;
+
+    if (isSpec) {
+      const specRef = doc(db, 'games', gameId, 'spectators', user.id);
+      setDoc(specRef, {
+        id: user.id,
+        username: user.username || 'Spectator',
+        isTestUser: !!user.isTestUser,
+        avatarUrl: user.avatarUrl || null,
+        joinedAt: serverTimestamp(),
+      }).catch((err) => logWarn('Spectator presence:', err));
+
+      return () => {
+        deleteDoc(specRef).catch(() => {});
+      };
+    }
+  }, [gameId, user?.id, game?.player1, game?.player2, isExplicitWatchRoute]);
+
+  // Listen to active spectators
+  useEffect(() => {
+    if (!gameId) return;
+    const q = query(collection(db, 'games', gameId, 'spectators'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setSpectators(list);
+      },
+      () => {}
+    );
+    return () => unsub();
+  }, [gameId]);
 
   // Listen to game document
   useEffect(() => {
@@ -406,6 +446,12 @@ export default function Game() {
   const isFinished = game.status === 'finished';
   const isFreeGame = game.wager === 0 || game.wagerCurrency === 'FREE';
 
+  const winnerDisplayName = game.winner === game.player1
+    ? (isP1Guest ? (game.player1Name || 'Player 1') : `@${game.player1Name || 'Player 1'}`)
+    : game.winner === game.player2
+    ? (isP2Guest ? (game.player2Name || 'Player 2') : `@${game.player2Name || 'Player 2'}`)
+    : null;
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-text-primary antialiased w-full overflow-y-auto">
       
@@ -471,6 +517,18 @@ export default function Game() {
             >
               {game.status === 'active' ? 'Live' : game.status === 'waiting' ? 'Waiting' : 'Finished'}
             </span>
+
+            {/* Re-open Result Modal Button when game is finished */}
+            {isFinished && (
+              <button
+                onClick={() => setShowWinModal(true)}
+                className="px-3.5 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 hover:border-primary text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                title="View Match Result Summary"
+              >
+                <Trophy size={13} />
+                <span>Result</span>
+              </button>
+            )}
 
             {/* Inactivity Timer pill */}
             {game.status === 'active' && !isMyTurn && isParticipant && (
@@ -704,6 +762,39 @@ export default function Game() {
                 </a>
               </div>
             )}
+
+            {/* Spectator Section */}
+            <div className="pt-2.5 border-t border-white/5 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[10px] text-text-muted font-bold uppercase tracking-wider font-mono">
+                  <Eye size={12} className="text-text-muted" />
+                  <span>Spectators ({spectators.length})</span>
+                </div>
+              </div>
+
+              {spectators.length === 0 ? (
+                <p className="text-text-muted text-[11px] font-mono italic">
+                  No spectators watching
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {spectators.map((spec) => {
+                    const specName = spec.isTestUser ? (spec.username || 'Guest') : `@${spec.username || 'Spectator'}`;
+                    return (
+                      <button
+                        key={spec.id}
+                        onClick={() => setSelectedProfileId(spec.id)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 hover:bg-white/5 border border-white/5 hover:border-white/20 text-text-muted hover:text-white text-[11px] font-mono transition-all cursor-pointer group"
+                        title={`View ${specName}'s profile`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/70 group-hover:bg-emerald-400 shrink-0" />
+                        <span className="truncate max-w-[120px]">{specName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </aside>
 
@@ -776,13 +867,22 @@ export default function Game() {
 
             {/* Finished Action */}
             {isFinished && (
-              <button
-                onClick={handleLeave}
-                className="w-full sm:w-auto bg-primary text-white text-xs uppercase tracking-wider px-8 py-3 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.3)] font-bold flex items-center justify-center gap-2 font-mono cursor-pointer"
-              >
-                <span>Return to Lobby</span>
-                <ArrowRight size={15} />
-              </button>
+              <div className="flex items-center justify-center gap-3 flex-wrap w-full">
+                <button
+                  onClick={() => setShowWinModal(true)}
+                  className="bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-primary text-xs uppercase tracking-wider px-6 py-3 rounded-full transition-all font-bold flex items-center justify-center gap-2 font-mono cursor-pointer shadow-sm hover-magnetic"
+                >
+                  <Trophy size={14} className="text-primary" />
+                  <span>Match Results</span>
+                </button>
+                <button
+                  onClick={handleLeave}
+                  className="bg-primary text-white text-xs uppercase tracking-wider px-8 py-3 rounded-full hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.3)] font-bold flex items-center justify-center gap-2 font-mono cursor-pointer hover-magnetic btn-flashy"
+                >
+                  <span>Return to Lobby</span>
+                  <ArrowRight size={15} />
+                </button>
+              </div>
             )}
           </div>
         </section>
@@ -865,6 +965,15 @@ export default function Game() {
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
 
+              {/* Close Button (X) */}
+              <button
+                onClick={() => setShowWinModal(false)}
+                className="absolute top-4 right-4 text-text-muted hover:text-white bg-black/40 hover:bg-white/10 p-2 rounded-full border border-white/10 transition-colors cursor-pointer"
+                title="Close modal and review board"
+              >
+                <X size={15} />
+              </button>
+
               {/* Icon */}
               <div
                 className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl ${
@@ -872,16 +981,18 @@ export default function Game() {
                     ? 'bg-primary text-white shadow-[0_0_25px_rgba(255,77,77,0.7)]'
                     : isDraw
                     ? 'bg-[#222222] text-text-muted'
+                    : isSpectator
+                    ? 'bg-primary text-white shadow-[0_0_25px_rgba(255,77,77,0.7)]'
                     : 'bg-[#1a1a1a] text-text-secondary border border-white/10'
                 }`}
               >
-                {isWinner ? <Trophy size={32} /> : isDraw ? <User size={32} /> : <XCircle size={32} />}
+                {isWinner ? <Trophy size={32} /> : isDraw ? <User size={32} /> : isSpectator ? <Trophy size={32} /> : <XCircle size={32} />}
               </div>
 
               {/* Title & Standard Subtitles */}
               <div className="space-y-2">
                 <h2 className="font-headline-lg text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                  {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? 'Match Finished' : 'You Lost'}
+                  {isWinner ? 'You Won!' : isDraw ? 'Match Draw' : isSpectator ? (isDraw ? 'Match Draw' : `${winnerDisplayName} Won!`) : 'You Lost'}
                 </h2>
                 <div className="text-sm text-text-secondary font-sans space-y-2">
                   {isWinner ? (
@@ -942,9 +1053,9 @@ export default function Game() {
                       {!isFreeGame && (
                         <div className="flex flex-col items-center gap-1 mt-1">
                           <p className="text-xs text-emerald-400 font-mono">
-                            Deposit returned to your wallet.
+                            Deposit returned to wallets.
                           </p>
-                          {game.payoutTx && (
+                          {game.payoutTx ? (
                             <a
                               href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
                               target="_blank"
@@ -954,58 +1065,124 @@ export default function Game() {
                               <span>View refund on Solscan</span>
                               <ArrowUpRight size={11} />
                             </a>
-                          )}
+                          ) : (game.p1DepositTx || game.p2DepositTx) ? (
+                            <a
+                              href={`https://solscan.io/tx/${game.p1DepositTx || game.p2DepositTx}?cluster=devnet`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                            >
+                              <span>View match stake on Solscan</span>
+                              <ArrowUpRight size={11} />
+                            </a>
+                          ) : null}
                         </div>
                       )}
                     </div>
                   ) : isSpectator ? (
-                    <div>
-                      <div>Winner: {game.winner === game.player1 ? 'Player 1' : 'Player 2'}</div>
-                      {!isFreeGame && game.payoutTx && (
-                        <div className="pt-2">
-                          <a
-                            href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
-                          >
-                            <span>View payout on Solscan</span>
-                            <ArrowUpRight size={11} />
-                          </a>
+                    <div className="space-y-2">
+                      {isFreeGame ? (
+                        <div>Free match completed</div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="inline-flex items-center gap-1">
+                            <span>Prize Won:</span>
+                            <SolAmount amount={game.wager * 2} className="font-bold text-primary font-mono" />
+                          </div>
+                          {game.payoutTx ? (
+                            <div className="flex flex-col items-center gap-1.5 pt-1">
+                              {game.payoutStatus === 'completed' ? (
+                                <span className="text-xs text-emerald-400 font-mono font-semibold">
+                                  ✓ Disbursed to winner's wallet
+                                </span>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-mono">
+                                  <CircleNotch size={13} className="animate-spin text-primary" />
+                                  <span>Disbursing winnings to wallet...</span>
+                                </div>
+                              )}
+                              <a
+                                href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                              >
+                                <span>View payout on Solscan</span>
+                                <ArrowUpRight size={11} />
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1.5 pt-1">
+                              <div className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-mono">
+                                <CircleNotch size={13} className="animate-spin text-primary" />
+                                <span>Disbursing winnings to wallet...</span>
+                              </div>
+                              {(game.p1DepositTx || game.p2DepositTx) && (
+                                <a
+                                  href={`https://solscan.io/tx/${(game.winner === game.player1 ? game.p1DepositTx : game.p2DepositTx) || game.p1DepositTx}?cluster=devnet`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                                >
+                                  <span>View match stake on Solscan</span>
+                                  <ArrowUpRight size={11} />
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   ) : (
                     <div>
                       <div>Match completed. Better luck next time!</div>
-                      {!isFreeGame && game.payoutTx && (
-                        <div className="pt-2">
-                          <a
-                            href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
-                          >
-                            <span>View payout on Solscan</span>
-                            <ArrowUpRight size={11} />
-                          </a>
-                        </div>
+                      {!isFreeGame && (
+                        game.payoutTx ? (
+                          <div className="pt-2">
+                            <a
+                              href={`https://solscan.io/tx/${game.payoutTx}?cluster=devnet`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                            >
+                              <span>View payout on Solscan</span>
+                              <ArrowUpRight size={11} />
+                            </a>
+                          </div>
+                        ) : (game.p1DepositTx || game.p2DepositTx) ? (
+                          <div className="pt-2">
+                            <a
+                              href={`https://solscan.io/tx/${(game.winner === game.player1 ? game.p1DepositTx : game.p2DepositTx) || game.p1DepositTx}?cluster=devnet`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-text-muted hover:text-white underline font-mono transition-colors"
+                            >
+                              <span>View match stake on Solscan</span>
+                              <ArrowUpRight size={11} />
+                            </a>
+                          </div>
+                        ) : null
                       )}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Action Button */}
-              <button
-                onClick={() => {
-                  setShowWinModal(false);
-                  handleLeave();
-                }}
-                className="w-full bg-primary text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono cursor-pointer"
-              >
-                Back to Lobby
-              </button>
+              {/* Action Buttons */}
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setShowWinModal(false)}
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-text-secondary hover:text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold border border-white/10 transition-all font-mono cursor-pointer hover-magnetic"
+                >
+                  Review Board
+                </button>
+                <button
+                  onClick={handleLeave}
+                  className="flex-1 bg-primary text-white py-3 rounded-full text-xs uppercase tracking-wider font-semibold hover:bg-red-600 transition-all shadow-[0_0_20px_rgba(255,77,77,0.35)] font-mono cursor-pointer hover-magnetic btn-flashy"
+                >
+                  Back to Lobby
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

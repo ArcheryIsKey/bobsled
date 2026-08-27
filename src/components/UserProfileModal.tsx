@@ -16,7 +16,7 @@ interface UserProfileModalProps {
 
 export default function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
   const navigate = useNavigate();
-  const { user: currentUser, solBalance: storeSolBalance } = useGameStore();
+  const { user: currentUser, solBalance: storeSolBalance, addToast } = useGameStore();
 
   const [profileData, setProfileData] = useState<any>(null);
   const [stats, setStats] = useState({ totalGames: 0, wins: 0, losses: 0 });
@@ -120,7 +120,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
   const handleOpenFullProfile = () => {
     if (isTestUser) {
-      alert('Guest accounts are temporary and do not have a persistent profile page.');
+      addToast('info', 'Guest accounts are temporary and do not have a persistent profile page.');
       return;
     }
     onClose();

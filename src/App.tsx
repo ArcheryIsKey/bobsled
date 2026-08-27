@@ -94,10 +94,10 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-4 pb-2 pointer-events-none transition-all">
-      <div className="max-w-6xl mx-auto pointer-events-auto bg-black/60 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4">
+      <div className="max-w-6xl mx-auto pointer-events-auto bg-black/60 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4 relative">
         
-        {/* Left: Logo & Navigation */}
-        <div className="flex items-center gap-4 sm:gap-8">
+        {/* Left: Logo */}
+        <div className="flex items-center shrink-0">
           <Link
             to="/"
             className="flex items-center gap-2.5 font-display text-xl sm:text-2xl font-bold text-white tracking-tight hover:opacity-80 transition-opacity cursor-pointer group"
@@ -109,12 +109,15 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
             />
             <span>bobsled<span className="text-primary">.gg</span></span>
           </Link>
+        </div>
 
-          {user && (
-            <nav className="hidden md:flex items-center space-x-2 bg-white/5 p-1 rounded-full border border-white/10">
+        {/* Center: Navigation (Absolute Centered) */}
+        {user && (
+          <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
+            <nav className="flex items-center space-x-2 bg-white/5 p-1 rounded-full border border-white/10 shadow-inner">
               <Link
                 to="/"
-                className={`text-xs px-4 py-1.5 rounded-full font-bold uppercase tracking-widest transition-all cursor-pointer ${
+                className={`text-sm px-6 py-2 rounded-full font-bold uppercase tracking-widest transition-all cursor-pointer ${
                   isLobby
                     ? 'text-white bg-white/10 shadow-sm'
                     : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -125,33 +128,33 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className={`text-xs px-4 py-1.5 rounded-full font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`text-sm px-6 py-2 rounded-full font-bold uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer ${
                     isAdminRoute
                       ? 'text-primary bg-primary/10 border border-primary/20'
                       : 'text-text-secondary hover:text-primary hover:bg-white/5'
                   }`}
                 >
-                  <Shield size={14} weight="fill" />
+                  <Shield size={16} weight="fill" />
                   <span>Admin</span>
                 </Link>
               )}
             </nav>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Right: Balance & User Actions */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           {isAdmin && (
             <Link
               to="/admin"
-              className="md:hidden flex items-center gap-1 text-[10px] uppercase tracking-widest px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-sans font-bold cursor-pointer"
+              className="md:hidden flex items-center gap-1 text-xs uppercase tracking-widest px-4 py-2 bg-primary/10 border border-primary/20 text-primary rounded-full font-bold cursor-pointer"
             >
               Admin
             </Link>
           )}
 
           <div className="hidden sm:flex items-center gap-2">
-            <div className="flex items-center gap-2 text-[10px] font-sans uppercase tracking-widest font-bold text-white/70 px-4 py-2 rounded-full bg-white/5 border border-white/10" title="Live SOL Price">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-white/70 px-4 py-2 rounded-full bg-white/5 border border-white/10 whitespace-nowrap shrink-0" title="Live SOL Price">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               <span>1 SOL = <span className="text-white">${currentSolPrice ? currentSolPrice.toFixed(2) : '---'}</span></span>
             </div>

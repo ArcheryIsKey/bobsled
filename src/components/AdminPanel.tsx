@@ -336,26 +336,26 @@ function SolscanAccountLink({
   truncate?: boolean;
 }) {
   const url = `https://solscan.io/account/${walletAddress}?cluster=devnet`;
-  const label = truncate
+  const label = truncate && walletAddress.length > 12
     ? `${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}`
     : walletAddress;
 
   return (
-    <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+    <div className="inline-flex items-center gap-1.5 min-w-0 max-w-full" onClick={(e) => e.stopPropagation()}>
       <a
         href={url}
         target="_blank"
         rel="noopener noreferrer"
         title={`Inspect Account on Solscan: ${walletAddress}`}
-        className="inline-flex items-center gap-1 text-text-secondary hover:text-primary transition-colors font-mono"
+        className="inline-flex items-center gap-1 text-text-secondary hover:text-primary transition-colors font-mono min-w-0 truncate"
       >
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
         <ArrowSquareOut size={11} className="shrink-0 text-text-muted hover:text-primary" />
       </a>
       {onCopy && (
         <button
           onClick={() => onCopy(walletAddress)}
-          className="text-text-muted hover:text-white transition-colors cursor-pointer"
+          className="text-text-muted hover:text-white transition-colors cursor-pointer shrink-0"
           title="Copy full wallet address"
         >
           {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
@@ -1616,11 +1616,11 @@ export default function AdminPanel() {
                             <div>
                               {ev.amountSol !== undefined && ev.amountSol !== null && ev.amountSol > 0 ? (
                                 <span className="text-primary font-bold text-[11px]">
-                                  <SolAmount amount={ev.amountSol} suffix=" SOL" />
+                                  <SolAmount amount={ev.amountSol} suffix=" SOL" tooltipPosition="bottom" tooltipAlign="left" />
                                 </span>
                               ) : ev.wager && ev.wager > 0 ? (
                                 <span className="text-text-secondary text-[11px]">
-                                  Stake: <SolAmount amount={ev.wager} suffix=" SOL" />
+                                  Stake: <SolAmount amount={ev.wager} suffix=" SOL" tooltipPosition="bottom" tooltipAlign="left" />
                                 </span>
                               ) : ev.eventType === 'user_registered' ? (
                                 <span className="text-text-muted text-[10px] font-mono">
@@ -1710,14 +1710,14 @@ export default function AdminPanel() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSelectedEvent(null)}
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-6 overflow-y-auto"
           >
             <motion.div
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl bg-[#141414] border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.9)] rounded-3xl overflow-hidden flex flex-col max-h-[88vh] relative"
+              className="w-full max-w-2xl bg-[#141414] border border-white/15 shadow-[0_20px_60px_rgba(0,0,0,0.9)] rounded-3xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[80vh] my-auto relative"
             >
               {/* Header */}
               <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between bg-neutral-900 shrink-0">
@@ -1834,7 +1834,7 @@ export default function AdminPanel() {
                           <div className="p-2.5 bg-neutral-950 rounded-xl border border-white/5">
                             <span className="text-[10px] text-text-muted block uppercase">Amount Transferred</span>
                             <span className="text-sm font-bold text-emerald-400">
-                              <SolAmount amount={selectedEvent.amountSol} suffix=" SOL" />
+                              <SolAmount amount={selectedEvent.amountSol} suffix=" SOL" tooltipPosition="bottom" tooltipAlign="left" />
                             </span>
                           </div>
                         )}
@@ -1864,11 +1864,11 @@ export default function AdminPanel() {
                 </div>
 
                 {/* 3. Actors & Counterparties */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono">
                   
                   {/* Primary Actor */}
-                  <div className="bg-black/60 p-4 rounded-2xl border border-white/5 space-y-2">
-                    <span className="text-[10px] uppercase text-text-muted font-bold block">
+                  <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1.5 min-w-0 overflow-hidden">
+                    <span className="text-[10px] uppercase text-text-muted font-bold block truncate">
                       Primary Actor ({selectedEvent.role || 'Initiator'})
                     </span>
                     <button
@@ -1876,20 +1876,21 @@ export default function AdminPanel() {
                         setSelectedEvent(null);
                         handleUserClick(selectedEvent.userId, selectedEvent.username, selectedEvent.walletAddress);
                       }}
-                      className="text-sm font-bold text-white hover:text-primary transition-colors cursor-pointer text-left block"
+                      className="text-sm font-bold text-white hover:text-primary transition-colors cursor-pointer text-left block truncate w-full"
+                      title={`Inspect @${selectedEvent.username || selectedEvent.userId} profile`}
                     >
                       @{selectedEvent.username || 'System'}
                     </button>
-                    <div className="text-xs text-text-muted">
-                      User ID: <span className="text-text-secondary select-all">{selectedEvent.userId}</span>
+                    <div className="text-xs text-text-muted min-w-0 break-all leading-snug">
+                      User ID: <span className="text-text-secondary select-all font-mono break-all">{selectedEvent.userId || 'N/A'}</span>
                     </div>
                     {selectedEvent.walletAddress ? (
-                      <div className="pt-1 text-xs">
+                      <div className="pt-0.5 text-xs min-w-0">
                         <SolscanAccountLink
                           walletAddress={selectedEvent.walletAddress}
                           onCopy={(addr) => handleCopyWallet(addr, `inspector_p1_${selectedEvent.id}`)}
                           copied={copiedId === `inspector_p1_${selectedEvent.id}`}
-                          truncate={false}
+                          truncate={true}
                         />
                       </div>
                     ) : (
@@ -1898,8 +1899,8 @@ export default function AdminPanel() {
                   </div>
 
                   {/* Counterparty / Target */}
-                  <div className="bg-black/60 p-4 rounded-2xl border border-white/5 space-y-2">
-                    <span className="text-[10px] uppercase text-text-muted font-bold block">
+                  <div className="bg-black/60 p-3.5 rounded-2xl border border-white/5 space-y-1.5 min-w-0 overflow-hidden">
+                    <span className="text-[10px] uppercase text-text-muted font-bold block truncate">
                       Target / Opponent
                     </span>
                     {selectedEvent.targetUsername ? (
@@ -1908,23 +1909,24 @@ export default function AdminPanel() {
                           setSelectedEvent(null);
                           handleUserClick(selectedEvent.targetUserId || '', selectedEvent.targetUsername || '', selectedEvent.targetWallet);
                         }}
-                        className="text-sm font-bold text-white hover:text-primary transition-colors cursor-pointer text-left block"
+                        className="text-sm font-bold text-white hover:text-primary transition-colors cursor-pointer text-left block truncate w-full"
+                        title={`Inspect @${selectedEvent.targetUsername} profile`}
                       >
                         @{selectedEvent.targetUsername}
                       </button>
                     ) : (
                       <div className="text-sm font-bold text-white">N/A</div>
                     )}
-                    <div className="text-xs text-text-muted">
-                      Target ID: <span className="text-text-secondary select-all">{selectedEvent.targetUserId || 'N/A'}</span>
+                    <div className="text-xs text-text-muted min-w-0 break-all leading-snug">
+                      Target ID: <span className="text-text-secondary select-all font-mono break-all">{selectedEvent.targetUserId || 'N/A'}</span>
                     </div>
                     {selectedEvent.targetWallet ? (
-                      <div className="pt-1 text-xs">
+                      <div className="pt-0.5 text-xs min-w-0">
                         <SolscanAccountLink
                           walletAddress={selectedEvent.targetWallet}
                           onCopy={(addr) => handleCopyWallet(addr, `inspector_p2_${selectedEvent.id}`)}
                           copied={copiedId === `inspector_p2_${selectedEvent.id}`}
-                          truncate={false}
+                          truncate={true}
                         />
                       </div>
                     ) : (

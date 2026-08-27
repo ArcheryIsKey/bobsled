@@ -42,6 +42,13 @@ export default function SolAmount({
       ? 'right-0'
       : 'left-1/2 -translate-x-1/2';
 
+  const caretAlignClasses =
+    tooltipAlign === 'left'
+      ? 'left-3'
+      : tooltipAlign === 'right'
+      ? 'right-3'
+      : 'left-1/2 -translate-x-1/2';
+
   const positionClasses =
     tooltipPosition === 'bottom'
       ? 'top-full mt-2'
@@ -66,9 +73,9 @@ export default function SolAmount({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: tooltipPosition === 'bottom' ? -4 : 4, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className={`absolute z-[200] ${positionClasses} ${alignClasses} pointer-events-none whitespace-nowrap`}
+            className={`absolute z-[300] ${positionClasses} ${alignClasses} pointer-events-none whitespace-nowrap`}
           >
-            <div className="bg-[#121212]/95 backdrop-blur-xl border border-white/20 px-3 py-1.5 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.9)] flex flex-col items-center gap-0.5 font-mono text-center">
+            <div className="bg-[#121212]/95 backdrop-blur-xl border border-white/20 px-3 py-1.5 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.9)] flex flex-col items-center gap-0.5 font-mono text-center relative">
               <div className="flex items-center gap-1 text-emerald-400 font-bold text-xs">
                 <CurrencyDollar size={11} className="-mr-0.5" />
                 <span>≈ {usdValueStr} USD</span>
@@ -80,7 +87,7 @@ export default function SolAmount({
               )}
               {/* Tooltip caret */}
               <div
-                className={`absolute left-1/2 -translate-x-1/2 w-2 h-2 bg-[#121212] border-r border-b border-white/20 rotate-45 ${
+                className={`absolute ${caretAlignClasses} w-2 h-2 bg-[#121212] border-r border-b border-white/20 rotate-45 ${
                   tooltipPosition === 'bottom' ? '-top-1 border-r-0 border-b-0 border-l border-t' : '-bottom-1'
                 }`}
               />

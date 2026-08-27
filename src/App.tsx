@@ -94,7 +94,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full px-4 sm:px-6 md:px-8 pt-4 pb-2 pointer-events-none transition-all">
-      <div className="max-w-6xl mx-auto pointer-events-auto bg-black/60 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4 relative">
+      <div className="max-w-7xl mx-auto pointer-events-auto bg-black/60 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-6 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex items-center justify-between gap-4 relative">
         
         {/* Left: Logo */}
         <div className="flex items-center shrink-0">
@@ -117,7 +117,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
             <nav className="flex items-center space-x-2 bg-white/5 p-1 rounded-full border border-white/10 shadow-inner">
               <Link
                 to="/"
-                className={`text-sm px-6 py-2 rounded-full font-bold uppercase tracking-widest transition-all cursor-pointer ${
+                className={`text-xs px-5 py-1.5 rounded-full font-bold uppercase tracking-widest transition-all cursor-pointer ${
                   isLobby
                     ? 'text-white bg-white/10 shadow-sm'
                     : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -128,13 +128,13 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className={`text-sm px-6 py-2 rounded-full font-bold uppercase tracking-widest transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`text-xs px-5 py-1.5 rounded-full font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer ${
                     isAdminRoute
                       ? 'text-primary bg-primary/10 border border-primary/20'
                       : 'text-text-secondary hover:text-primary hover:bg-white/5'
                   }`}
                 >
-                  <Shield size={16} weight="fill" />
+                  <Shield size={14} weight="fill" />
                   <span>Admin</span>
                 </Link>
               )}
@@ -153,7 +153,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
             </Link>
           )}
 
-          <div className="hidden lg:flex items-center gap-2">
+          <div className="hidden xl:flex items-center gap-2">
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-white/70 px-4 py-2 rounded-full bg-white/5 border border-white/10 whitespace-nowrap shrink-0" title="Live SOL Price">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               <span>1 SOL = <span className="text-white">${currentSolPrice ? currentSolPrice.toFixed(2) : '---'}</span></span>
@@ -231,7 +231,7 @@ function AppHeader({ onOpenProfileModal }: { onOpenProfileModal: () => void }) {
 
               <button
                 onClick={handleLogout}
-                className="text-[10px] text-text-secondary hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full transition-all font-bold uppercase tracking-widest cursor-pointer"
+                className="text-[10px] text-text-secondary hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-1.5 rounded-full transition-all font-bold uppercase tracking-widest cursor-pointer"
                 title="Disconnect Account"
               >
                 Logout

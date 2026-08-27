@@ -1128,8 +1128,10 @@ export default function AdminPanel() {
  <section className="bg-background border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
  
  {/* Table Toolbar */}
- <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#181818]">
- <div className="flex items-center gap-3">
+ <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#181818]">
+ 
+ {/* Left: Title */}
+ <div className="flex items-center gap-3 flex-1 w-full justify-start">
  <div className="p-2 rounded-xl bg-primary/10 border border-primary/30 text-primary">
  <Users size={18} weight="bold"/>
  </div>
@@ -1143,8 +1145,8 @@ export default function AdminPanel() {
  </div>
  </div>
 
- <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
- {/* Sort / Filter Pills */}
+ {/* Center: Sort / Filter Pills */}
+ <div className="flex justify-center shrink-0 w-full sm:w-auto">
  <div className="flex bg-black p-1 rounded-full border border-white/10 text-xs">
  <button
  onClick={() => setFilterMode('all')}
@@ -1167,9 +1169,11 @@ export default function AdminPanel() {
  Active ({activeUserIds.size})
  </button>
  </div>
+ </div>
 
- {/* Search Input */}
- <div className="relative flex-1 sm:w-60">
+ {/* Right: Search Input */}
+ <div className="flex-1 w-full flex sm:justify-end">
+ <div className="relative w-full sm:w-60">
  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
  <input
  id="adminSearchInput"
